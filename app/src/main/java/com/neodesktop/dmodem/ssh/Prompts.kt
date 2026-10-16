@@ -30,6 +30,13 @@ sealed class Prompt {
         val canRemember: Boolean,
     ) : Prompt()
 
+    /** yes or no (accepted): an agent's key to be used, say */
+    data class Confirm(
+        override val title: String,
+        val message: String,
+        val yes: String = "Allow",
+    ) : Prompt()
+
     /** keyboard-interactive: the server's own questions */
     data class Questions(
         override val title: String,

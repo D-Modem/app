@@ -30,10 +30,14 @@ import java.util.Base64
 import java.util.UUID
 
 /** An SSH key's type, as generated here. */
-enum class KeyKind(val label: String, val algorithm: String) {
-    ED25519("Ed25519", "Ed25519"),
-    ECDSA_P256("ECDSA P-256", "EC"),
-    RSA_3072("RSA 3072", "RSA"),
+enum class KeyKind(val label: String, val algorithm: String, val bits: Int) {
+    ED25519("Ed25519", "Ed25519", 256),
+    ECDSA_P256("ECDSA P-256", "EC", 256),
+    ECDSA_P384("ECDSA P-384", "EC", 384),
+    ECDSA_P521("ECDSA P-521", "EC", 521),
+    RSA_2048("RSA 2048", "RSA", 2048),
+    RSA_3072("RSA 3072", "RSA", 3072),
+    RSA_4096("RSA 4096", "RSA", 4096),
 }
 
 /** A key: its name and public half (the private half sealed in its own file). */
@@ -102,16 +106,15 @@ class SshKeys(private val dir: File, private val box: SecretBox) {
         _keys.value = list
     }
 
-    /** a new key of a kind, kept */
-    fun generate(kind: KeyKind, name: String): SshKey {
+    /** a new key of a kind, kept (ssh-keygen -t -b -C): [comment] for its public line, the name's by default */
+    fun generate(kind: KeyKind, name: String, comment: String? = null): SshKey {
         SshSecurity.ensure()
         val g = KeyPairGenerator.getInstance(kind.algorithm, "BC")
-        when (kind) {
-            KeyKind.RSA_3072 -> g.initialize(RSAKeyGenParameterSpec(3072, RSAKeyGenParameterSpec.F4))
-            KeyKind.ECDSA_P256 -> g.initialize(ECGenParameterSpec("secp256r1"))
-            KeyKind.ED25519 -> {}
+        when (kind.algorithm) {
+            "RSA" -> g.initialize(RSAKeyGenParameterSpec(kind.bits, RSAKeyGenParameterSpec.F4))
+            "EC" -> g.initialize(ECGenParameterSpec(if (kind.bits == 521) "secp521r1" else "secp${kind.bits}r1"))
         }
-        return keep(g.generateKeyPair(), name)
+        return keep(g.generateKeyPair(), name, comment)
     }
 
     /**
@@ -133,7 +136,7 @@ class SshKeys(private val dir: File, private val box: SecretBox) {
         return keep(KeyPair(provider.public, provider.private), name)
     }
 
-    private fun keep(pair: KeyPair, name: String): SshKey {
+    private fun keep(pair: KeyPair, name: String, comment: String? = null): SshKey {
         val id = UUID.randomUUID().toString()
         val sealed = box.seal(
             JSONObject()
@@ -145,7 +148,7 @@ class SshKeys(private val dir: File, private val box: SecretBox) {
         File(dir, "$id.key").writeBytes(sealed)
         val k = SshKey(
             id, name.ifBlank { KeyFormat.type(pair.public) }, pair.private.algorithm,
-            KeyFormat.openSsh(pair.public, name.replace(' ', '-')), KeyFormat.fingerprint(pair.public),
+            KeyFormat.openSsh(pair.public, comment ?: name.replace(' ', '-')), KeyFormat.fingerprint(pair.public),
             System.currentTimeMillis(),
         )
         saveIndex(_keys.value + k)
@@ -161,6 +164,28 @@ class SshKeys(private val dir: File, private val box: SecretBox) {
         val priv = kf.generatePrivate(PKCS8EncodedKeySpec(Base64.getDecoder().decode(o.getString("private"))))
         val pub = kf.generatePublic(X509EncodedKeySpec(Base64.getDecoder().decode(o.getString("public"))))
         return KeyPair(pub, priv)
+    }
+
+    /** the key's comment: its public line's third field */
+    fun comment(k: SshKey): String = k.publicKey.trim().split(Regex("\\s+"), limit = 3).getOrElse(2) { "" }
+
+    /** the private key in OpenSSH's form (ssh-keygen's), encrypted with [passphrase] unless it's empty */
+    fun exportPrivate(id: String, passphrase: String): String {
+        val k = byId(id) ?: throw IllegalArgumentException("no key $id")
+        return KeyGen.openSshPrivate(keyPair(id), comment(k), passphrase)
+    }
+
+    /** a new comment on the key's public line (ssh-keygen -c) */
+    fun setComment(id: String, comment: String) {
+        val clean = comment.replace(Regex("[\\r\\n]"), " ").trim()
+        saveIndex(
+            _keys.value.map {
+                if (it.id != id) it else {
+                    val f = it.publicKey.trim().split(Regex("\\s+"), limit = 3)
+                    it.copy(publicKey = f[0] + " " + f[1] + if (clean.isNotEmpty()) " $clean" else "")
+                }
+            },
+        )
     }
 
     fun provider(id: String): KeyProvider = KeyPairWrapper(keyPair(id))

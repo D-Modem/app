@@ -42,6 +42,14 @@ fun PromptHost() {
         is Prompt.HostKey -> HostKeyDialog(q)
         is Prompt.Password -> PasswordDialog(q)
         is Prompt.Questions -> QuestionsDialog(q)
+        is Prompt.Confirm -> AlertDialog(
+            properties = DialogProperties(dismissOnClickOutside = false),
+            onDismissRequest = { Terminal.prompts.answer(q, Answer()) },
+            title = { Text(q.title) },
+            text = { Text(q.message) },
+            confirmButton = { TextButton(onClick = { Terminal.prompts.answer(q, Answer(accepted = true)) }) { Text(q.yes) } },
+            dismissButton = { TextButton(onClick = { Terminal.prompts.answer(q, Answer()) }) { Text("Refuse") } },
+        )
     }
 }
 

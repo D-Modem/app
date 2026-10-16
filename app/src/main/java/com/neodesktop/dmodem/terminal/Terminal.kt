@@ -11,7 +11,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import com.neodesktop.dmodem.ssh.AgentKeys
+import com.neodesktop.dmodem.ssh.ForwardSpec
 import com.neodesktop.dmodem.ssh.KeystoreBox
+import com.neodesktop.dmodem.ssh.Prompt
 import com.neodesktop.dmodem.ssh.KnownHosts
 import com.neodesktop.dmodem.ssh.PasswordStore
 import com.neodesktop.dmodem.ssh.PromptBroker
@@ -107,6 +110,8 @@ object Terminal {
                     // (a password that can't be kept is still used for this login)
                     keepPassword = { runCatching { passwords.put(e.id, it) } },
                     cols = cols, rows = rows,
+                    forwardSpecs = e.forwards.mapNotNull { ForwardSpec.parse(it) },
+                    agent = if (e.agentForwarding) agentKeys(e) else null,
                 ).also { it.connect() }
             }
             EntryKind.TELNET -> TelnetLink(
@@ -133,6 +138,21 @@ object Terminal {
     }
 
     /** a network session closed and gone (the modem's stays) */
+    /** the app's keys as an agent for [e]'s connection: each use asked of the user unless the entry says not to */
+    private fun agentKeys(e: DialEntry) = AgentKeys(
+        list = { keys.keys.value.mapNotNull { k -> runCatching { k.name to keys.keyPair(k.id) }.getOrNull() } },
+        confirm = if (!e.agentConfirm) null else { name, owner ->
+            prompts.ask(
+                Prompt.Confirm(
+                    "Sign with \"$name\"?",
+                    "${e.address} asks to use the key \"$name\" through the forwarded agent: " +
+                        "to log in from there to another host, or for git. Allow it only if you started that.",
+                ),
+                owner,
+            ).accepted
+        },
+    )
+
     fun close(s: TerminalSession) {
         if (s === session) return
         s.close()

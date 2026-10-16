@@ -39,6 +39,8 @@ jobs:
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
             "ndk;$NDK_VERSION" "cmake;$CMAKE_VERSION" "platforms;android-37.0"
 
+      - name: OpenSSH (for the SSH interop tests)
+        run: sudo apt-get install -y -q openssh-client openssh-server && sudo mkdir -p /run/sshd
       - name: Build, unit tests, lint
         run: ./gradlew assembleDebug assembleDebugAndroidTest testDebugUnitTest lintDebug
 

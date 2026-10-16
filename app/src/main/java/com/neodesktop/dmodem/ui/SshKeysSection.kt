@@ -36,6 +36,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.neodesktop.dmodem.ssh.KeyGen
 import com.neodesktop.dmodem.ssh.KeyKind
 import com.neodesktop.dmodem.ssh.SshKey
 import com.neodesktop.dmodem.terminal.Terminal
@@ -51,6 +52,7 @@ fun SshKeysSection() {
     var generating by remember { mutableStateOf(false) }
     var importing by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<SshKey?>(null) }
+    var details by remember { mutableStateOf<SshKey?>(null) }
     var hosts by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -61,7 +63,8 @@ fun SshKeysSection() {
         for (k in keys) {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp)) {
-                    Text("${k.name} · ${k.algorithm}", style = MaterialTheme.typography.titleSmall)
+                    Text("${k.name} · ${keyTypeLabel(k)}", style = MaterialTheme.typography.titleSmall)
+                    Terminal.keys.comment(k).takeIf { it.isNotEmpty() }?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                     Text(k.fingerprint, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Row {
                         TextButton(onClick = {
@@ -73,7 +76,7 @@ fun SshKeysSection() {
                             val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, k.publicKey)
                             context.startActivity(Intent.createChooser(send, "Public key"))
                         }) { Text("Share") }
-                        TextButton(onClick = { deleting = k }) { Text("Delete") }
+                        TextButton(onClick = { details = k }) { Text("Details") }
                     }
                 }
             }
@@ -88,6 +91,11 @@ fun SshKeysSection() {
     if (generating) GenerateDialog { generating = false }
     if (importing) ImportDialog { importing = false }
     if (hosts) KnownHostsDialog { hosts = false }
+    details?.let { k ->
+        // (the key as it is now: renamed, its comment changed)
+        val now = keys.firstOrNull { it.id == k.id }
+        if (now == null) details = null else KeyDetailsDialog(now, onDelete = { details = null; deleting = now }) { details = null }
+    }
     deleting?.let { k ->
         AlertDialog(
             onDismissRequest = { deleting = null },
@@ -105,6 +113,7 @@ private fun GenerateDialog(onDone: () -> Unit) {
     val context = LocalContext.current
     var name by remember { mutableStateOf("${android.os.Build.MODEL.replace(' ', '-')}-dmodem") }
     var kind by remember { mutableStateOf(KeyKind.ED25519) }
+    var comment by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = { if (!busy) onDone() },
@@ -113,14 +122,24 @@ private fun GenerateDialog(onDone: () -> Unit) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true)
                 Choice("Type", kind.label, KeyKind.entries.map { it.label to it }) { kind = it }
+                OutlinedTextField(
+                    comment, { comment = it }, label = { Text("Comment (empty: the name)") }, singleLine = true,
+                )
                 Text("Ed25519 is the one to use unless the server is old (RSA).", style = MaterialTheme.typography.bodySmall)
+                // what ssh-keygen would be told for the same key
+                val t = when (kind.algorithm) { "Ed25519" -> "ed25519"; "EC" -> "ecdsa"; else -> "rsa" }
+                val b = if (kind.algorithm == "Ed25519") "" else " -b ${kind.bits}"
+                Text(
+                    "ssh-keygen -t $t$b -C \"${comment.ifEmpty { name.replace(' ', '-') }}\"",
+                    fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall,
+                )
             }
         },
         confirmButton = {
             TextButton(enabled = !busy, onClick = {
                 busy = true
                 scope.launch {
-                    val r = runCatching { withContext(Dispatchers.Default) { Terminal.keys.generate(kind, name) } }
+                    val r = runCatching { withContext(Dispatchers.Default) { Terminal.keys.generate(kind, name, comment.trim().ifEmpty { null }) } }
                     busy = false
                     r.exceptionOrNull()?.let { Toast.makeText(context, "Couldn't make it: ${it.message}", Toast.LENGTH_LONG).show() }
                     onDone()
@@ -206,5 +225,117 @@ private fun KnownHostsDialog(onDone: () -> Unit) {
             }
         },
         confirmButton = { TextButton(onClick = onDone) { Text("Close") } },
+    )
+}
+
+/** "Ed25519", "ECDSA 384", "RSA 3072": the key's type and size */
+private fun keyTypeLabel(k: SshKey): String {
+    val f = k.publicKey.split(" ")
+    return when {
+        f[0] == "ssh-ed25519" -> "Ed25519"
+        f[0].startsWith("ecdsa-sha2-nistp") -> "ECDSA " + f[0].removePrefix("ecdsa-sha2-nistp")
+        f[0] == "ssh-rsa" -> runCatching { "RSA " + KeyGen.bits(Terminal.keys.keyPair(k.id).public) }.getOrDefault("RSA")
+        else -> k.algorithm
+    }
+}
+
+/** A key as ssh-keygen -lv tells it (its fingerprints, its randomart); renamed, its comment changed, exported, deleted. */
+@Composable
+internal fun KeyDetailsDialog(k: SshKey, onDelete: () -> Unit, onDone: () -> Unit) {
+    val pub = remember(k.id) { runCatching { Terminal.keys.keyPair(k.id).public }.getOrNull() }
+    var name by remember(k.id) { mutableStateOf(k.name) }
+    var comment by remember(k.id) { mutableStateOf(Terminal.keys.comment(k)) }
+    var exporting by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDone,
+        title = { Text(k.name) },
+        text = {
+            Column(Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(keyTypeLabel(k), style = MaterialTheme.typography.labelLarge)
+                Text(k.fingerprint, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+                if (pub != null) {
+                    Text(KeyGen.md5(pub), fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        KeyGen.randomart(pub), fontFamily = FontFamily.Monospace,
+                        style = MaterialTheme.typography.bodySmall.copy(lineHeight = MaterialTheme.typography.bodySmall.fontSize * 1.05f),
+                    )
+                }
+                OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true)
+                OutlinedTextField(comment, { comment = it }, label = { Text("Comment (in the public key)") }, singleLine = true)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { exporting = true }) { Text("Export private key") }
+                    TextButton(onClick = onDelete) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                if (name.isNotBlank() && name != k.name) Terminal.keys.rename(k.id, name.trim())
+                if (comment != Terminal.keys.comment(k)) Terminal.keys.setComment(k.id, comment)
+                onDone()
+            }) { Text("Done") }
+        },
+    )
+    if (exporting) ExportDialog(k) { exporting = false }
+}
+
+/**
+ * The private key out, in OpenSSH's form (for ssh on a computer), with a
+ * passphrase (as ssh-keygen would ask for): saved to a file the user picks.
+ */
+@Composable
+private fun ExportDialog(k: SshKey, onDone: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var pass by remember { mutableStateOf("") }
+    var again by remember { mutableStateOf("") }
+    val fileName = when {
+        k.publicKey.startsWith("ssh-ed25519") -> "id_ed25519"
+        k.publicKey.startsWith("ecdsa") -> "id_ecdsa"
+        else -> "id_rsa"
+    }
+    val save = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val r = runCatching {
+                    withContext(Dispatchers.Default) {
+                        val text = Terminal.keys.exportPrivate(k.id, pass)
+                        context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(text.toByteArray()) }
+                            ?: throw java.io.IOException("can't write there")
+                    }
+                }
+                Toast.makeText(
+                    context, r.exceptionOrNull()?.let { "Not saved: ${it.message}" } ?: "Saved: chmod 600 it before ssh uses it",
+                    Toast.LENGTH_LONG,
+                ).show()
+                onDone()
+            }
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDone,
+        title = { Text("Export ${k.name}") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "The private key, in OpenSSH's form: whoever has the file (and its passphrase) can log in as you.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedTextField(
+                    pass, { pass = it }, label = { Text("Passphrase") }, singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                )
+                OutlinedTextField(
+                    again, { again = it }, label = { Text("Passphrase again") }, singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    isError = again.isNotEmpty() && again != pass,
+                )
+                if (pass.isEmpty()) {
+                    Text("With no passphrase the file is the key itself, unprotected.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { save.launch(fileName) }, enabled = pass == again) { Text("Save as…") } },
+        dismissButton = { TextButton(onClick = onDone) { Text("Cancel") } },
     )
 }

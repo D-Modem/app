@@ -39,6 +39,12 @@ data class DialEntry(
     val notes: String = "",
     val lastDialed: Long = 0,
     val dialCount: Int = 0,
+    /** port forwards started with the connection (SSH): ForwardSpec's lines, "L 8080:localhost:80" */
+    val forwards: List<String> = emptyList(),
+    /** the app's keys offered to the server as an agent (ssh -A) */
+    val agentForwarding: Boolean = false,
+    /** each use of the agent asked of the user first */
+    val agentConfirm: Boolean = true,
 ) {
     /** the port to connect to: the entry's, or its kind's */
     val portOrDefault: Int get() = if (port > 0) port else if (kind == EntryKind.TELNET) 23 else 22
@@ -63,6 +69,7 @@ data class DialEntry(
         .put("init", initCommands).put("charset", charset?.name ?: "")
         .put("backspace", backspace?.name ?: "").put("notes", notes)
         .put("lastDialed", lastDialed).put("dialCount", dialCount)
+        .put("forwards", org.json.JSONArray(forwards)).put("agent", agentForwarding).put("agentConfirm", agentConfirm)
 
     companion object {
         fun fromJson(o: JSONObject) = DialEntry(
@@ -83,6 +90,9 @@ data class DialEntry(
             notes = o.optString("notes"),
             lastDialed = o.optLong("lastDialed"),
             dialCount = o.optInt("dialCount"),
+            forwards = o.optJSONArray("forwards")?.let { a -> (0 until a.length()).map { a.getString(it) } } ?: emptyList(),
+            agentForwarding = o.optBoolean("agent"),
+            agentConfirm = o.optBoolean("agentConfirm", true),
         )
     }
 }

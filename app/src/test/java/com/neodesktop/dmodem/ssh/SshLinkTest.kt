@@ -117,6 +117,7 @@ class SshLinkTest {
             is Prompt.HostKey -> Answer(accepted = acceptHost, remember = true)
             is Prompt.Password -> Answer(accepted = password != null, text = password, remember = true)
             is Prompt.Questions -> Answer(accepted = password != null, texts = listOf(password ?: ""))
+            is Prompt.Confirm -> Answer(accepted = true)
         }
     }
 
@@ -236,7 +237,12 @@ class SshLinkTest {
         val keys = SshKeys(tmp.newFolder("keys"), PlainBox())
         for (kind in KeyKind.entries) {
             val k = keys.generate(kind, "phone ${kind.name}")
-            assertTrue(k.publicKey, k.publicKey.startsWith(if (kind == KeyKind.ED25519) "ssh-ed25519 " else if (kind == KeyKind.RSA_3072) "ssh-rsa " else "ecdsa-sha2-nistp256 "))
+            val prefix = when (kind.algorithm) {
+                "Ed25519" -> "ssh-ed25519 "
+                "RSA" -> "ssh-rsa "
+                else -> "ecdsa-sha2-nistp${kind.bits} "
+            }
+            assertTrue(k.publicKey, k.publicKey.startsWith(prefix))
             allowedKeys.clear()
             allowedKeys.add(keys.keyPair(k.id).public)
             val known = KnownHosts(tmp.newFile("known_hosts_${kind.name}")) { p, o -> user()(p, o) }
@@ -251,7 +257,7 @@ class SshLinkTest {
             l.close()
         }
         // the list survives (a new store on the same folder)
-        assertEquals(3, SshKeys(keys.let { tmp.root.resolve("keys") }, PlainBox()).keys.value.size)
+        assertEquals(KeyKind.entries.size, SshKeys(keys.let { tmp.root.resolve("keys") }, PlainBox()).keys.value.size)
     }
 
     @Test

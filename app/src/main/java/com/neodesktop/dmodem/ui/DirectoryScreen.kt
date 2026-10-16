@@ -153,7 +153,7 @@ fun DirectoryScreen(modifier: Modifier = Modifier, onDialed: () -> Unit) {
 }
 
 @Composable
-private fun EntryDialog(entry: DialEntry, onSave: (DialEntry) -> Unit, onDismiss: () -> Unit) {
+internal fun EntryDialog(entry: DialEntry, onSave: (DialEntry) -> Unit, onDismiss: () -> Unit) {
     var e by remember(entry.id) { mutableStateOf(entry) }
     val keys by Terminal.keys.keys.collectAsStateWithLifecycle()
     var hasPassword by remember(entry.id) { mutableStateOf(Terminal.passwords.get(entry.id) != null) }
@@ -197,6 +197,14 @@ private fun EntryDialog(entry: DialEntry, onSave: (DialEntry) -> Unit, onDismiss
                                     Text("A password is kept for it", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
                                     TextButton(onClick = { Terminal.passwords.remove(entry.id); hasPassword = false }) { Text("Forget") }
                                 }
+                            }
+                            ForwardsEditor(e.forwards) { e = e.copy(forwards = it) }
+                            SwitchRow(
+                                "Forward the agent (ssh -A)", "The server may sign with this app's keys: to go on to other hosts, or for git",
+                                e.agentForwarding,
+                            ) { e = e.copy(agentForwarding = it) }
+                            if (e.agentForwarding) {
+                                SwitchRow("Ask before each use", null, e.agentConfirm) { e = e.copy(agentConfirm = it) }
                             }
                         }
                     }

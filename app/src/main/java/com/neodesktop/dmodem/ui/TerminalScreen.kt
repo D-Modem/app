@@ -101,6 +101,8 @@ fun TerminalScreen(
     val capture by session.capture.collectAsStateWithLifecycle()
     var view by remember { mutableStateOf<TerminalView?>(null) }
     var showSnippets by remember { mutableStateOf(false) }
+    var showSsh by remember { mutableStateOf(false) }
+    val ssh = session.link as? com.neodesktop.dmodem.ssh.SshLink
 
     // the modem session's character set follows the settings (a directory entry's own while its call
     // lasts); an SSH or Telnet session keeps its entry's
@@ -138,6 +140,7 @@ fun TerminalScreen(
                 onKeyboard = { view?.toggleKeyboard() },
                 onPaste = { view?.pasteClipboard() },
                 onSnippets = { showSnippets = true },
+                onSsh = if (ssh != null && linkState == TerminalLink.State.Open) ({ showSsh = true }) else null,
                 onCapture = {
                     if (capture != null) {
                         val f = session.stopCapture()
@@ -209,6 +212,9 @@ fun TerminalScreen(
         }
     }
 
+    if (showSsh && ssh != null) {
+        SshSessionDialog(ssh) { showSsh = false }
+    }
     if (showSnippets) {
         SnippetsDialog(
             onSend = { text ->
@@ -313,6 +319,8 @@ private fun TopBar(
     onKeyboard: () -> Unit,
     onPaste: () -> Unit,
     onSnippets: () -> Unit,
+    /** an SSH connection's forwards, agent and keys (null: not one) */
+    onSsh: (() -> Unit)?,
     onCapture: () -> Unit,
     onHangUp: () -> Unit,
     onClear: () -> Unit,
@@ -338,6 +346,9 @@ private fun TopBar(
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(text = { Text(if (isModem) "Hang up" else "Disconnect") }, onClick = { menu = false; onHangUp() })
                     DropdownMenuItem(text = { Text("Paste") }, onClick = { menu = false; onPaste() })
+                    if (onSsh != null) {
+                        DropdownMenuItem(text = { Text("Port forwards, agent, keys") }, onClick = { menu = false; onSsh() })
+                    }
                     HorizontalDivider()
                     for (cs in TermCharset.entries) {
                         DropdownMenuItem(

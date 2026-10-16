@@ -51,6 +51,10 @@ class SshLink(
     @Volatile private var cols: Int = 80,
     @Volatile private var rows: Int = 24,
     private val keepAliveSec: Int = 30,
+    /** port forwards started once logged in */
+    private val forwardSpecs: List<ForwardSpec> = emptyList(),
+    /** the keys offered to the server as an agent (ssh -A); null: no agent forwarding */
+    private val agent: AgentKeys? = null,
 ) : TerminalLink {
 
     private val _state = MutableStateFlow<TerminalLink.State>(TerminalLink.State.Connecting)
@@ -62,6 +66,23 @@ class SshLink(
     @Volatile private var shell: Session.Shell? = null
     @Volatile private var out: OutputStream? = null
     @Volatile private var closing = false
+    @Volatile private var fwd: Forwards? = null
+
+    private val _forwards = MutableStateFlow<List<ForwardState>>(emptyList())
+    /** the port forwards, as they run */
+    val forwards: StateFlow<List<ForwardState>> = _forwards.asStateFlow()
+
+    private val _events = MutableStateFlow<List<String>>(emptyList())
+    /** what the forwards and the agent did (the latest last, at most [MAX_EVENTS]) */
+    val events: StateFlow<List<String>> = _events.asStateFlow()
+
+    /** the agent was forwarded: the server took the request */
+    @Volatile var agentForwarded = false
+        private set
+
+    private fun event(s: String) {
+        _events.value = (_events.value + s).takeLast(MAX_EVENTS)
+    }
 
     override fun addListener(l: TerminalLink.Listener) {
         listeners.add(l)
@@ -93,7 +114,16 @@ class SshLink(
             c.connect(host, port)
             c.connection.keepAlive.keepAliveInterval = keepAliveSec
             authenticate(c)
-            val session = c.startSession()
+            val f = Forwards(c, _forwards, ::event)
+            fwd = f
+            for (spec in forwardSpecs) f.start(spec)
+            val session = AgentSession(c.connection)
+            session.open()
+            if (agent != null) {
+                c.connection.attach(AgentForwarder(c.connection, AgentServer(agent, this@SshLink, ::event)))
+                agentForwarded = session.requestAgentForwarding()
+                event(if (agentForwarded) "agent forwarded" else "the server refused agent forwarding")
+            }
             session.allocatePTY(term, cols, rows, 0, 0, emptyMap())
             val sh = session.startShell()
             shell = sh
@@ -187,10 +217,37 @@ class SshLink(
         }
     }
 
+    /** a forward started on the open connection; false if it couldn't be (its error in [forwards]) */
+    fun addForward(spec: ForwardSpec): Boolean = fwd?.start(spec) ?: false
+
+    fun removeForward(spec: ForwardSpec) {
+        fwd?.stop(spec)
+    }
+
+    /**
+     * a command run on the server (beside the shell): its exit status and
+     * output (stdout then stderr), or null with no connection
+     */
+    fun exec(command: String, timeoutSec: Long = 30): Pair<Int?, String>? {
+        val c = client ?: return null
+        if (_state.value !is TerminalLink.State.Open) return null
+        AgentSession(c.connection).use { s ->
+            s.open()
+            // (the agent is asked for per session: this one's too)
+            if (agentForwarded) s.requestAgentForwarding()
+            val cmd = s.exec(command)
+            val out = cmd.inputStream.readBytes()
+            val err = cmd.errorStream.readBytes()
+            cmd.join(timeoutSec, java.util.concurrent.TimeUnit.SECONDS)
+            return cmd.exitStatus to (String(out) + String(err))
+        }
+    }
+
     private fun closed(reason: String?) {
         if (_state.value is TerminalLink.State.Closed) return
         _state.value = TerminalLink.State.Closed(reason)
         cancelAsks(this)
+        fwd?.close()
         try {
             client?.disconnect()
         } catch (_: IOException) {
@@ -248,5 +305,6 @@ class SshLink(
 
     companion object {
         private const val MAX_TRIES = 3
+        private const val MAX_EVENTS = 50
     }
 }
