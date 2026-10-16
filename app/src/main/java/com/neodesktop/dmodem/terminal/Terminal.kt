@@ -68,6 +68,7 @@ object Terminal {
     fun init(context: Context, box: SecretBox = KeystoreBox()) {
         app = context.applicationContext
         session = TerminalSession(ModemState.dte) { app.getExternalFilesDir("captures") }
+        session.incoming = ::downloads
         _sessions.value = listOf(session)
         _active.value = session
         directory = JsonListStore(
@@ -80,6 +81,9 @@ object Terminal {
         knownHosts = KnownHosts(File(app.filesDir, "ssh/known_hosts")) { p, owner -> prompts.ask(p, owner) }
         passwords = PasswordStore(File(app.filesDir, "ssh/passwords.json"), box)
     }
+
+    /** where files a remote sends go */
+    fun downloads(): com.neodesktop.dmodem.transfer.Incoming = com.neodesktop.dmodem.transfer.DownloadsIncoming(app)
 
     fun select(s: TerminalSession) {
         if (s in _sessions.value) _active.value = s
@@ -132,6 +136,7 @@ object Terminal {
         s.charset = e.charset ?: (if (e.kind == EntryKind.SSH) TermCharset.UTF8 else t.charset)
         s.keys.backspace = e.backspace ?: (if (e.kind == EntryKind.SSH) BackspaceMode.DEL else t.backspace)
         s.keys.enter = t.enter
+        s.incoming = ::downloads
         _sessions.value = _sessions.value + s
         _active.value = s
         directory.put(e.copy(lastDialed = System.currentTimeMillis(), dialCount = e.dialCount + 1))
@@ -171,6 +176,7 @@ object Terminal {
         s.charset = TermCharset.UTF8
         s.keys.backspace = BackspaceMode.DEL
         s.keys.enter = com.neodesktop.dmodem.terminal.EnterMode.CR
+        s.incoming = ::downloads
         _sessions.value = _sessions.value + s
         _active.value = s
         ConnectionService.update(app)
@@ -200,6 +206,7 @@ object Terminal {
         s.charset = TermCharset.UTF8
         s.keys.backspace = BackspaceMode.DEL
         s.keys.enter = com.neodesktop.dmodem.terminal.EnterMode.CR
+        s.incoming = ::downloads
         _sessions.value = _sessions.value + s
         _active.value = s
         ConnectionService.update(app)

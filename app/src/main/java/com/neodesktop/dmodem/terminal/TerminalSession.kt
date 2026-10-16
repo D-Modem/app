@@ -2,6 +2,11 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.terminal
 
+import com.neodesktop.dmodem.transfer.Incoming
+import com.neodesktop.dmodem.transfer.Outgoing
+import com.neodesktop.dmodem.transfer.Protocol
+import com.neodesktop.dmodem.transfer.Transfer
+import com.neodesktop.dmodem.transfer.TransferState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -77,6 +82,29 @@ class TerminalSession(
             synchronized(emulator) { emulator.decoder.charset = v; emulator.decoder.reset() }
         }
 
+    // file transfers
+
+    @Volatile
+    private var transfer: Transfer? = null
+    private val transferLock = Any()
+    private val _transferState = MutableStateFlow<TransferState?>(null)
+    /** the transfer running, or the last one's end (until [dismissTransfer]) */
+    val transferState: StateFlow<TransferState?> = _transferState.asStateFlow()
+
+    /** where files the remote starts sending go (its sz, kermit -s): null, they aren't taken */
+    @Volatile
+    var incoming: (() -> Incoming?)? = null
+
+    /** the remote's rz is waiting for files: pick some for [sendFiles] */
+    @Volatile
+    var onSendWanted: ((Protocol) -> Unit)? = null
+
+    /** the remote's own starts (ZMODEM's, Kermit's) noticed */
+    @Volatile
+    var autoTransfers = true
+
+    val transferRunning: Boolean get() = transfer != null
+
     private val listener = TerminalLink.Listener { data, length ->
         synchronized(captureLock) {
             try {
@@ -85,8 +113,84 @@ class TerminalSession(
                 stopCapture()
             }
         }
+        transfer?.let {
+            it.io.feed(data, 0, length)
+            return@Listener
+        }
+        if (autoTransfers && length >= 4) {
+            val d = Transfer.detect(data, length)
+            when (d?.second) {
+                Transfer.Detected.ZMODEM_SEND, Transfer.Detected.KERMIT_SEND -> {
+                    val into = incoming?.invoke()
+                    if (into != null) {
+                        synchronized(emulator) { emulator.append(data, d.first) }
+                        val proto = if (d.second == Transfer.Detected.KERMIT_SEND) Protocol.KERMIT else Protocol.ZMODEM
+                        startTransfer(proto, sending = false)?.let { t ->
+                            t.io.feed(data, d.first, length - d.first)
+                            t.receive(into)
+                            onChange?.invoke()
+                            return@Listener
+                        }
+                    }
+                }
+                Transfer.Detected.ZMODEM_RECEIVE -> onSendWanted?.invoke(Protocol.ZMODEM)
+                null -> {}
+            }
+        }
         synchronized(emulator) { emulator.append(data, length) }
         onChange?.invoke()
+    }
+
+    private fun startTransfer(protocol: Protocol, sending: Boolean): Transfer? = synchronized(transferLock) {
+        if (transfer != null) return null
+        val t = Transfer(
+            protocol, sending,
+            send = { b -> if (!link.write(b)) throw IOException("the line is closed") },
+            sendRaw = { b -> link.write(b) },
+            onState = { s -> _transferState.value = s },
+            onEnd = { s, rest -> endTransfer(s, rest) },
+        )
+        transfer = t
+        t
+    }
+
+    private fun endTransfer(s: TransferState, rest: ByteArray) {
+        synchronized(transferLock) { transfer = null }
+        val what = s.protocol.label
+        val msg = when {
+            s.result != "" -> "$what: ${s.result}"
+            s.sending -> "$what: sent ${s.progress.files} file(s)"
+            else -> "$what: received ${s.received.size} file(s)"
+        }
+        synchronized(emulator) {
+            emulator.appendText("\r\n[$msg]\r\n")
+            if (rest.isNotEmpty()) emulator.append(rest, rest.size)
+        }
+        onChange?.invoke()
+    }
+
+    /** files from the remote ([name]: XMODEM's, which has none): false if one is already running */
+    fun receiveFiles(protocol: Protocol, into: Incoming, name: String = "received.bin"): Boolean {
+        val t = startTransfer(protocol, sending = false) ?: return false
+        t.receive(into, name)
+        return true
+    }
+
+    /** [files] to the remote (which must be receiving: its rz, rb, rx, kermit -r) */
+    fun sendFiles(protocol: Protocol, files: List<Outgoing>): Boolean {
+        if (files.isEmpty()) return false
+        val t = startTransfer(protocol, sending = true) ?: return false
+        t.send(files)
+        return true
+    }
+
+    fun cancelTransfer() {
+        transfer?.cancel()
+    }
+
+    /** the last transfer's end no longer shown */
+    fun dismissTransfer() {
+        if (transfer == null) _transferState.value = null
     }
 
     init {
@@ -114,6 +218,8 @@ class TerminalSession(
     /** text to the modem in the session's set (and on the screen, with local echo) */
     fun send(text: String): Boolean {
         if (text.isEmpty()) return true
+        // (nothing typed gets into a transfer's packets)
+        if (transfer != null) return false
         if (localEcho) {
             synchronized(emulator) { emulator.appendText(text.replace("\r", "\r\n")) }
             onChange?.invoke()
@@ -189,6 +295,7 @@ class TerminalSession(
 
     /** the session over: its listener off the link, the link closed, the capture ended */
     fun close() {
+        cancelTransfer()
         link.removeListener(listener)
         stopCapture()
         if (kind != Kind.MODEM) link.close()

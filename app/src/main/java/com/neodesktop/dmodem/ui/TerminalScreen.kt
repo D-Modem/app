@@ -81,6 +81,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import java.io.File
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.neodesktop.dmodem.transfer.DownloadsIncoming
+import com.neodesktop.dmodem.transfer.Protocol
+import com.neodesktop.dmodem.transfer.outgoingOf
 
 /** The terminal on the modem: the screen, a bar of what's going on and its actions, the extra keys. */
 @Composable
@@ -109,6 +114,35 @@ fun TerminalScreen(
     var showLinuxInstall by remember { mutableStateOf(false) }
     var pickLinux by remember { mutableStateOf<List<com.neodesktop.dmodem.local.LinuxSystem>?>(null) }
     val ssh = session.link as? com.neodesktop.dmodem.ssh.SshLink
+    val transfer by session.transferState.collectAsStateWithLifecycle()
+    // the transfer dialog (true: sending), and a send waiting for its files to be picked
+    var askTransfer by remember { mutableStateOf<Boolean?>(null) }
+    var pendingSend by remember { mutableStateOf<Pair<Protocol, String>?>(null) }
+    val pickFiles = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        val (proto, command) = pendingSend ?: return@rememberLauncherForActivityResult
+        pendingSend = null
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        val files = uris.map { outgoingOf(context, it) }.let { if (proto.batch) it else it.take(1) }
+        scope.launch {
+            if (command.isNotEmpty()) {
+                session.sendBytes((command + "\r").toByteArray())
+                delay(800)
+            }
+            if (!session.sendFiles(proto, files)) Toast.makeText(context, "A transfer is running already", Toast.LENGTH_SHORT).show()
+        }
+    }
+    // the remote's rz waiting: files to pick for it
+    DisposableEffect(session) {
+        session.onSendWanted = { proto ->
+            scope.launch(Dispatchers.Main) {
+                if (pendingSend == null && !session.transferRunning) {
+                    pendingSend = proto to ""
+                    pickFiles.launch(arrayOf("*/*"))
+                }
+            }
+        }
+        onDispose { session.onSendWanted = null }
+    }
 
     // the modem session's character set follows the settings (a directory entry's own while its call
     // lasts); an SSH or Telnet session keeps its entry's
@@ -160,6 +194,8 @@ fun TerminalScreen(
                     scope.launch { Terminal.openLocal(context)?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() } }
                 },
                 onSsh = if (ssh != null && linkState == TerminalLink.State.Open) ({ showSsh = true }) else null,
+                onSendFiles = { askTransfer = true },
+                onReceiveFiles = { askTransfer = false },
                 onCapture = {
                     if (capture != null) {
                         val f = session.stopCapture()
@@ -221,6 +257,14 @@ fun TerminalScreen(
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )
             }
+            transfer?.let { t ->
+                TransferBanner(
+                    t, DownloadsIncoming.where(context),
+                    onCancel = { session.cancelTransfer() },
+                    onDismiss = { session.dismissTransfer() },
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                )
+            }
         }
         if (s.extraKeys) {
             ExtraKeys(
@@ -250,6 +294,27 @@ fun TerminalScreen(
             },
             onAdd = { pickLinux = null; showLinuxInstall = true },
             onDismiss = { pickLinux = null },
+        )
+    }
+    askTransfer?.let { sending ->
+        TransferDialog(
+            sending,
+            onStart = { proto, command ->
+                askTransfer = null
+                if (sending) {
+                    pendingSend = proto to command
+                    pickFiles.launch(arrayOf("*/*"))
+                } else {
+                    // (XMODEM sends no name: the last word typed, if any)
+                    val name = command.substringAfterLast(' ').substringAfterLast('/').ifBlank { "received.bin" }
+                    if (session.receiveFiles(proto, Terminal.downloads(), name)) {
+                        if (command.isNotEmpty() && !command.endsWith(' ')) session.sendBytes((command + "\r").toByteArray())
+                    } else {
+                        Toast.makeText(context, "A transfer is running already", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            onDismiss = { askTransfer = null },
         )
     }
     if (showSsh && ssh != null) {
@@ -371,6 +436,8 @@ private fun TopBar(
     onNewLinux: () -> Unit,
     /** an SSH connection's forwards, agent and keys (null: not one) */
     onSsh: (() -> Unit)?,
+    onSendFiles: () -> Unit,
+    onReceiveFiles: () -> Unit,
     onCapture: () -> Unit,
     onHangUp: () -> Unit,
     onClear: () -> Unit,
@@ -401,6 +468,8 @@ private fun TopBar(
                     if (onSsh != null) {
                         DropdownMenuItem(text = { Text("Port forwards, agent, keys") }, onClick = { menu = false; onSsh() })
                     }
+                    DropdownMenuItem(text = { Text("Send files…") }, onClick = { menu = false; onSendFiles() })
+                    DropdownMenuItem(text = { Text("Receive files…") }, onClick = { menu = false; onReceiveFiles() })
                     HorizontalDivider()
                     for (cs in TermCharset.entries) {
                         DropdownMenuItem(
