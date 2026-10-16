@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.DModem" parent="android:Theme.Material.NoActionBar" />
+    <!-- the window before the first frame: light, or dark in night mode (values-night) -->
+    <style name="Theme.DModem" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
 </resources>

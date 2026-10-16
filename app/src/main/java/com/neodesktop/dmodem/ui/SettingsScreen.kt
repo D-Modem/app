@@ -105,6 +105,8 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
         }
 
         androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 8.dp))
+        AppearanceSection()
+        androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 8.dp))
         TerminalSettingsSection()
         androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 8.dp))
         SshKeysSection()

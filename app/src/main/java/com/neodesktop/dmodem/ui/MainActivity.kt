@@ -24,6 +24,11 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
+import androidx.activity.SystemBarStyle
+import android.app.UiModeManager
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.neodesktop.dmodem.settings.AppearanceStore
+import com.neodesktop.dmodem.settings.DarkMode
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -49,8 +54,18 @@ class MainActivity : ComponentActivity() {
         ) {
             askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+        val appearanceStore = AppearanceStore(applicationContext)
         setContent {
-            DModemTheme {
+            val appearance by appearanceStore.appearance.collectAsStateWithLifecycle(initialValue = null)
+            val a = appearance ?: return@setContent
+            val dark = isDark(a)
+            LaunchedEffect(dark) {
+                // the bars' icons for the app's background, not the system's mode
+                val bars = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT) { dark }
+                enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
+            }
+            LaunchedEffect(a.dark) { applyNightMode(a.dark) }
+            DModemTheme(a) {
                 var tab by rememberSaveable { mutableIntStateOf(TAB_MODEM) }
                 var fullscreen by rememberSaveable { mutableStateOf(false) }
                 val full = fullscreen && tab == TAB_TERMINAL
@@ -88,6 +103,18 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /** the system's own UI for the app (its splash screen, its dialogs) in the app's mode, from Android 12 */
+    private fun applyNightMode(mode: DarkMode) {
+        if (Build.VERSION.SDK_INT < 31) return
+        val ui = getSystemService(UiModeManager::class.java) ?: return
+        val want = when (mode) {
+            DarkMode.SYSTEM -> UiModeManager.MODE_NIGHT_AUTO
+            DarkMode.LIGHT -> UiModeManager.MODE_NIGHT_NO
+            DarkMode.DARK -> UiModeManager.MODE_NIGHT_YES
+        }
+        runCatching { ui.setApplicationNightMode(want) }
     }
 
     private fun setSystemBars(show: Boolean) {
