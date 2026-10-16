@@ -16,8 +16,12 @@ network: the phone's own cellular calls go through speech codecs
 
 ## The app
 
-- **Modem** tab: start and stop the modem, the call's state and rates, and
-  a command line to the modem with what it answered.
+- **Home**: what the modem is doing (off, ready, connecting, online with
+  its rates down and up and the call's time) and the one thing to do about
+  it (set up SIP, start, hang up, stop); the line (the SIP account,
+  incoming calls, the network, fax); quick dial of the systems last
+  dialled; the terminal and the directory; the modem's console (folded,
+  with an AT command line).
 - **Settings**: the SIP account (or paste `user:password@host`, as
   dmodemd's `SIP_LOGIN`), taking incoming calls, T.38, the AT commands
   sent at start (`ATX3` by default: SIP has no dial tone), the log levels.

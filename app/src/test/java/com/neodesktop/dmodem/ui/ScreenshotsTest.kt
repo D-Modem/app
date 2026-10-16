@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.neodesktop.dmodem.modem.ModemState
@@ -51,14 +52,14 @@ class ScreenshotsTest {
                     "\u001b[32mSelect:\u001b[0m ",
             )
         }
-        shot("1-modem")
-        compose.onNodeWithText("Terminal").performClick()
+        shot("1-home")
+        compose.onAllNodesWithText("Terminal")[0].performClick()
         shot("2-terminal")
-        compose.onNodeWithText("Dial").performClick()
+        compose.onAllNodesWithText("Dial")[0].performClick()
         shot("3-dial")
-        compose.onNodeWithText("Settings").performClick()
+        compose.onAllNodesWithText("Settings")[0].performClick()
         shot("4-settings")
-        compose.onNodeWithText("Log").performClick()
+        compose.onAllNodesWithText("Log")[0].performClick()
         shot("5-log")
     }
 }

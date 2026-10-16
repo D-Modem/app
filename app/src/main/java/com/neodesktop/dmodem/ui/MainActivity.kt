@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -62,7 +62,7 @@ class MainActivity : ComponentActivity() {
                     bottomBar = {
                         if (!full) {
                             NavigationBar {
-                                Item(tab == TAB_MODEM, "Modem", { Icon(Icons.Filled.Info, null) }) { tab = TAB_MODEM }
+                                Item(tab == TAB_MODEM, "Home", { Icon(Icons.Filled.Home, null) }) { tab = TAB_MODEM }
                                 Item(tab == TAB_TERMINAL, "Terminal", { Text(">_") }) { tab = TAB_TERMINAL }
                                 Item(tab == TAB_DIRECTORY, "Dial", { Icon(Icons.Filled.Call, null) }) { tab = TAB_DIRECTORY }
                                 Item(tab == TAB_SETTINGS, "Settings", { Icon(Icons.Filled.Settings, null) }) { tab = TAB_SETTINGS }
@@ -73,7 +73,12 @@ class MainActivity : ComponentActivity() {
                 ) { padding ->
                     val m = Modifier.padding(padding).consumeWindowInsets(padding)
                     when (tab) {
-                        TAB_MODEM -> StatusScreen(m)
+                        TAB_MODEM -> DashboardScreen(
+                            m,
+                            onOpenTerminal = { tab = TAB_TERMINAL },
+                            onOpenDirectory = { tab = TAB_DIRECTORY },
+                            onOpenSettings = { tab = TAB_SETTINGS },
+                        )
                         TAB_TERMINAL -> TerminalScreen(m, fullscreen = full, onFullscreen = { fullscreen = it })
                         TAB_DIRECTORY -> DirectoryScreen(m, onDialed = { tab = TAB_TERMINAL })
                         TAB_SETTINGS -> SettingsScreen(m)
