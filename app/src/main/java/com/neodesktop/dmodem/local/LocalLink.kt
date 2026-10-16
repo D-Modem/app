@@ -128,7 +128,12 @@ class LocalLink(
         if (p > 0) {
             Pty.signalSession(p, Pty.SIGHUP)
             Thread({
-                Thread.sleep(2000)
+                // (again, for a job the shell was forking as the first went: not there to be found then)
+                for (wait in listOf(100L, 400L)) {
+                    Thread.sleep(wait)
+                    Pty.signalSession(p, Pty.SIGHUP)
+                }
+                Thread.sleep(1500)
                 if (exitStatus == null) Pty.signal(p, Pty.SIGKILL)
             }, "pty-kill-$p").apply { isDaemon = true }.start()
         } else {

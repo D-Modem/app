@@ -37,7 +37,7 @@ import kotlinx.coroutines.launch
 
 /** The SIP account and the modem's options; they apply when the modem next starts. */
 @Composable
-fun SettingsScreen(modifier: Modifier = Modifier) {
+fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {}) {
     val context = LocalContext.current
     val store = remember { SettingsStore(context.applicationContext) }
     val scope = rememberCoroutineScope()
@@ -110,6 +110,8 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
         TerminalSettingsSection()
         androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 8.dp))
         SshKeysSection()
+        androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 8.dp))
+        LinuxSection(onOpened = onOpenTerminal)
     }
 }
 

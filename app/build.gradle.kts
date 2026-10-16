@@ -30,6 +30,13 @@ android {
         }
     }
 
+    sourceSets {
+        getByName("main") {
+            // proot, built for each ABI (below)
+            jniLibs.directories.add(layout.buildDirectory.dir("proot/jniLibs").get().asFile.path)
+        }
+    }
+
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
@@ -68,8 +75,9 @@ android {
             pickFirsts += setOf("META-INF/INDEX.LIST")
         }
         jniLibs {
-            // 16 KB page alignment, uncompressed in the APK
-            useLegacyPackaging = false
+            // extracted when installed: proot and its loader (libproot*.so) are programs, run from the
+            // native library directory, the one place Android 10 on lets an app run its own programs
+            useLegacyPackaging = true
         }
     }
 }
@@ -115,3 +123,25 @@ tasks.withType<Test>().configureEach {
         systemProperty("robolectric.dependency.repo.url", it)
     }
 }
+
+// proot and its loader for the local shell's Linux (native-proot/build.sh: Termux's proot, external/proot)
+val prootAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+val buildProot = tasks.register("buildProot") {
+    description = "Builds proot and its loader for each ABI with the NDK"
+}
+for (abi in prootAbis) {
+    val t = tasks.register<Exec>("buildProot_$abi") {
+        val out = layout.buildDirectory.dir("proot/jniLibs/$abi")
+        val work = layout.buildDirectory.dir("proot/work/$abi")
+        inputs.dir(rootProject.file("external/proot/src"))
+        inputs.dir(rootProject.file("native-proot"))
+        outputs.dir(out)
+        environment("PROOT_WORK", work.get().asFile.path)
+        commandLine(
+            rootProject.file("native-proot/build.sh").path, abi, out.get().asFile.path,
+            androidComponents.sdkComponents.ndkDirectory.get().asFile.path,
+        )
+    }
+    buildProot.configure { dependsOn(t) }
+}
+tasks.named("preBuild") { dependsOn(buildProot) }

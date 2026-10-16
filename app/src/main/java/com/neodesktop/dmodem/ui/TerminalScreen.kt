@@ -63,6 +63,7 @@ import com.neodesktop.dmodem.terminal.Key
 import com.neodesktop.dmodem.terminal.TermCharset
 import com.neodesktop.dmodem.terminal.Terminal
 import com.neodesktop.dmodem.terminal.TerminalView
+import com.neodesktop.dmodem.local.Linux
 import com.neodesktop.dmodem.local.LocalLink
 import com.neodesktop.dmodem.terminal.TerminalLink
 import com.neodesktop.dmodem.terminal.TerminalSession
@@ -103,6 +104,7 @@ fun TerminalScreen(
     var view by remember { mutableStateOf<TerminalView?>(null) }
     var showSnippets by remember { mutableStateOf(false) }
     var showSsh by remember { mutableStateOf(false) }
+    var showLinuxInstall by remember { mutableStateOf(false) }
     val ssh = session.link as? com.neodesktop.dmodem.ssh.SshLink
 
     // the modem session's character set follows the settings (a directory entry's own while its call
@@ -141,6 +143,13 @@ fun TerminalScreen(
                 onKeyboard = { view?.toggleKeyboard() },
                 onPaste = { view?.pasteClipboard() },
                 onSnippets = { showSnippets = true },
+                onNewLinux = {
+                    if (Linux.system(context).installed) {
+                        scope.launch { Terminal.openLinux(context)?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() } }
+                    } else {
+                        showLinuxInstall = true
+                    }
+                },
                 onNewShell = {
                     scope.launch { Terminal.openLocal(context)?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() } }
                 },
@@ -196,7 +205,7 @@ fun TerminalScreen(
             if (!isModem && closed != null) {
                 Disconnected(
                     closed.reason,
-                    local = session.kind == TerminalSession.Kind.LOCAL,
+                    local = session.isLocal,
                     onReconnect = {
                         scope.launch {
                             Terminal.reconnect(context, session)?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
@@ -217,6 +226,15 @@ fun TerminalScreen(
         }
     }
 
+    if (showLinuxInstall) {
+        LinuxInstallDialog(
+            onInstalled = {
+                showLinuxInstall = false
+                scope.launch { Terminal.openLinux(context)?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() } }
+            },
+            onDismiss = { showLinuxInstall = false },
+        )
+    }
     if (showSsh && ssh != null) {
         SshSessionDialog(ssh) { showSsh = false }
     }
@@ -270,7 +288,7 @@ private fun SessionTabs(sessions: List<TerminalSession>, active: TerminalSession
 
 /** a connection's state, for the bar */
 private fun linkText(s: TerminalSession, st: TerminalLink.State, title: String): String {
-    if (s.kind == TerminalSession.Kind.LOCAL) {
+    if (s.isLocal) {
         val state = when (st) {
             TerminalLink.State.Connecting -> "Starting…"
             TerminalLink.State.Open -> s.label
@@ -333,6 +351,7 @@ private fun TopBar(
     onPaste: () -> Unit,
     onSnippets: () -> Unit,
     onNewShell: () -> Unit,
+    onNewLinux: () -> Unit,
     /** an SSH connection's forwards, agent and keys (null: not one) */
     onSsh: (() -> Unit)?,
     onCapture: () -> Unit,
@@ -361,6 +380,7 @@ private fun TopBar(
                     DropdownMenuItem(text = { Text(if (isModem) "Hang up" else "Disconnect") }, onClick = { menu = false; onHangUp() })
                     DropdownMenuItem(text = { Text("Paste") }, onClick = { menu = false; onPaste() })
                     DropdownMenuItem(text = { Text("New local shell") }, onClick = { menu = false; onNewShell() })
+                    DropdownMenuItem(text = { Text("New Linux shell (Alpine)") }, onClick = { menu = false; onNewLinux() })
                     if (onSsh != null) {
                         DropdownMenuItem(text = { Text("Port forwards, agent, keys") }, onClick = { menu = false; onSsh() })
                     }

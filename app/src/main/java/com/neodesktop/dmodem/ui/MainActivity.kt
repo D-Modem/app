@@ -97,7 +97,7 @@ class MainActivity : ComponentActivity() {
                         )
                         TAB_TERMINAL -> TerminalScreen(m, fullscreen = full, onFullscreen = { fullscreen = it })
                         TAB_DIRECTORY -> DirectoryScreen(m, onDialed = { tab = TAB_TERMINAL })
-                        TAB_SETTINGS -> SettingsScreen(m)
+                        TAB_SETTINGS -> SettingsScreen(m, onOpenTerminal = { tab = TAB_TERMINAL })
                         else -> LogScreen(m)
                     }
                 }

@@ -13,11 +13,23 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- the terminal's bell -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- the phone's shared storage in the Linux system (at /sdcard), when the user allows it:
+         "all files access" from Android 11, these before -->
+    <uses-permission
+        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
 
     <application
         android:name=".DModemApp"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
+        android:requestLegacyExternalStorage="true"
         tools:ignore="DataExtractionRules"
         android:icon="@drawable/ic_modem"
         android:label="@string/app_name"

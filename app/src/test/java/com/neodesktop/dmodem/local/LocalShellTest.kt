@@ -133,8 +133,9 @@ class LocalShellTest {
         val marker = File(tmp.root, "job")
         // a job that would write the marker after a while, unless hung up with the shell
         l.type("(sleep 3; touch ${marker.path}) &\r")
-        l.type("echo started\r")
-        waitFor("the job started", s) { it.contains("started") }
+        // (the shell's own output, not the terminal's echo of what was typed: "started" only once it has run the line)
+        l.type("echo st''arted\r")
+        waitFor("the job started", s) { t -> t.lines().any { it.trim().endsWith("started") && !it.contains("echo") } }
         l.close()
         val end = System.currentTimeMillis() + 5_000
         while (l.state.value !is TerminalLink.State.Closed && System.currentTimeMillis() < end) Thread.sleep(10)

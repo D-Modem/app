@@ -257,8 +257,12 @@ class OpenSshInteropTest {
         Socket("127.0.0.1", bound(l, later)).use { assertEquals("echo: five", roundTrip(it, "five")) }
         val p = bound(l, local)
         l.removeForward(local)
-        // (released: free to listen on again)
-        ServerSocket().apply { reuseAddress = true; bind(InetSocketAddress("127.0.0.1", p)) }.close()
+        // released: free to listen on again (once the last connection through it has finished closing)
+        val freeBy = System.currentTimeMillis() + 5000
+        while (runCatching { ServerSocket().apply { reuseAddress = true; bind(InetSocketAddress("127.0.0.1", p)) }.close() }.isFailure) {
+            if (System.currentTimeMillis() > freeBy) throw AssertionError("port $p still taken after its forward stopped")
+            Thread.sleep(50)
+        }
         assertTrue(l.forwards.value.none { it.spec == local })
 
         // a port already taken: its error, the others unharmed
