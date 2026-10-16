@@ -257,7 +257,8 @@ class OpenSshInteropTest {
         Socket("127.0.0.1", bound(l, later)).use { assertEquals("echo: five", roundTrip(it, "five")) }
         val p = bound(l, local)
         l.removeForward(local)
-        assertTrue("closed", runCatching { Socket("127.0.0.1", p).close() }.isFailure)
+        // (released: free to listen on again)
+        ServerSocket().apply { reuseAddress = true; bind(InetSocketAddress("127.0.0.1", p)) }.close()
         assertTrue(l.forwards.value.none { it.spec == local })
 
         // a port already taken: its error, the others unharmed
@@ -335,5 +336,66 @@ class OpenSshInteropTest {
         }
         assertEquals(1, File(home, "authorized_keys").readLines().count { it.contains(second.publicKey.split(" ")[1]) })
         connect(second)
+    }
+
+    // PuTTY
+
+    /** the private key is the public key's: what it signs, that verifies */
+    private fun sameKey(priv: java.security.PrivateKey, pub: java.security.PublicKey): Boolean {
+        val alg = when (pub.algorithm) { "RSA" -> "SHA256withRSA"; "EC", "ECDSA" -> "SHA256withECDSA"; else -> "Ed25519" }
+        val data = "the same key".toByteArray()
+        val sig = java.security.Signature.getInstance(alg, "BC").run { initSign(priv); update(data); sign() }
+        return java.security.Signature.getInstance(alg, "BC").run { initVerify(pub); update(data); verify(sig) }
+    }
+
+    private fun passFile(p: String) = tmp.newFile().apply { writeText(p) }.path
+
+    @Test
+    fun ppkAsPuttygenReadsAndWritesThem() {
+        assumeTrue("puttygen isn't installed", have("puttygen"))
+        for (kind in KeyKind.entries) {
+            val k = keys.generate(kind, "test ${kind.name}", comment = "me@phone")
+            val blob = k.publicKey.split(" ")[1]
+            val original = keys.keyPair(k.id).public
+            for (version in listOf(3, 2)) for (pass in listOf("", "correct horse")) {
+                val what = "$kind v$version '$pass'"
+                val ppk = tmp.newFile().apply { writeText(keys.exportPpk(k.id, pass, version)) }
+                assertTrue(what, ppk.readText().startsWith("PuTTY-User-Key-File-$version: "))
+                // puttygen opens it (the MAC checked, decrypted): the same public key and comment
+                val (c1, pub) = run("puttygen", ppk.path, "--old-passphrase", passFile(pass), "-L")
+                assertEquals("$what: $pub", 0, c1)
+                assertTrue("$what: $pub", pub.contains(blob) && pub.trim().endsWith("me@phone"))
+                // its private half: to OpenSSH's form by puttygen, read back here, the same key
+                val out = tmp.newFile()
+                val (c2, msg) = run(
+                    "puttygen", ppk.path, "--old-passphrase", passFile(pass), "-O", "private-openssh-new",
+                    "--new-passphrase", passFile(""), "-o", out.path,
+                )
+                assertEquals("$what: $msg", 0, c2)
+                val back = keys.import(out.readText(), null, "back")
+                assertTrue(what, sameKey(keys.keyPair(back.id).private, original))
+                keys.delete(back.id)
+                // and this app's own import of it
+                val again = keys.import(ppk.readText(), pass, "again")
+                assertEquals(what, k.fingerprint, again.fingerprint)
+                assertEquals(what, "me@phone", keys.comment(again))
+                keys.delete(again.id)
+            }
+            keys.delete(k.id)
+        }
+        // keys puttygen made, imported: v3 (its default) and v2, with a passphrase
+        for ((t, bits) in listOf("ed25519" to null, "ecdsa" to "384", "rsa" to "2048")) for (version in listOf(3, 2)) {
+            val ppk = File(tmp.root, "made-$t-$version.ppk")
+            val args = mutableListOf("puttygen", "-t", t, "-C", "from puttygen", "--new-passphrase", passFile("hunter2"), "-o", ppk.path, "--ppk-param", "version=$version")
+            if (bits != null) args.addAll(listOf("-b", bits))
+            val (c, msg) = run(*args.toTypedArray())
+            assertEquals(msg, 0, c)
+            val imported = keys.import(ppk.readText(), "hunter2", "made")
+            val (_, pub) = run("puttygen", ppk.path, "--old-passphrase", passFile("hunter2"), "-L")
+            assertTrue("$t v$version", pub.contains(imported.publicKey.split(" ")[1]))
+            assertEquals("from puttygen", keys.comment(imported))
+            // the wrong passphrase: refused
+            assertTrue(runCatching { keys.import(ppk.readText(), "wrong", "x") }.isFailure)
+        }
     }
 }

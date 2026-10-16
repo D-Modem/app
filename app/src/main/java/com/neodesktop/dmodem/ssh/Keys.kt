@@ -11,6 +11,7 @@ import net.schmizz.sshj.userauth.keyprovider.KeyPairWrapper
 import net.schmizz.sshj.userauth.keyprovider.KeyProvider
 import net.schmizz.sshj.userauth.keyprovider.OpenSSHKeyFile
 import net.schmizz.sshj.userauth.keyprovider.PKCS8KeyFile
+import net.schmizz.sshj.userauth.keyprovider.PuTTYKeyFile
 import net.schmizz.sshj.userauth.password.PasswordFinder
 import net.schmizz.sshj.userauth.password.Resource
 import com.hierynomus.sshj.userauth.keyprovider.OpenSSHKeyV1KeyFile
@@ -66,8 +67,8 @@ object KeyFormat {
 }
 
 /**
- * The app's SSH keys: made here (Ed25519, ECDSA P-256, RSA 3072) or
- * imported (OpenSSH's or PKCS#8 PEM, with their passphrase); each private
+ * The app's SSH keys: made here or imported (OpenSSH's, PuTTY's .ppk or
+ * PKCS#8 PEM, with their passphrase); each private
  * key sealed by the [SecretBox] in dir/<id>.key, the list in dir/keys.json.
  */
 class SshKeys(private val dir: File, private val box: SecretBox) {
@@ -129,14 +130,17 @@ class SshKeys(private val dir: File, private val box: SecretBox) {
             override fun shouldRetry(resource: Resource<*>?) = false
         }
         val provider: KeyProvider = when {
+            Ppk.isPpk(text) -> PuTTYKeyFile().apply { init(text, null, finder) }
             text.contains("BEGIN OPENSSH PRIVATE KEY") -> OpenSSHKeyV1KeyFile().apply { init(text, null, finder) }
             text.contains("BEGIN") && text.contains("PRIVATE KEY") -> PKCS8KeyFile().apply { init(text, null, finder) }
             else -> OpenSSHKeyFile().apply { init(text, null, finder) }
         }
-        return keep(KeyPair(provider.public, provider.private), name)
+        // (a .ppk's comment kept as the key's)
+        return keep(KeyPair(provider.public, provider.private), name, if (Ppk.isPpk(text)) Ppk.comment(text)?.takeIf { it.isNotBlank() } else null)
     }
 
-    private fun keep(pair: KeyPair, name: String, comment: String? = null): SshKey {
+    private fun keep(given: KeyPair, name: String, comment: String? = null): SshKey {
+        val pair = withCrt(given)
         val id = UUID.randomUUID().toString()
         val sealed = box.seal(
             JSONObject()
@@ -153,6 +157,44 @@ class SshKeys(private val dir: File, private val box: SecretBox) {
         )
         saveIndex(_keys.value + k)
         return k
+    }
+
+    /**
+     * an RSA key given as n and d only (sshj reads PuTTY's that way) made
+     * whole: its primes found again from n, e and d, so that it can be
+     * encoded (Android's provider won't encode one without them)
+     */
+    private fun withCrt(kp: KeyPair): KeyPair {
+        val priv = kp.private as? java.security.interfaces.RSAPrivateKey ?: return kp
+        if (priv is java.security.interfaces.RSAPrivateCrtKey) return kp
+        val pub = kp.public as java.security.interfaces.RSAPublicKey
+        val n = pub.modulus
+        val e = pub.publicExponent
+        val d = priv.privateExponent
+        val one = java.math.BigInteger.ONE
+        // k = de - 1 = 2^s t; for random g, a square root of 1 other than ±1 among g^t, g^2t, ... splits n
+        val k = d.multiply(e).subtract(one)
+        val s = k.lowestSetBit
+        val t = k.shiftRight(s)
+        val rnd = java.security.SecureRandom()
+        var p: java.math.BigInteger? = null
+        while (p == null) {
+            val g = java.math.BigInteger(n.bitLength() - 1, rnd).add(java.math.BigInteger.valueOf(2))
+            var x = g.modPow(t, n)
+            for (i in 0 until s) {
+                val y = x.multiply(x).mod(n)
+                if (y == one && x != one && x != n.subtract(one)) {
+                    p = x.subtract(one).gcd(n)
+                    break
+                }
+                x = y
+            }
+        }
+        val q = n.divide(p)
+        val spec = java.security.spec.RSAPrivateCrtKeySpec(
+            n, e, d, p, q, d.mod(p.subtract(one)), d.mod(q.subtract(one)), q.modInverse(p),
+        )
+        return KeyPair(pub, KeyFactory.getInstance("RSA", "BC").generatePrivate(spec))
     }
 
     /** the key's pair, opened: for sshj's authentication */
@@ -173,6 +215,12 @@ class SshKeys(private val dir: File, private val box: SecretBox) {
     fun exportPrivate(id: String, passphrase: String): String {
         val k = byId(id) ?: throw IllegalArgumentException("no key $id")
         return KeyGen.openSshPrivate(keyPair(id), comment(k), passphrase)
+    }
+
+    /** the private key as PuTTY's .ppk ([version] 3, or 2 for older PuTTY), encrypted with [passphrase] unless it's empty */
+    fun exportPpk(id: String, passphrase: String, version: Int = 3): String {
+        val k = byId(id) ?: throw IllegalArgumentException("no key $id")
+        return Ppk.write(keyPair(id), comment(k), passphrase, version)
     }
 
     /** a new comment on the key's public line (ssh-keygen -c) */

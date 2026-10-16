@@ -174,7 +174,7 @@ private fun ImportDialog(onDone: () -> Unit) {
                 OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true)
                 OutlinedButton(onClick = { pick.launch(arrayOf("*/*")) }) { Text("Choose a file…") }
                 OutlinedTextField(
-                    text, { text = it }, label = { Text("…or paste it (BEGIN OPENSSH PRIVATE KEY)") },
+                    text, { text = it }, label = { Text("…or paste it (OpenSSH, PuTTY .ppk or PEM)") },
                     textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                     minLines = 4, maxLines = 8,
                 )
@@ -279,33 +279,47 @@ internal fun KeyDetailsDialog(k: SshKey, onDelete: () -> Unit, onDone: () -> Uni
     if (exporting) ExportDialog(k) { exporting = false }
 }
 
+private enum class ExportFormat(val label: String) {
+    OPENSSH("OpenSSH (ssh, ssh-keygen)"),
+    PPK3("PuTTY .ppk (PuTTY 0.75 and on)"),
+    PPK2("PuTTY .ppk version 2 (older PuTTY, WinSCP)"),
+}
+
 /**
- * The private key out, in OpenSSH's form (for ssh on a computer), with a
- * passphrase (as ssh-keygen would ask for): saved to a file the user picks.
+ * The private key out, in OpenSSH's form (for ssh on a computer) or
+ * PuTTY's, with a passphrase (as ssh-keygen or PuTTYgen would ask for):
+ * saved to a file the user picks.
  */
 @Composable
-private fun ExportDialog(k: SshKey, onDone: () -> Unit) {
+internal fun ExportDialog(k: SshKey, onDone: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var pass by remember { mutableStateOf("") }
     var again by remember { mutableStateOf("") }
+    var format by remember { mutableStateOf(ExportFormat.OPENSSH) }
     val fileName = when {
         k.publicKey.startsWith("ssh-ed25519") -> "id_ed25519"
         k.publicKey.startsWith("ecdsa") -> "id_ecdsa"
         else -> "id_rsa"
-    }
+    } + if (format == ExportFormat.OPENSSH) "" else ".ppk"
     val save = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
         if (uri != null) {
             scope.launch {
                 val r = runCatching {
                     withContext(Dispatchers.Default) {
-                        val text = Terminal.keys.exportPrivate(k.id, pass)
+                        val text = when (format) {
+                            ExportFormat.OPENSSH -> Terminal.keys.exportPrivate(k.id, pass)
+                            ExportFormat.PPK3 -> Terminal.keys.exportPpk(k.id, pass, 3)
+                            ExportFormat.PPK2 -> Terminal.keys.exportPpk(k.id, pass, 2)
+                        }
                         context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(text.toByteArray()) }
                             ?: throw java.io.IOException("can't write there")
                     }
                 }
                 Toast.makeText(
-                    context, r.exceptionOrNull()?.let { "Not saved: ${it.message}" } ?: "Saved: chmod 600 it before ssh uses it",
+                    context,
+                    r.exceptionOrNull()?.let { "Not saved: ${it.message}" }
+                        ?: if (format == ExportFormat.OPENSSH) "Saved: chmod 600 it before ssh uses it" else "Saved",
                     Toast.LENGTH_LONG,
                 ).show()
                 onDone()
@@ -317,8 +331,9 @@ private fun ExportDialog(k: SshKey, onDone: () -> Unit) {
         title = { Text("Export ${k.name}") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Choice("Format", format.label, ExportFormat.entries.map { it.label to it }) { format = it }
                 Text(
-                    "The private key, in OpenSSH's form: whoever has the file (and its passphrase) can log in as you.",
+                    "The private key: whoever has the file (and its passphrase) can log in as you.",
                     style = MaterialTheme.typography.bodySmall,
                 )
                 OutlinedTextField(

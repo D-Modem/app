@@ -193,4 +193,14 @@ class SshToolsDialogsTest {
         compose.onNodeWithText("[ED25519 256]", substring = true).assertExists()
         shot("ssh-tools-key")
     }
+
+    @Test
+    fun anExportAsPutty() {
+        val k = Terminal.keys.generate(KeyKind.ED25519, "pixel", comment = "alice@pixel")
+        compose.setContent { DModemTheme { ExportDialog(k) {} } }
+        compose.onNodeWithText("OpenSSH (ssh, ssh-keygen)").performClick()
+        compose.onNodeWithText("PuTTY .ppk (PuTTY 0.75 and on)").performClick()
+        compose.onNodeWithText("PuTTY .ppk (PuTTY 0.75 and on)").assertExists()
+        shot("ssh-tools-export-ppk")
+    }
 }
