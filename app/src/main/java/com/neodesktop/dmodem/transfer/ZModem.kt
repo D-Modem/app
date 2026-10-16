@@ -455,17 +455,25 @@ class ZModem(
             ("${f.size.coerceAtLeast(0)} ${java.lang.Long.toOctalString(f.mtime.coerceAtLeast(0))} 0 0 $filesLeft $bytesLeft").toByteArray() + 0
         var start = -1L
         var tries = 0
-        while (start < 0) {
+        send@ while (start < 0) {
             sendBin(Header.flags(ZFILE, ZCBIN))
             sendData(info, info.size, ZCRCW)
-            val h = readHeaderOrNull()
-            when (h?.type) {
-                ZRPOS -> start = h.pos
-                ZSKIP -> return true
-                ZCRC -> sendHex(Header.pos(ZCRC, 0))
-                ZCAN, ZABORT -> throw TransferCancelled("cancelled by the receiver")
-                ZFERR -> throw IOException("the receiver couldn't write the file")
-                else -> if (++tries > MAX_ERRORS) throw IOException("the receiver didn't answer the file")
+            while (true) {
+                val h = readHeaderOrNull()
+                when (h?.type) {
+                    ZRPOS -> { start = h.pos; break@send }
+                    ZSKIP -> return true
+                    ZCRC -> sendHex(Header.pos(ZCRC, 0))
+                    ZCAN, ZABORT -> throw TransferCancelled("cancelled by the receiver")
+                    ZFERR -> throw IOException("the receiver couldn't write the file")
+                    // (a ZRINIT repeated, from before the ZFILE: not an answer to it; sending it
+                    // again would get two ZRPOS, and each one a restart)
+                    ZRINIT -> {}
+                    else -> {
+                        if (++tries > MAX_ERRORS) throw IOException("the receiver didn't answer the file")
+                        continue@send
+                    }
+                }
             }
         }
         val reader = Reader(f)
@@ -532,6 +540,10 @@ class ZModem(
             if (++errors > MAX_ERRORS) throw IOException("too many errors on the line")
             report { it.copy(errors = it.errors + 1) }
             at = to
+            // (what the receiver said before it saw this restart: its ZRPOSes for the same
+            // error, which would each be another restart)
+            Thread.sleep(20)
+            io.purge()
         }
         resend@ while (true) {
             r.seek(at)

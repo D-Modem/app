@@ -242,7 +242,12 @@ class XYModem(
         }
         // the batch over: an empty block 0
         if (waitForStart() != true) throw IOException("the receiver didn't ask for the end")
-        sendBlock(0, ByteArray(128), true)
+        // (rb exits as it takes it: its ACK can be lost with it, and every file is in)
+        val end = blockBytes(0, ByteArray(128), true)
+        for (attempt in 0 until 3) {
+            io.write(end)
+            if (answer(allowC = true) == ACK) return
+        }
     }
 
     /** C (CRC: true) or NAK (checksum: false) from the receiver; null if neither came */
@@ -291,6 +296,17 @@ class XYModem(
 
     /** a block sent until it's acknowledged */
     private fun sendBlock(n: Int, data: ByteArray, useCrc: Boolean) {
+        val bytes = blockBytes(n, data, useCrc)
+        var errors = 0
+        while (true) {
+            io.write(bytes)
+            if (answer(allowC = n == 0) == ACK) return
+            if (++errors > MAX_ERRORS) throw IOException("too many errors on the line")
+            report { it.copy(errors = it.errors + 1) }
+        }
+    }
+
+    private fun blockBytes(n: Int, data: ByteArray, useCrc: Boolean): ByteArray {
         val out = java.io.ByteArrayOutputStream()
         out.write(if (data.size == 1024) STX else SOH)
         out.write(n and 0xff)
@@ -303,14 +319,7 @@ class XYModem(
         } else {
             out.write(data.sumOf { it.toInt() and 0xff } and 0xff)
         }
-        val bytes = out.toByteArray()
-        var errors = 0
-        while (true) {
-            io.write(bytes)
-            if (answer(allowC = n == 0) == ACK) return
-            if (++errors > MAX_ERRORS) throw IOException("too many errors on the line")
-            report { it.copy(errors = it.errors + 1) }
-        }
+        return out.toByteArray()
     }
 
     /**
