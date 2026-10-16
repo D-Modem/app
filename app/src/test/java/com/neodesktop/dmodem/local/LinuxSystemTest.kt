@@ -181,12 +181,16 @@ class LinuxSystemTest {
     /** a package added with the system's own package manager, and run */
     private fun packageManager(sys: LinuxSystem, id: String) {
         val (l, s) = shell(sys)
-        // (root's prompt, as the distribution's own start-up files may have it: openSUSE's "host:~ #")
-        waitFor("the prompt", s, 60) { it.trimEnd().endsWith("#") }
-        val cmd = INSTALL_LUA[id] ?: throw AssertionError("no command for $id")
-        l.write("$cmd && \$LUA -e 'print(\"lua says \" .. 6*7)'\r".toByteArray())
-        waitFor("Lua from $id's package manager", s, secs = 900) { it.contains("lua says 42") }
-        l.close()
+        try {
+            // (root's prompt, as the distribution's own start-up files may have it: openSUSE's "host:~ #")
+            waitFor("the prompt", s, 60) { it.trimEnd().endsWith("#") }
+            val cmd = INSTALL_LUA[id] ?: throw AssertionError("no command for $id")
+            l.write("$cmd && \$LUA -e 'print(\"lua says \" .. 6*7)'\r".toByteArray())
+            waitFor("Lua from $id's package manager", s, secs = 900) { it.contains("lua says 42") }
+        } finally {
+            // (a failure's shell closed too, not left in a removed system)
+            l.close()
+        }
     }
 
     /** a custom URL's: the Linux Containers' Alpine (an .xz), with its checksum */
