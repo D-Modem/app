@@ -192,7 +192,9 @@ class TerminalView @JvmOverloads constructor(
     }
 
     override fun onDraw(canvas: Canvas) {
-        canvas.drawColor(if (reverse()) theme.fgArgb else theme.bgArgb)
+        // (the view's own bounds: drawColor() would fill whatever clip it was given)
+        fillPaint.color = if (reverse()) theme.fgArgb else theme.bgArgb
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fillPaint)
         val s = session ?: return
         val e = s.emulator
         synchronized(e) {

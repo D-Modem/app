@@ -104,7 +104,8 @@ private fun ConsoleText(text: String, modifier: Modifier) {
     LaunchedEffect(text) { scroll.scrollTo(scroll.maxValue) }
     Card(modifier) {
         Text(
-            text.replace("\r\n", "\n").replace('\r', '\n'),
+            // (CR LF a line's end; a CR alone, the modem's echo of one, nothing)
+            text.replace("\r\n", "\n").replace("\r", ""),
             fontFamily = FontFamily.Monospace,
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.fillMaxSize().padding(8.dp).verticalScroll(scroll),
