@@ -22,6 +22,8 @@ import kotlinx.coroutines.launch
  * as the settings have them, one client on the modem at a time between
  * them; the modem's lines (DSR, DCD, RI) from its state.
  */
+// (the Bluetooth bridge holds the application's context, which lives as long as the process)
+@android.annotation.SuppressLint("StaticFieldLeak")
 object Bridges {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val signals = MutableStateFlow(LineSignals())

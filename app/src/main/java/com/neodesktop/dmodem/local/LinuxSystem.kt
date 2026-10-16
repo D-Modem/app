@@ -192,7 +192,11 @@ class LinuxSystem(
     fun loginShell(): String {
         val passwd = File(rootfs, "etc/passwd")
         val shell = runCatching { passwd.readLines().firstOrNull { it.startsWith("root:") }?.split(':')?.getOrNull(6) }.getOrNull()
-        return shell?.takeIf { it.startsWith("/") && existsInside(it) } ?: "/bin/sh"
+        val sh = shell?.takeIf { it.startsWith("/") && existsInside(it) } ?: "/bin/sh"
+        // (root's plain sh, as Void has it, while bash is there: bash, whose prompt the
+        // system's profile is written for, else it's shown as it's written, \u@\h and all)
+        if ((sh == "/bin/sh" || sh == "/usr/bin/sh") && existsInside("/bin/bash")) return "/bin/bash"
+        return sh
     }
 
     /** [path] is in the system: its links followed as the system sees them (an absolute one from its own root) */

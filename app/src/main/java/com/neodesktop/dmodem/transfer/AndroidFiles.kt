@@ -23,8 +23,10 @@ class DownloadsIncoming(context: Context) : Incoming {
     private val folder: FolderIncoming? =
         if (Build.VERSION.SDK_INT < 29) FolderIncoming(ctx.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: ctx.filesDir) else null
 
+    // (the stream is the caller's to close)
+    @android.annotation.SuppressLint("Recycle")
     override fun create(name: String, size: Long): Pair<OutputStream, String> {
-        folder?.let { return it.create(name, size) }
+        if (Build.VERSION.SDK_INT < 29) return folder!!.create(name, size)
         val safe = FolderIncoming.safeName(name)
         val v = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, safe)
@@ -43,7 +45,7 @@ class DownloadsIncoming(context: Context) : Incoming {
     }
 
     override fun done(name: String, mtime: Long) {
-        folder?.let { return it.done(name, mtime) }
+        if (Build.VERSION.SDK_INT < 29) return folder!!.done(name, mtime)
         val uri = synchronized(pending) { pending.remove(name) } ?: return
         val v = ContentValues().apply {
             put(MediaStore.MediaColumns.IS_PENDING, 0)
@@ -53,7 +55,7 @@ class DownloadsIncoming(context: Context) : Incoming {
     }
 
     override fun abandon(name: String) {
-        folder?.let { return it.abandon(name) }
+        if (Build.VERSION.SDK_INT < 29) return folder!!.abandon(name)
         val uri = synchronized(pending) { pending.remove(name) } ?: return
         runCatching { ctx.contentResolver.delete(uri, null, null) }
     }

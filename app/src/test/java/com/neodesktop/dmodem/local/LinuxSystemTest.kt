@@ -62,8 +62,21 @@ class LinuxSystemTest {
         for (d in dirs) {
             val f = File(sys.rootfs, d)
             val files = if (f.isDirectory) f.listFiles()?.toList() ?: emptyList() else listOf(f)
-            for (x in files) if (x.isFile && !Files.isSymbolicLink(x.toPath())) x.writeText(x.readText().replace("http://", "https://"))
+            for (x in files) if (x.isFile && !Files.isSymbolicLink(x.toPath())) x.writeText(https(x.readText()))
         }
+    }
+
+    /**
+     * a repository list's mirrors on https: http:// made https://; Devuan's round-robin name (its
+     * mirrors' certificates are their own) as its main mirror; a yum mirror list (which hands out
+     * http mirrors) replaced by the repository's own baseurl, where it has a real one
+     */
+    private fun https(t: String): String {
+        var out = t.replace("http://", "https://").replace("deb.devuan.org", "pkgmaster.devuan.org")
+        if (Regex("(?m)^#\\s*baseurl=").containsMatchIn(out) && !out.contains("download.example")) {
+            out = out.replace(Regex("(?m)^(mirrorlist|metalink)="), "#$1=").replace(Regex("(?m)^#\\s*baseurl="), "baseurl=")
+        }
+        return out
     }
 
     /** behind a proxy that re-signs TLS: its CA added to the system's own bundles (the test's doing, not the app's) */
@@ -123,7 +136,10 @@ class LinuxSystemTest {
             if (t.contains("\u001b[6n")) link.write("\u001b[1;1R".toByteArray())
             synchronized(sb) { sb.append(t) }
         }
-        val text get() = synchronized(sb) { sb.toString().replace(Regex("\u001b\\[[0-9;?]*[A-Za-z]|\u001b\\][^\u0007]*\u0007"), "") }
+        // (CSI; OSC to BEL or to ST, as systemd's prompt marks end; charset and other two-character escapes)
+        val text get() = synchronized(sb) {
+            sb.toString().replace(Regex("\u001b\\[[0-9;?]*[A-Za-z]|\u001b\\][^\u0007\u001b]*(\u0007|\u001b\\\\)|\u001b[()#][0-9A-Za-z]|\u001b[=>78]"), "")
+        }
     }
 
     private fun shell(sys: LinuxSystem): Pair<LocalLink, Screen> {

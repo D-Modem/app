@@ -184,6 +184,12 @@ class DistrosTest {
         assertTrue(sys.command().takeLast(2) == listOf("/bin/bash", "-l"))
         assertTrue(sys.existsInside("/usr/bin/../bin/env"))
         assertFalse(sys.existsInside("/bin/zsh"))
+        // root's plain sh (Void's) with bash there: bash, the shell the profile's prompt is for
+        val passwd = File(etc, "passwd")
+        val before = passwd.readText()
+        passwd.writeText("root:x:0:0:root:/root:/bin/sh\n")
+        assertEquals("/bin/bash", sys.loginShell())
+        passwd.writeText(before)
         // an absolute link: resolved inside, not on the host
         Files.createSymbolicLink(File(sys.rootfs, "usr/bin/sh").toPath(), Paths.get("/usr/bin/bash"))
         assertTrue(sys.existsInside("/bin/sh"))
