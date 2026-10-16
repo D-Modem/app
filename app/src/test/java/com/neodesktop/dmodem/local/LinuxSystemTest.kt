@@ -200,6 +200,15 @@ class LinuxSystemTest {
         try {
             // (root's prompt, as the distribution's own start-up files may have it: openSUSE's "host:~ #")
             waitFor("the prompt", s, 60) { it.trimEnd().endsWith("#") }
+            // (and the shell settled: its start-up done, nothing more for a while, before typing)
+            var last = s.text.length
+            var quietSince = System.currentTimeMillis()
+            val until = System.currentTimeMillis() + 120_000
+            while (System.currentTimeMillis() - quietSince < 1500 && System.currentTimeMillis() < until) {
+                Thread.sleep(100)
+                val n = s.text.length
+                if (n != last) { last = n; quietSince = System.currentTimeMillis() }
+            }
             val cmd = INSTALL_LUA[id] ?: throw AssertionError("no command for $id")
             l.write("$cmd && \$LUA -e 'print(\"lua says \" .. 6*7)'\r".toByteArray())
             waitFor("Lua from $id's package manager", s, secs = 900) { it.contains("lua says 42") }

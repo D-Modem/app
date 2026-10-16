@@ -307,7 +307,8 @@ class LinuxSystem(
         const val PACMAN_KEYRING = """# D-Modem: pacman's keyring, made once (the image has none)
 if [ ! -e /etc/pacman.d/gnupg/pubring.gpg ] && [ ! -e /etc/pacman.d/gnupg/pubring.kbx ] && command -v pacman-key >/dev/null 2>&1; then
     echo "Setting up pacman's keyring (once)..."
-    pacman-key --init >/dev/null 2>&1 && pacman-key --populate >/dev/null 2>&1
+    # (no input: what's typed meanwhile is the shell's, not gpg's)
+    pacman-key --init </dev/null >/dev/null 2>&1 && pacman-key --populate </dev/null >/dev/null 2>&1
 fi
 """
 
