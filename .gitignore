@@ -9,3 +9,4 @@ build/
 captures/
 # host builds of native-test
 /build-host*/
+.kotlin/

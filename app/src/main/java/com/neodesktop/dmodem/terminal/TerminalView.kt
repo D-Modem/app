@@ -49,11 +49,36 @@ class TerminalView @JvmOverloads constructor(
     var session: TerminalSession? = null
         set(v) {
             field?.onChange = null
+            field?.onClipboard = null
             field = v
             v?.onChange = { postRedraw() }
+            v?.onClipboard = { text ->
+                post {
+                    copy(text)
+                    android.widget.Toast.makeText(context, "Copied from the terminal", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+            syncEmulator()
             resizeEmulator()
             invalidate()
         }
+
+    /** the emulator told what it reports: the cell's size in pixels, the colours shown */
+    private fun syncEmulator() {
+        val e = session?.emulator ?: return
+        val t = theme
+        synchronized(e) {
+            e.setCellPixels(kotlin.math.round(cellW).toInt(), kotlin.math.round(cellH).toInt())
+            e.defaultColor = { i ->
+                when (i) {
+                    256 -> t.fgArgb
+                    257 -> t.bgArgb
+                    258 -> t.cursorArgb
+                    else -> t.argb(i, true)
+                }
+            }
+        }
+    }
 
     var settings = TerminalSettings()
         private set
@@ -135,6 +160,7 @@ class TerminalView @JvmOverloads constructor(
             }
         }
         if (sizeChanged || fontPx == 0f) measureFont()
+        syncEmulator()
         resizeEmulator()
         restartBlink()
         invalidate()
@@ -169,6 +195,7 @@ class TerminalView @JvmOverloads constructor(
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         measureFont()
+        syncEmulator()
         resizeEmulator()
     }
 
@@ -196,11 +223,13 @@ class TerminalView @JvmOverloads constructor(
     }
 
     override fun onDraw(canvas: Canvas) {
+        val s = session
+        val e = s?.emulator
+        drawing = e
         // (the view's own bounds: drawColor() would fill whatever clip it was given)
-        fillPaint.color = if (reverse()) theme.fgArgb else theme.bgArgb
+        fillPaint.color = if (reverse()) color(Style.DEFAULT_FG, true) else color(Style.DEFAULT_BG, false)
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fillPaint)
-        val s = session ?: return
-        val e = s.emulator
+        if (e == null) return
         synchronized(e) {
             scrollRows = scrollRows.coerceIn(0, e.historySize)
             val rev = e.reverseVideo
@@ -216,6 +245,27 @@ class TerminalView @JvmOverloads constructor(
     }
 
     private fun reverse(): Boolean = session?.let { synchronized(it.emulator) { it.emulator.reverseVideo } } ?: false
+
+    /** the emulator being drawn: its own colours (OSC 4, 10, 11) over the theme's */
+    private var drawing: TerminalEmulator? = null
+
+    /** a colour as shown: the remote's for it if it set one, else the theme's */
+    private fun color(c: Int, isFg: Boolean): Int {
+        val e = drawing
+        if (e != null) {
+            val i = when {
+                c == Style.DEFAULT_FG -> 256
+                c == Style.DEFAULT_BG -> 257
+                c and Style.RGB == 0 && c in 0..255 -> c
+                else -> -1
+            }
+            if (i >= 0) {
+                val o = e.colorOverride(i)
+                if (o != -1) return o
+            }
+        }
+        return theme.argb(c, isFg)
+    }
 
     private val runText = StringBuilder()
 
@@ -235,7 +285,37 @@ class TerminalView @JvmOverloads constructor(
             drawText(c, line, x, end, y, st, fg)
             x = end
         }
+        if (line.extras != null) drawImages(c, line, cols, y)
     }
+
+    /** the images' tiles in a line's cells, each scaled from the cell size it was placed at to this one */
+    private fun drawImages(c: Canvas, line: Line, cols: Int, y: Float) {
+        for (x in 0 until cols) {
+            val t = line.extra(x)?.image ?: continue
+            val img = t.image
+            val bmp = bitmapOf(img) ?: continue
+            val sx = t.tx * img.cellWidth
+            val sy = t.ty * img.cellHeight
+            if (sx >= img.width || sy >= img.height) continue
+            val sw = min(img.cellWidth, img.width - sx)
+            val sh = min(img.cellHeight, img.height - sy)
+            srcRect.set(sx, sy, sx + sw, sy + sh)
+            val left = px(x)
+            dstRect.set(left, y, left + (px(x + 1) - left) * sw / img.cellWidth, y + cellH * sh / img.cellHeight)
+            c.drawBitmap(bmp, srcRect, dstRect, imagePaint)
+        }
+    }
+
+    private val srcRect = Rect()
+    private val dstRect = android.graphics.RectF()
+    private val imagePaint = Paint(Paint.FILTER_BITMAP_FLAG)
+    /** the images' bitmaps, made once each (gone with their images) */
+    private val bitmaps = java.util.WeakHashMap<TermImage, android.graphics.Bitmap>()
+
+    private fun bitmapOf(img: TermImage): android.graphics.Bitmap? =
+        bitmaps[img] ?: runCatching {
+            android.graphics.Bitmap.createBitmap(img.pixels, img.width, img.height, android.graphics.Bitmap.Config.ARGB_8888)
+        }.getOrNull()?.also { bitmaps[img] = it }
 
     private var resolvedFg = 0
     private var resolvedBg = 0
@@ -247,8 +327,8 @@ class TerminalView @JvmOverloads constructor(
         var bg = Style.bg(st)
         if (a and Style.BOLD != 0 && settings.boldBright && fg in 0..7) fg += 8
         if (settings.iceColors && a and Style.BLINK != 0 && bg in 0..7) bg += 8
-        var f = theme.argb(fg, true)
-        var b = theme.argb(bg, false)
+        var f = color(fg, true)
+        var b = color(bg, false)
         if ((a and Style.INVERSE != 0) != invert) {
             val t = f; f = b; b = t
         }
@@ -280,13 +360,24 @@ class TerminalView @JvmOverloads constructor(
         }
         for (x in from until to) {
             val cp = line.chars[x]
-            if (cp == 0 || cp == ' '.code) {
+            if (cp == 0 || cp == ' '.code || cp == Line.WIDE_TAIL) {
                 flush(x + 1)
                 continue
             }
             if (settings.drawBoxes && BoxDrawing.handles(cp)) {
                 flush(x + 1)
                 BoxDrawing.draw(c, cp, px(x), y, px(x + 1) - px(x), cellH, fillPaint)
+                continue
+            }
+            // a wide character, or one with combining marks: on its own, in its cells
+            val marks = line.extra(x)?.combining
+            val wide = x + 1 < line.cols && line.chars[x + 1] == Line.WIDE_TAIL
+            if (wide || marks != null) {
+                flush(x + 1)
+                cluster.setLength(0)
+                cluster.appendCodePoint(cp)
+                marks?.forEach { cluster.appendCodePoint(it) }
+                drawCluster(c, cluster, x, if (wide) 2 else 1, y)
                 continue
             }
             if (runText.isEmpty()) runStart = x
@@ -296,12 +387,56 @@ class TerminalView @JvmOverloads constructor(
         flush(to)
         textPaint.typeface = regularFace
         textPaint.isFakeBoldText = false
-        if (a and Style.UNDERLINE != 0) {
-            c.drawRect(px(from), y + cellH - max(1f, floor(cellH / 14f)), px(to), y + cellH, fillPaint)
+        val thin = max(1f, floor(cellH / 14f))
+        when {
+            a and Style.DOUBLE_UNDERLINE != 0 -> {
+                c.drawRect(px(from), y + cellH - thin, px(to), y + cellH, fillPaint)
+                c.drawRect(px(from), y + cellH - 3 * thin, px(to), y + cellH - 2 * thin, fillPaint)
+            }
+            a and Style.CURLY_UNDERLINE != 0 -> drawCurly(c, px(from), px(to), y + cellH - 2 * thin, thin)
+            a and Style.UNDERLINE != 0 -> c.drawRect(px(from), y + cellH - thin, px(to), y + cellH, fillPaint)
+        }
+        if (a and Style.OVERLINE != 0) {
+            c.drawRect(px(from), y, px(to), y + thin, fillPaint)
         }
         if (a and Style.STRIKE != 0) {
-            c.drawRect(px(from), floor(y + cellH / 2), px(to), floor(y + cellH / 2) + max(1f, floor(cellH / 14f)), fillPaint)
+            c.drawRect(px(from), floor(y + cellH / 2), px(to), floor(y + cellH / 2) + thin, fillPaint)
         }
+    }
+
+    private val cluster = StringBuilder()
+    private val wave = android.graphics.Path()
+
+    /** a curly underline: a wave a cell's width long each period */
+    private fun drawCurly(c: Canvas, left: Float, right: Float, mid: Float, thin: Float) {
+        wave.reset()
+        val amp = max(1f, thin * 1.5f)
+        val step = cellW / 2
+        wave.moveTo(left, mid)
+        var x = left
+        var up = true
+        while (x < right) {
+            val nx = min(x + step, right)
+            wave.quadTo((x + nx) / 2, mid + if (up) -amp * 2 else amp * 2, nx, mid)
+            x = nx
+            up = !up
+        }
+        fillPaint.style = Paint.Style.STROKE
+        fillPaint.strokeWidth = thin
+        fillPaint.isAntiAlias = true
+        c.drawPath(wave, fillPaint)
+        fillPaint.isAntiAlias = false
+        fillPaint.style = Paint.Style.FILL
+    }
+
+    /** a character with its marks (or a wide one), centred in its [cells], narrowed to them if need be */
+    private fun drawCluster(c: Canvas, text: CharSequence, col: Int, cells: Int, y: Float) {
+        val room = px(col + cells) - px(col)
+        val gw = textPaint.measureText(text, 0, text.length)
+        val scale = if (gw > room) room / gw else 1f
+        textPaint.textScaleX = scale
+        c.drawText(text, 0, text.length, px(col) + (room - gw * scale) / 2, y + ascent, textPaint)
+        textPaint.textScaleX = 1f
     }
 
     /**
@@ -338,14 +473,24 @@ class TerminalView @JvmOverloads constructor(
         val x = px(col)
         val cw = px(col + 1) - x
         val y = e.cursorY * cellH
-        fillPaint.color = theme.cursorArgb
-        when (settings.cursor) {
+        val cursorColor = e.colorOverride(258).takeIf { it != -1 } ?: theme.cursorArgb
+        fillPaint.color = cursorColor
+        // the remote's shape (DECSCUSR), else the user's
+        val shape = when (e.cursorStyle) {
+            1, 2 -> CursorShape.BLOCK
+            3, 4 -> CursorShape.UNDERLINE
+            5, 6 -> CursorShape.BAR
+            else -> settings.cursor
+        }
+        // (a wide character's cursor covers both its cells)
+        val cwFull = if (col + 1 < e.cols && e.line(e.cursorY).chars[col + 1] == Line.WIDE_TAIL) px(col + 2) - x else cw
+        when (shape) {
             CursorShape.BLOCK -> {
                 if (hasFocus()) {
-                    c.drawRect(x, y, x + cw, y + cellH, fillPaint)
+                    c.drawRect(x, y, x + cwFull, y + cellH, fillPaint)
                     val l = e.line(e.cursorY)
                     val cp = l.chars[min(e.cursorX, e.cols - 1)]
-                    if (cp != 0 && cp != ' '.code) {
+                    if (cp > 0 && cp != ' '.code) {
                         textPaint.color = theme.bgArgb
                         textPaint.isFakeBoldText = false
                         textPaint.textSkewX = 0f
@@ -386,7 +531,83 @@ class TerminalView @JvmOverloads constructor(
 
     override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: Rect?) {
         super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
+        reportFocus(gainFocus)
         invalidate()
+    }
+
+    override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
+        super.onWindowFocusChanged(hasWindowFocus)
+        reportFocus(hasWindowFocus && hasFocus())
+    }
+
+    private var focusReported: Boolean? = null
+
+    /** focus in or out, to a remote that asked to be told (once per change) */
+    private fun reportFocus(focused: Boolean) {
+        if (focusReported == focused) return
+        focusReported = focused
+        val s = session ?: return
+        val b = synchronized(s.emulator) { s.emulator.focusReport(focused) } ?: return
+        s.sendBytes(b)
+    }
+
+    // ------------------------------------------------------------------
+    // the mouse, as the remote asked for it (a tap a click, a drag the wheel)
+
+    private fun mouseMode(): TerminalEmulator.MouseMode =
+        session?.let { synchronized(it.emulator) { it.emulator.mouseMode } } ?: TerminalEmulator.MouseMode.NONE
+
+    /** a click at a point: press and release, reported; false when the remote doesn't want them */
+    private fun mouseClick(x: Float, y: Float): Boolean {
+        val s = session ?: return false
+        val (row, col) = cellAt(x, y)
+        if (row < 0) return false
+        val e = s.emulator
+        val (down, up) = synchronized(e) {
+            e.mouseEvent(0, col, row, press = true) to e.mouseEvent(0, col, row, press = false)
+        }
+        if (down == null) return false
+        s.sendBytes(down)
+        up?.let { s.sendBytes(it) }
+        return true
+    }
+
+    private var wheelRemainder = 0f
+
+    /**
+     * a drag as the wheel (the remote asked for the mouse), or as the
+     * arrow keys (a full-screen program on the alternate screen without
+     * it, as less and man are); false when it should scroll back
+     */
+    private fun scrollRemote(x: Float, y: Float, dy: Float): Boolean {
+        val s = session ?: return false
+        val e = s.emulator
+        val (mouse, alt) = synchronized(e) { (e.mouseMode != TerminalEmulator.MouseMode.NONE) to e.altScreen }
+        if (!mouse && !alt) return false
+        wheelRemainder += dy / cellH
+        val n = wheelRemainder.toInt()
+        if (n == 0) return true
+        wheelRemainder -= n
+        val (row, col) = cellAt(x, y)
+        repeat(abs(n).coerceAtMost(10)) {
+            if (mouse) {
+                // a drag up (dy > 0) shows what is further on: the wheel down
+                val b = synchronized(e) { e.mouseEvent(if (n > 0) 65 else 64, col, row.coerceAtLeast(0), press = true) }
+                b?.let { s.sendBytes(it) }
+            } else {
+                s.sendKey(if (n > 0) Key.DOWN else Key.UP)
+            }
+        }
+        return true
+    }
+
+    /** the hyperlink (OSC 8) in the cell at a point, if any */
+    private fun hyperlinkAt(x: Float, y: Float): String? {
+        val s = session ?: return null
+        val (row, col) = cellAt(x, y)
+        return synchronized(s.emulator) {
+            if (row < -s.emulator.historySize) null else s.emulator.line(row).extra(col)?.link
+        }
     }
 
     // ------------------------------------------------------------------
@@ -403,18 +624,23 @@ class TerminalView @JvmOverloads constructor(
                 actionMode?.finish()
                 return true
             }
+            hyperlinkAt(e.x, e.y)?.let { openLink(it); return true }
+            // (a click to a program that asked for the mouse; the keyboard comes up either way)
+            if (scrollRows == 0) mouseClick(e.x, e.y)
             performClick()
             return true
         }
 
         override fun onScroll(e1: MotionEvent?, e2: MotionEvent, dx: Float, dy: Float): Boolean {
             if (selecting) return true
+            if (scrollRows == 0 && scrollRemote(e2.x, e2.y, dy)) return true
             scrollBy(dy)
             return true
         }
 
         override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
             if (selecting) return true
+            if (scrollRows == 0 && (mouseMode() != TerminalEmulator.MouseMode.NONE || session?.emulator?.let { synchronized(it) { it.altScreen } } == true)) return true
             val max = historySize() * cellH
             scroller.fling(0, (scrollRows * cellH).toInt(), 0, vy.toInt(), 0, 0, 0, max.toInt())
             postInvalidateOnAnimation()

@@ -3,9 +3,12 @@
 package com.neodesktop.dmodem.terminal
 
 /**
- * A terminal: VT100/VT220 with xterm's extensions (256 and 24-bit colours,
- * the alternate screen, bracketed paste) and what BBSes expect of ANSI.SYS
- * (CSI s/u, bold as the bright colours, CP437 through [TermCharset]).
+ * A terminal: VT100/VT220 with xterm's extensions (256 and 24-bit colours
+ * and the palette's changes, wide and combining characters, underline
+ * styles, the alternate screen, bracketed paste, mouse reporting, focus
+ * events, hyperlinks, the clipboard, sixel graphics and the reports
+ * programs ask for) and what BBSes expect of ANSI.SYS (CSI s/u, bold as
+ * the bright colours, CP437 through [TermCharset]).
  *
  * What the remote sends goes to [append]; the screen is [line] (rows 0
  * until [rows]) with the scrollback above it (rows -1 down to
@@ -24,7 +27,12 @@ class TerminalEmulator(
     interface Listener {
         fun onTitle(title: String) {}
         fun onBell() {}
+        /** OSC 52: the remote puts text on the clipboard */
+        fun onClipboard(text: String) {}
     }
+
+    /** which mouse events are reported (DECSET 9, 1000, 1002, 1003) */
+    enum class MouseMode { NONE, X10, NORMAL, BUTTON, ANY }
 
     var listener: Listener? = null
 
@@ -68,6 +76,47 @@ class TerminalEmulator(
         private set
     var reverseVideo = false
         private set
+    var mouseMode = MouseMode.NONE
+        private set
+    /** the mouse's reports in SGR's form (1006), urxvt's (1015) or with UTF-8 coordinates (1005) */
+    private var mouseSgr = false
+    private var mouseUrxvt = false
+    private var mouseUtf8 = false
+    /** DECSET 1004: focus in and out reported */
+    var focusEvents = false
+        private set
+    /** DECSCUSR: 0 the user's choice; 1, 2 block; 3, 4 underline; 5, 6 bar (odd ones blinking) */
+    var cursorStyle = 0
+        private set
+    /** sixel images placed at the cursor, scrolling (DECSDM, 80, reset); else at the top left */
+    private var sixelScrolling = true
+    /** 8452: the cursor to the image's right, not below it */
+    private var sixelCursorRight = false
+
+    /** a cell's size in pixels, as the view draws it: sixel images are measured in it, and reported */
+    var cellPixelWidth = 10
+        private set
+    var cellPixelHeight = 20
+        private set
+
+    fun setCellPixels(w: Int, h: Int) {
+        cellPixelWidth = w.coerceAtLeast(1)
+        cellPixelHeight = h.coerceAtLeast(1)
+    }
+
+    /** the colours as the view shows them (for OSC 4, 10, 11 and 12's questions): 0-255, 256 fg, 257 bg, 258 cursor */
+    var defaultColor: (Int) -> Int = { xtermColor(it) }
+
+    /** the remote's own colours (OSC 4, 10, 11, 12): ARGB, or -1 for the view's */
+    private val colorOverrides = IntArray(259) { -1 }
+
+    /** a colour the remote set (0-255, 256 fg, 257 bg, 258 cursor), or -1 */
+    fun colorOverride(i: Int): Int = colorOverrides.getOrElse(i) { -1 }
+
+    /** OSC 8: the link the next characters carry */
+    private var link: String? = null
+    /** the last cluster ended with a zero-width joiner: the next character joins it */
+    private var joinNext = false
     private var autowrap = true
     private var originMode = false
     private var insertMode = false
@@ -94,7 +143,7 @@ class TerminalEmulator(
     private var savedAlt: Saved? = null
 
     // the parser
-    private enum class State { GROUND, ESC, ESC_INTER, CSI, OSC, OSC_ESC, STRING, STRING_ESC }
+    private enum class State { GROUND, ESC, ESC_INTER, CSI, OSC, OSC_ESC, STRING, STRING_ESC, DCS, DCS_PASS, DCS_ESC }
     private var state = State.GROUND
     private val params = IntArray(32)
     private var nParams = 0
@@ -103,6 +152,13 @@ class TerminalEmulator(
     private var privateMarker = 0
     private var intermediate = 0
     private val osc = StringBuilder()
+    /** the OSC ended with BEL: answered so */
+    private var oscBel = false
+
+    // a DCS's handler: a sixel image, or a request's text
+    private var sixel: Sixel? = null
+    private var dcsText: StringBuilder? = null
+    private var dcsKind = 0
 
     private val sink = TermDecoder.Sink { cp -> process(cp) }
 
@@ -137,13 +193,14 @@ class TerminalEmulator(
             State.ESC_INTER -> escInter(cp)
             State.CSI -> csi(cp)
             State.OSC -> when (cp) {
-                0x07 -> { osc(); state = State.GROUND }
+                0x07 -> { oscBel = true; osc(); state = State.GROUND }
                 0x1b -> state = State.OSC_ESC
                 0x18, 0x1a -> state = State.GROUND
                 else -> if (osc.length < 4096) osc.appendCodePoint(cp)
             }
             State.OSC_ESC -> {
                 // ST (ESC \) ends it; anything else too, then goes on as ESC
+                oscBel = false
                 osc()
                 state = State.GROUND
                 if (cp != '\\'.code) { state = State.ESC; esc(cp) }
@@ -155,6 +212,23 @@ class TerminalEmulator(
             State.STRING_ESC -> {
                 state = State.GROUND
                 if (cp != '\\'.code) { state = State.ESC; esc(cp) }
+            }
+            State.DCS -> dcsEntry(cp)
+            State.DCS_PASS -> when (cp) {
+                0x1b -> state = State.DCS_ESC
+                0x9c -> { dcsEnd(); state = State.GROUND }
+                0x18, 0x1a -> { dcsAbort(); state = State.GROUND }
+                else -> dcsPut(cp)
+            }
+            State.DCS_ESC -> {
+                state = State.GROUND
+                if (cp == '\\'.code) {
+                    dcsEnd()
+                } else {
+                    dcsAbort()
+                    state = State.ESC
+                    esc(cp)
+                }
             }
         }
     }
@@ -169,7 +243,8 @@ class TerminalEmulator(
             when (cp) {
                 0x9b -> startCsi()
                 0x9d -> { osc.setLength(0); state = State.OSC }
-                0x90, 0x98, 0x9e, 0x9f -> state = State.STRING
+                0x90 -> startDcs()
+                0x98, 0x9e, 0x9f -> state = State.STRING
                 0x84 -> index()
                 0x85 -> { carriageReturn(); index() }
                 0x8d -> reverseIndex()
@@ -200,7 +275,8 @@ class TerminalEmulator(
         when (cp.toChar()) {
             '[' -> startCsi()
             ']' -> { osc.setLength(0); state = State.OSC }
-            'P', 'X', '^', '_' -> state = State.STRING
+            'P' -> startDcs()
+            'X', '^', '_' -> state = State.STRING
             '(', ')', '*', '+', '#', ' ', '%' -> { intermediate = cp; state = State.ESC_INTER }
             '7' -> saveCursor()
             '8' -> restoreCursor()
@@ -271,22 +347,43 @@ class TerminalEmulator(
     private fun dispatchCsi(final: Int) {
         val c = final.toChar()
         if (privateMarker == '?'.code) {
+            if (intermediate == '$'.code && c == 'p') {
+                // DECRQM: a DEC mode asked about
+                reply("\u001b[?${p(0, 0)};${decModeState(p(0, 0))}\$y")
+                return
+            }
             when (c) {
                 'h' -> for (i in 0 until maxOf(nParams, 1)) decMode(params[i], true)
                 'l' -> for (i in 0 until maxOf(nParams, 1)) decMode(params[i], false)
                 'J' -> eraseDisplay(p(0, 0))
                 'K' -> eraseLine(p(0, 0))
+                'S' -> graphicsAttributes(p(0, 0), p(1, 0))
             }
             return
         }
         if (privateMarker == '>'.code) {
-            if (c == 'c') reply("\u001b[>0;10;0c")
+            when (c) {
+                'c' -> reply("\u001b[>41;390;0c")
+                // XTVERSION
+                'q' -> reply("\u001bP>|D-Modem 1.0\u001b\\")
+            }
+            return
+        }
+        if (privateMarker == '='.code) {
+            // DA3: a unit id
+            if (c == 'c') reply("\u001bP!|00000000\u001b\\")
             return
         }
         if (privateMarker != 0) return
         if (intermediate != 0) {
-            // DECSTR (CSI ! p): a soft reset; DECSCUSR (CSI q) and the rest ignored
-            if (intermediate == '!'.code && c == 'p') softReset()
+            when {
+                // DECSTR: a soft reset
+                intermediate == '!'.code && c == 'p' -> softReset()
+                // DECSCUSR: the cursor's shape
+                intermediate == ' '.code && c == 'q' -> cursorStyle = p(0, 0).coerceIn(0, 6)
+                // DECRQM: an ANSI mode asked about
+                intermediate == '$'.code && c == 'p' -> reply("\u001b[${p(0, 0)};${ansiModeState(p(0, 0))}\$y")
+            }
             return
         }
         when (c) {
@@ -325,11 +422,12 @@ class TerminalEmulator(
                     reply("\u001b[${y + 1};${minOf(cursorX, cols - 1) + 1}R")
                 }
             }
-            'c' -> if (p(0, 0) == 0) reply("\u001b[?1;2c")
+            // DA1: a VT220 with sixel graphics (4) and ANSI colour (22)
+            'c' -> if (p(0, 0) == 0) reply("\u001b[?62;4;22c")
             'r' -> setRegion(p(0, 1) - 1, p(1, rows) - 1)
             's' -> saveCursor()
             'u' -> restoreCursor()
-            't' -> {} // window operations: none
+            't' -> windowReport(p(0, 0))
         }
     }
 
@@ -346,8 +444,113 @@ class TerminalEmulator(
                 if (on) { saveCursor(); setAltScreen(true, clear = true) } else { setAltScreen(false, clear = false); restoreCursor() }
             }
             2004 -> bracketedPaste = on
+            9 -> mouseMode = if (on) MouseMode.X10 else MouseMode.NONE
+            1000 -> mouseMode = if (on) MouseMode.NORMAL else MouseMode.NONE
+            1002 -> mouseMode = if (on) MouseMode.BUTTON else MouseMode.NONE
+            1003 -> mouseMode = if (on) MouseMode.ANY else MouseMode.NONE
+            1004 -> focusEvents = on
+            1005 -> mouseUtf8 = on
+            1006 -> mouseSgr = on
+            1015 -> mouseUrxvt = on
+            80 -> sixelScrolling = !on
+            8452 -> sixelCursorRight = on
         }
     }
+
+    /** DECRQM's answer for a DEC mode: 1 set, 2 reset, 0 not one known */
+    private fun decModeState(m: Int): Int {
+        fun b(v: Boolean) = if (v) 1 else 2
+        return when (m) {
+            1 -> b(appCursorKeys)
+            5 -> b(reverseVideo)
+            6 -> b(originMode)
+            7 -> b(autowrap)
+            25 -> b(cursorVisible)
+            47, 1047, 1049 -> b(altScreen)
+            2004 -> b(bracketedPaste)
+            9 -> b(mouseMode == MouseMode.X10)
+            1000 -> b(mouseMode == MouseMode.NORMAL)
+            1002 -> b(mouseMode == MouseMode.BUTTON)
+            1003 -> b(mouseMode == MouseMode.ANY)
+            1004 -> b(focusEvents)
+            1005 -> b(mouseUtf8)
+            1006 -> b(mouseSgr)
+            1015 -> b(mouseUrxvt)
+            80 -> b(!sixelScrolling)
+            8452 -> b(sixelCursorRight)
+            else -> 0
+        }
+    }
+
+    private fun ansiModeState(m: Int): Int = when (m) {
+        4 -> if (insertMode) 1 else 2
+        20 -> if (newlineMode) 1 else 2
+        else -> 0
+    }
+
+    /** XTWINOPS' reports: the text area's and a cell's size in pixels, the screen's in characters */
+    private fun windowReport(op: Int) {
+        when (op) {
+            14 -> reply("\u001b[4;${rows * cellPixelHeight};${cols * cellPixelWidth}t")
+            16 -> reply("\u001b[6;$cellPixelHeight;${cellPixelWidth}t")
+            18 -> reply("\u001b[8;$rows;${cols}t")
+            19 -> reply("\u001b[9;$rows;${cols}t")
+        }
+    }
+
+    /** XTSMGRAPHICS: the colour registers (1) and the largest sixel image (2) */
+    private fun graphicsAttributes(item: Int, action: Int) {
+        when (item) {
+            1 -> reply("\u001b[?1;0;256S")
+            2 -> if (action == 1 || action == 4) {
+                reply("\u001b[?2;0;${minOf(cols * cellPixelWidth, MAX_IMAGE)};${minOf(rows * cellPixelHeight, MAX_IMAGE)}S")
+            } else {
+                reply("\u001b[?2;3;0S")
+            }
+            else -> reply("\u001b[?$item;1;0S")
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // the mouse and focus, reported
+
+    /**
+     * A mouse event as the remote asked for it, or null when it doesn't
+     * want this one: [button] 0-2 (left, middle, right), 64 and 65 the
+     * wheel; [col] and [row] on the screen (from 0); [mods] shift 4, alt
+     * 8, ctrl 16.
+     */
+    fun mouseEvent(button: Int, col: Int, row: Int, press: Boolean, motion: Boolean = false, mods: Int = 0): ByteArray? {
+        val mode = mouseMode
+        if (mode == MouseMode.NONE) return null
+        if (motion && mode != MouseMode.BUTTON && mode != MouseMode.ANY) return null
+        val wheel = button >= 64
+        if (!press && (mode == MouseMode.X10 || wheel)) return null
+        var code = button + (if (motion) 32 else 0) + (if (mode == MouseMode.X10) 0 else mods)
+        val x = col.coerceIn(0, cols - 1) + 1
+        val y = row.coerceIn(0, rows - 1) + 1
+        val s = when {
+            mouseSgr -> "\u001b[<$code;$x;$y${if (press) 'M' else 'm'}"
+            mouseUrxvt -> {
+                if (!press) code = 3 + (if (motion) 32 else 0) + mods
+                "\u001b[${code + 32};$x;${y}M"
+            }
+            else -> {
+                if (!press) code = 3 + (if (motion) 32 else 0) + mods
+                if (!mouseUtf8 && (x > 223 || y > 223)) return null
+                val sb = StringBuilder("\u001b[M")
+                sb.appendCodePoint(32 + code)
+                sb.appendCodePoint(32 + x)
+                sb.appendCodePoint(32 + y)
+                return if (mouseUtf8) sb.toString().toByteArray(Charsets.UTF_8) else sb.toString().toByteArray(Charsets.ISO_8859_1)
+            }
+        }
+        return s.toByteArray(Charsets.ISO_8859_1)
+    }
+
+    /** the focus's change, when the remote asked to be told (1004) */
+    fun focusReport(focused: Boolean): ByteArray? =
+        if (focusEvents) (if (focused) "\u001b[I" else "\u001b[O").toByteArray() else null
 
     private fun ansiMode(m: Int, on: Boolean) {
         when (m) {
@@ -371,14 +574,27 @@ class TerminalEmulator(
                 1 -> a = a or Style.BOLD
                 2 -> a = a or Style.FAINT
                 3 -> a = a or Style.ITALIC
-                4, 21 -> a = a or Style.UNDERLINE
+                4 -> {
+                    a = a and Style.ANY_UNDERLINE.inv()
+                    // 4:n, the underline's style: none, single, double, curly, dotted, dashed
+                    val sub = if (i + 1 < nParams && colon[i + 1]) params[++i] else 1
+                    a = a or when (sub) {
+                        0 -> 0
+                        2 -> Style.DOUBLE_UNDERLINE
+                        3, 4, 5 -> Style.CURLY_UNDERLINE
+                        else -> Style.UNDERLINE
+                    }
+                }
+                21 -> a = (a and Style.ANY_UNDERLINE.inv()) or Style.DOUBLE_UNDERLINE
                 5, 6 -> a = a or Style.BLINK
                 7 -> a = a or Style.INVERSE
                 8 -> a = a or Style.INVISIBLE
                 9 -> a = a or Style.STRIKE
                 22 -> a = a and (Style.BOLD or Style.FAINT).inv()
                 23 -> a = a and Style.ITALIC.inv()
-                24 -> a = a and Style.UNDERLINE.inv()
+                24 -> a = a and Style.ANY_UNDERLINE.inv()
+                53 -> a = a or Style.OVERLINE
+                55 -> a = a and Style.OVERLINE.inv()
                 25 -> a = a and Style.BLINK.inv()
                 27 -> a = a and Style.INVERSE.inv()
                 28 -> a = a and Style.INVISIBLE.inv()
@@ -389,6 +605,16 @@ class TerminalEmulator(
                 49 -> s = Style.withBg(s, Style.DEFAULT_BG)
                 in 90..97 -> s = Style.withFg(s, v - 90 + 8)
                 in 100..107 -> s = Style.withBg(s, v - 100 + 8)
+                58 -> {
+                    // the underline's colour: read past (drawn in the text's)
+                    if (i + 1 < nParams) {
+                        when (params[i + 1]) {
+                            5 -> i += 2
+                            2 -> i += if (colon.getOrElse(i + 1) { false } && i + 5 < nParams && colon[i + 5]) 5 else 4
+                            else -> i = nParams
+                        }
+                    }
+                }
                 38, 48 -> {
                     // 38;5;n / 38;2;r;g;b, with ; or : (38:2::r:g:b: an empty colour space)
                     var color = -1
@@ -412,7 +638,7 @@ class TerminalEmulator(
                     if (color >= 0) s = if (v == 38) Style.withFg(s, color) else Style.withBg(s, color)
                 }
             }
-            if (v != 0 && v != 38 && v != 48 && v !in 30..49 && v !in 90..107) s = Style.withAttrs(s, a)
+            if (v != 0 && v != 38 && v != 48 && v != 58 && v !in 30..49 && v !in 90..107) s = Style.withAttrs(s, a)
             i++
         }
         style = s
@@ -421,14 +647,204 @@ class TerminalEmulator(
     private fun osc() {
         val s = osc.toString()
         val semi = s.indexOf(';')
-        if (semi < 0) return
-        when (s.substring(0, semi)) {
-            "0", "2" -> listener?.onTitle(s.substring(semi + 1))
+        val cmd = (if (semi < 0) s else s.substring(0, semi)).toIntOrNull() ?: return
+        val arg = if (semi < 0) "" else s.substring(semi + 1)
+        when (cmd) {
+            0, 2 -> listener?.onTitle(arg)
+            4 -> {
+                // pairs of index;colour (or ? to be told it)
+                val f = arg.split(';')
+                var i = 0
+                while (i + 1 < f.size) {
+                    val n = f[i].toIntOrNull()
+                    if (n != null && n in 0..255) colorSpec(n, f[i + 1], "4;$n;")
+                    i += 2
+                }
+            }
+            10, 11, 12 -> {
+                // the default foreground, background, cursor: each following one takes the next
+                var n = cmd
+                for (spec in arg.split(';')) {
+                    if (n > 12) break
+                    colorSpec(256 + n - 10, spec, "$n;")
+                    n++
+                }
+            }
+            104 -> if (arg.isEmpty()) colorOverrides.fill(-1, 0, 256) else arg.split(';').forEach { it.toIntOrNull()?.takeIf { n -> n in 0..255 }?.let { n -> colorOverrides[n] = -1 } }
+            110 -> colorOverrides[256] = -1
+            111 -> colorOverrides[257] = -1
+            112 -> colorOverrides[258] = -1
+            52 -> {
+                // the clipboard set (never read: the remote isn't told what's on it)
+                val data = arg.substringAfter(';', "")
+                if (data != "?" && data.isNotEmpty()) {
+                    runCatching { java.util.Base64.getMimeDecoder().decode(data) }.getOrNull()
+                        ?.let { listener?.onClipboard(String(it, Charsets.UTF_8)) }
+                }
+            }
+            8 -> {
+                // a hyperlink: params;uri, an empty uri ends it
+                val uri = arg.substringAfter(';', "")
+                link = uri.takeIf { it.isNotEmpty() && it.length <= 2048 }
+            }
         }
+    }
+
+    /** a colour set from its spec, or told (OSC's answer) when the spec is "?" */
+    private fun colorSpec(i: Int, spec: String, prefix: String) {
+        if (spec == "?") {
+            val c = colorOverrides[i].takeIf { it != -1 } ?: defaultColor(i)
+            fun h(v: Int) = "%04x".format(v * 0x101)
+            val end = if (oscBel) "\u0007" else "\u001b\\"
+            reply("\u001b]$prefix" + "rgb:${h((c shr 16) and 0xff)}/${h((c shr 8) and 0xff)}/${h(c and 0xff)}$end")
+            return
+        }
+        parseColor(spec)?.let { colorOverrides[i] = it }
     }
 
     private fun reply(s: String) {
         output(s.toByteArray(Charsets.ISO_8859_1))
+    }
+
+    // ------------------------------------------------------------------
+    // DCS: sixel images, and requests (DECRQSS)
+
+    private fun startDcs() {
+        startCsi()
+        state = State.DCS
+    }
+
+    /** a DCS's parameters and intermediates, until its final character */
+    private fun dcsEntry(cp: Int) {
+        when (cp) {
+            in '0'.code..'9'.code, ';'.code, ':'.code -> csi(cp).also { state = State.DCS }
+            in 0x3c..0x3f -> if (nParams == 0 && intermediate == 0) privateMarker = cp
+            in 0x20..0x2f -> intermediate = cp
+            in 0x40..0x7e -> {
+                state = State.DCS_PASS
+                dcsStart(cp)
+            }
+            0x1b -> state = State.ESC
+            0x18, 0x1a -> state = State.GROUND
+        }
+    }
+
+    private fun dcsStart(final: Int) {
+        sixel = null
+        dcsText = null
+        dcsKind = 0
+        when {
+            final == 'q'.code && intermediate == 0 && privateMarker == 0 -> {
+                // P2 = 1: the pixels not drawn left transparent
+                val maxW = minOf(MAX_IMAGE, cols * cellPixelWidth * 2)
+                val maxH = minOf(MAX_IMAGE, rows * cellPixelHeight * 4)
+                sixel = Sixel(transparent = p(1, 0) == 1, maxWidth = maxW, maxHeight = maxH)
+            }
+            // DECRQSS, XTGETTCAP: their text collected
+            final == 'q'.code && (intermediate == '$'.code || intermediate == '+'.code) -> {
+                dcsText = StringBuilder()
+                dcsKind = intermediate
+            }
+        }
+    }
+
+    private fun dcsPut(cp: Int) {
+        sixel?.let { it.feed(cp); return }
+        dcsText?.let { if (it.length < 1024) it.appendCodePoint(cp) }
+    }
+
+    private fun dcsAbort() {
+        sixel = null
+        dcsText = null
+    }
+
+    private fun dcsEnd() {
+        sixel?.let { sx ->
+            sixel = null
+            sx.finish(cellPixelWidth, cellPixelHeight)?.let { placeImage(it) }
+        }
+        dcsText?.let { t ->
+            dcsText = null
+            if (dcsKind == '$'.code) statusString(t.toString()) else reply("\u001bP0+r\u001b\\")
+        }
+    }
+
+    /** DECRQSS: the graphic rendition, the scrolling region, the cursor's style */
+    private fun statusString(q: String) {
+        val ok = when (q) {
+            "m" -> sgrString() + "m"
+            "r" -> "${top + 1};${bottom + 1}r"
+            " q" -> "${cursorStyle.coerceAtLeast(1)} q"
+            "\"q" -> "0\"q"
+            else -> null
+        }
+        reply(if (ok != null) "\u001bP1\$r$ok\u001b\\" else "\u001bP0\$r\u001b\\")
+    }
+
+    /** the current rendition as SGR's parameters */
+    private fun sgrString(): String {
+        val sb = StringBuilder("0")
+        val a = Style.attrs(style)
+        if (a and Style.BOLD != 0) sb.append(";1")
+        if (a and Style.FAINT != 0) sb.append(";2")
+        if (a and Style.ITALIC != 0) sb.append(";3")
+        if (a and Style.UNDERLINE != 0) sb.append(";4")
+        if (a and Style.DOUBLE_UNDERLINE != 0) sb.append(";21")
+        if (a and Style.CURLY_UNDERLINE != 0) sb.append(";4:3")
+        if (a and Style.BLINK != 0) sb.append(";5")
+        if (a and Style.INVERSE != 0) sb.append(";7")
+        if (a and Style.INVISIBLE != 0) sb.append(";8")
+        if (a and Style.STRIKE != 0) sb.append(";9")
+        if (a and Style.OVERLINE != 0) sb.append(";53")
+        fun color(c: Int, base: Int, bright: Int) {
+            when {
+                c == Style.DEFAULT_FG || c == Style.DEFAULT_BG -> {}
+                c and Style.RGB != 0 -> sb.append(";${base + 8};2;${(c shr 16) and 0xff};${(c shr 8) and 0xff};${c and 0xff}")
+                c < 8 -> sb.append(";${base + c}")
+                c < 16 -> sb.append(";${bright + c - 8}")
+                else -> sb.append(";${base + 8};5;$c")
+            }
+        }
+        color(Style.fg(style), 30, 90)
+        color(Style.bg(style), 40, 100)
+        return sb.toString()
+    }
+
+    /**
+     * A sixel image put on the screen as tiles of cells (so that it scrolls
+     * with the text): at the cursor, scrolling the screen as it needs, the
+     * cursor then on the line below it (or to its right, 8452); or, with
+     * DECSDM, at the top left, the cursor left where it was.
+     */
+    private fun placeImage(img: TermImage) {
+        val tilesW = (img.width + img.cellWidth - 1) / img.cellWidth
+        val tilesH = (img.height + img.cellHeight - 1) / img.cellHeight
+        fun tile(line: Line, x: Int, tx: Int, ty: Int) {
+            line.set(x, 0, Style.erased(style))
+            line.extraFor(x).image = ImageTile(img, tx, ty)
+        }
+        if (!sixelScrolling) {
+            for (ty in 0 until minOf(tilesH, rows)) for (tx in 0 until minOf(tilesW, cols)) tile(screen[ty], tx, tx, ty)
+            return
+        }
+        if (pendingWrap) { carriageReturn(); lineFeed() }
+        val x0 = cursorX
+        for (ty in 0 until tilesH) {
+            val line = screen[cursorY]
+            for (tx in 0 until tilesW) {
+                val x = x0 + tx
+                if (x >= cols) break
+                tile(line, x, tx, ty)
+            }
+            if (ty < tilesH - 1) index()
+        }
+        if (sixelCursorRight) {
+            cursorX = (x0 + tilesW).coerceAtMost(cols - 1)
+        } else {
+            index()
+            cursorX = x0
+        }
+        pendingWrap = false
     }
 
     // ------------------------------------------------------------------
@@ -437,6 +853,13 @@ class TerminalEmulator(
     private fun print(c: Int) {
         var cp = c
         if (if (shiftOut) g1Graphics else g0Graphics) cp = decGraphics(cp)
+        val w = if (cp < 0x300) 1 else Wcwidth.width(cp)
+        // a combining mark, or what a zero-width joiner joins: with the character before
+        if (w == 0 || joinNext) {
+            joinNext = false
+            combine(cp)
+            return
+        }
         lastChar = cp
         if (pendingWrap) {
             if (autowrap) {
@@ -446,18 +869,50 @@ class TerminalEmulator(
             }
             pendingWrap = false
         }
-        val line = screen[cursorY]
-        if (insertMode) {
-            System.arraycopy(line.chars, cursorX, line.chars, cursorX + 1, cols - cursorX - 1)
-            System.arraycopy(line.styles, cursorX, line.styles, cursorX + 1, cols - cursorX - 1)
+        // a wide character with one column left: to the next line (the last cell left blank)
+        if (w == 2 && cursorX == cols - 1) {
+            if (!autowrap || cols < 2) return
+            screen[cursorY].clear(cursorX, cols, style)
+            screen[cursorY].wrapped = true
+            carriageReturn()
+            lineFeed()
         }
-        line.chars[cursorX] = cp
-        line.styles[cursorX] = style
-        if (cursorX == cols - 1) {
+        val line = screen[cursorY]
+        if (insertMode) line.insertCells(cursorX, w, style)
+        // (half of a wide character written over: its other half blanked)
+        unpair(line, cursorX)
+        if (w == 2) unpair(line, cursorX + 1)
+        line.set(cursorX, cp, style)
+        if (w == 2) line.set(cursorX + 1, Line.WIDE_TAIL, style)
+        link?.let { l -> for (k in 0 until w) line.extraFor(cursorX + k).link = l }
+        if (cursorX + w >= cols) {
+            cursorX = cols - 1
             pendingWrap = true
         } else {
-            cursorX++
+            cursorX += w
         }
+    }
+
+    /** a cell about to be written: the wide character it was half of, blanked */
+    private fun unpair(line: Line, x: Int) {
+        if (x >= cols) return
+        if (line.chars[x] == Line.WIDE_TAIL && x > 0) line.chars[x - 1] = 0
+        if (x + 1 < cols && line.chars[x + 1] == Line.WIDE_TAIL && line.chars[x] != Line.WIDE_TAIL) line.chars[x + 1] = 0
+    }
+
+    /** a zero-width code point added to the cell written last */
+    private fun combine(cp: Int) {
+        val line = screen[cursorY]
+        var x = if (pendingWrap) cursorX else cursorX - 1
+        if (x < 0) return
+        if (line.chars[x] == Line.WIDE_TAIL && x > 0) x--
+        if (line.chars[x] == 0) return
+        val e = line.extraFor(x)
+        val old = e.combining
+        // (a few marks at most: enough for any real cluster)
+        if (old != null && old.size >= 16) return
+        e.combining = if (old == null) intArrayOf(cp) else old + cp
+        if (cp == 0x200D) joinNext = true
     }
 
     private fun carriageReturn() {
@@ -609,20 +1064,12 @@ class TerminalEmulator(
     }
 
     private fun insertChars(n: Int) {
-        val l = screen[cursorY]
-        val k = n.coerceAtMost(cols - cursorX)
-        System.arraycopy(l.chars, cursorX, l.chars, cursorX + k, cols - cursorX - k)
-        System.arraycopy(l.styles, cursorX, l.styles, cursorX + k, cols - cursorX - k)
-        l.clear(cursorX, cursorX + k, Style.erased(style))
+        screen[cursorY].insertCells(cursorX, n, Style.erased(style))
         pendingWrap = false
     }
 
     private fun deleteChars(n: Int) {
-        val l = screen[cursorY]
-        val k = n.coerceAtMost(cols - cursorX)
-        System.arraycopy(l.chars, cursorX + k, l.chars, cursorX, cols - cursorX - k)
-        System.arraycopy(l.styles, cursorX + k, l.styles, cursorX, cols - cursorX - k)
-        l.clear(cols - k, cols, Style.erased(style))
+        screen[cursorY].deleteCells(cursorX, n, Style.erased(style))
         pendingWrap = false
     }
 
@@ -675,7 +1122,7 @@ class TerminalEmulator(
     }
 
     private fun alignmentTest() {
-        for (l in screen) for (x in 0 until cols) { l.chars[x] = 'E'.code; l.styles[x] = Style.NORMAL }
+        for (l in screen) for (x in 0 until cols) l.set(x, 'E'.code, Style.NORMAL)
         cursorPosition(0, 0)
     }
 
@@ -708,6 +1155,19 @@ class TerminalEmulator(
         bracketedPaste = false
         reverseVideo = false
         newlineMode = false
+        mouseMode = MouseMode.NONE
+        mouseSgr = false
+        mouseUrxvt = false
+        mouseUtf8 = false
+        focusEvents = false
+        cursorStyle = 0
+        sixelScrolling = true
+        sixelCursorRight = false
+        colorOverrides.fill(-1)
+        link = null
+        joinNext = false
+        sixel = null
+        dcsText = null
         tabs = BooleanArray(cols) { it % 8 == 0 && it > 0 }
         state = State.GROUND
         decoder.reset()
@@ -796,6 +1256,57 @@ class TerminalEmulator(
     }
 
     companion object {
+        /** the largest sixel image (pixels a side) */
+        const val MAX_IMAGE = 2048
+
+        /** xterm's colours: the 16, the 6x6x6 cube, the greys; default fg light grey, bg black */
+        fun xtermColor(i: Int): Int {
+            val sixteen = intArrayOf(
+                0x000000, 0xcd0000, 0x00cd00, 0xcdcd00, 0x0000ee, 0xcd00cd, 0x00cdcd, 0xe5e5e5,
+                0x7f7f7f, 0xff0000, 0x00ff00, 0xffff00, 0x5c5cff, 0xff00ff, 0x00ffff, 0xffffff,
+            )
+            val rgb = when {
+                i < 16 -> sixteen[i.coerceAtLeast(0)]
+                i < 232 -> {
+                    val n = i - 16
+                    val steps = intArrayOf(0, 95, 135, 175, 215, 255)
+                    (steps[n / 36] shl 16) or (steps[(n / 6) % 6] shl 8) or steps[n % 6]
+                }
+                i < 256 -> (8 + (i - 232) * 10).let { (it shl 16) or (it shl 8) or it }
+                i == 257 -> 0x000000
+                else -> 0xe5e5e5
+            }
+            return (0xff shl 24) or rgb
+        }
+
+        /** an X colour spec: rgb:r/g/b (1 to 4 hex digits each), #rgb, #rrggbb, #rrrrggggbbbb */
+        fun parseColor(spec: String): Int? {
+            val s = spec.trim()
+            fun scale(h: String): Int? {
+                val v = h.toIntOrNull(16) ?: return null
+                return when (h.length) {
+                    1 -> v * 17
+                    2 -> v
+                    3 -> v shr 4
+                    4 -> v shr 8
+                    else -> null
+                }
+            }
+            val parts: List<String> = when {
+                s.startsWith("rgb:") -> s.substring(4).split('/')
+                s.startsWith("#") && (s.length - 1) % 3 == 0 && s.length > 1 -> {
+                    val n = (s.length - 1) / 3
+                    listOf(s.substring(1, 1 + n), s.substring(1 + n, 1 + 2 * n), s.substring(1 + 2 * n))
+                }
+                else -> return null
+            }
+            if (parts.size != 3) return null
+            val r = scale(parts[0]) ?: return null
+            val g = scale(parts[1]) ?: return null
+            val b = scale(parts[2]) ?: return null
+            return (0xff shl 24) or (r shl 16) or (g shl 8) or b
+        }
+
         /** DEC special graphics (ESC ( 0): the line drawing set, for 0x5f..0x7e */
         private const val DEC_GRAPHICS =
             " ◆▒␉␌␍␊°±␤␋┘┐┌└┼⎺⎻─⎼⎽├┤┴┬│≤≥π≠£·"

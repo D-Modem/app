@@ -115,7 +115,7 @@ class TerminalEmulatorTest {
     fun answersForTheRemote() {
         val t = term(10, 5)
         t.send("\u001b[3;4H\u001b[6n\u001b[c\u001b[5n")
-        assertEquals("\u001b[3;4R\u001b[?1;2c\u001b[0n", replies.toString())
+        assertEquals("\u001b[3;4R\u001b[?62;4;22c\u001b[0n", replies.toString())
         replies.setLength(0)
         t.answerback = "DMODEM"
         t.send("\u0005")

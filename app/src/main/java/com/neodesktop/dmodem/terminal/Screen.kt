@@ -21,6 +21,14 @@ object Style {
     const val INVERSE = 32
     const val INVISIBLE = 64
     const val STRIKE = 128
+    /** SGR 21 and 4:2 */
+    const val DOUBLE_UNDERLINE = 256
+    /** SGR 4:3 (and the dotted and dashed ones, 4:4 and 4:5) */
+    const val CURLY_UNDERLINE = 512
+    const val OVERLINE = 1024
+
+    /** any of the underlines */
+    const val ANY_UNDERLINE = UNDERLINE or DOUBLE_UNDERLINE or CURLY_UNDERLINE
 
     private const val COLOR_MASK = 0x1ffffffL
 
@@ -43,20 +51,87 @@ object Style {
     fun erased(s: Long) = of(DEFAULT_FG, bg(s), 0)
 }
 
-/** a line of cells: code points (0: never written, shown as a space) and their looks */
+/** a picture (a sixel image): its pixels, and the cell size it was placed at (its tiles are cells of that size) */
+class TermImage(val width: Int, val height: Int, val pixels: IntArray, val cellWidth: Int, val cellHeight: Int) {
+    val id = nextId++
+
+    private companion object {
+        var nextId = 1L
+    }
+}
+
+/** the part of an image a cell shows: its tile (column, row of tiles) */
+class ImageTile(val image: TermImage, val tx: Int, val ty: Int)
+
+/** what few cells carry besides their character: combining marks, a picture's tile, a hyperlink */
+class CellExtra(
+    var combining: IntArray? = null,
+    var image: ImageTile? = null,
+    var link: String? = null,
+) {
+    fun copy() = CellExtra(combining?.copyOf(), image, link)
+    val isEmpty get() = combining == null && image == null && link == null
+}
+
+/**
+ * a line of cells: code points (0: never written, shown as a space;
+ * [WIDE_TAIL]: the right half of the wide character before it), their
+ * looks, and the few cells' extras
+ */
 class Line(cols: Int, style: Long = Style.NORMAL) {
     var chars = IntArray(cols)
     var styles = LongArray(cols) { style }
+    /** combining marks, image tiles, links: allocated when a cell first needs one */
+    var extras: Array<CellExtra?>? = null
+        private set
     /** it goes on in the next line (the text wrapped at the right margin) */
     var wrapped = false
 
     val cols: Int get() = chars.size
 
+    fun extra(i: Int): CellExtra? = extras?.getOrNull(i)
+
+    /** the cell's extras, made if it has none */
+    fun extraFor(i: Int): CellExtra {
+        val e = extras ?: arrayOfNulls<CellExtra>(cols).also { extras = it }
+        return e[i] ?: CellExtra().also { e[i] = it }
+    }
+
+    /** a cell set: its extras gone (a new character over it) */
+    fun set(i: Int, cp: Int, style: Long) {
+        chars[i] = cp
+        styles[i] = style
+        extras?.let { it[i] = null }
+    }
+
     fun clear(from: Int, to: Int, style: Long) {
-        for (i in from.coerceAtLeast(0) until to.coerceAtMost(cols)) {
+        val f = from.coerceAtLeast(0)
+        val t = to.coerceAtMost(cols)
+        for (i in f until t) {
             chars[i] = 0
             styles[i] = style
         }
+        extras?.let { e -> for (i in f until t) e[i] = null }
+    }
+
+    /** [n] blank cells at [at], those at the end pushed off */
+    fun insertCells(at: Int, n: Int, style: Long) {
+        if (at >= cols || n <= 0) return
+        val k = minOf(n, cols - at)
+        System.arraycopy(chars, at, chars, at + k, cols - at - k)
+        System.arraycopy(styles, at, styles, at + k, cols - at - k)
+        extras?.let { System.arraycopy(it, at, it, at + k, cols - at - k) }
+        clear(at, at + k, style)
+    }
+
+    /** [n] cells at [at] removed, blank ones in from the end */
+    fun deleteCells(at: Int, n: Int, style: Long) {
+        if (at >= cols || n <= 0) return
+        val k = minOf(n, cols - at)
+        System.arraycopy(chars, at + k, chars, at, cols - at - k)
+        System.arraycopy(styles, at + k, styles, at, cols - at - k)
+        extras?.let { System.arraycopy(it, at + k, it, at, cols - at - k) }
+        clear(cols - k, cols, style)
     }
 
     fun resize(n: Int) {
@@ -65,22 +140,44 @@ class Line(cols: Int, style: Long = Style.NORMAL) {
         val s = LongArray(n) { Style.NORMAL }
         System.arraycopy(chars, 0, c, 0, minOf(n, cols))
         System.arraycopy(styles, 0, s, 0, minOf(n, cols))
+        extras = extras?.let { e -> arrayOfNulls<CellExtra>(n).also { System.arraycopy(e, 0, it, 0, minOf(n, cols)) } }
         chars = c
         styles = s
+        // (a wide character cut in half at the new edge: gone)
+        if (n > 0 && chars[n - 1] > 0 && Wcwidth.width(chars[n - 1]) == 2) chars[n - 1] = 0
     }
 
     fun copyFrom(o: Line) {
-        System.arraycopy(o.chars, 0, chars, 0, minOf(cols, o.cols))
-        System.arraycopy(o.styles, 0, styles, 0, minOf(cols, o.cols))
+        val n = minOf(cols, o.cols)
+        System.arraycopy(o.chars, 0, chars, 0, n)
+        System.arraycopy(o.styles, 0, styles, 0, n)
+        val oe = o.extras
+        if (oe == null) {
+            extras = null
+        } else {
+            val e = arrayOfNulls<CellExtra>(cols)
+            for (i in 0 until n) e[i] = oe[i]?.copy()
+            extras = e
+        }
         wrapped = o.wrapped
     }
 
-    /** the text, without the blank cells at the end */
+    /** the text, without the blank cells at the end (combining marks with their characters) */
     fun text(from: Int = 0, to: Int = cols): String {
         var end = to.coerceAtMost(cols)
         while (end > from && chars[end - 1] == 0) end--
         val sb = StringBuilder()
-        for (i in from until end) sb.appendCodePoint(if (chars[i] == 0) ' '.code else chars[i])
+        for (i in from until end) {
+            val cp = chars[i]
+            if (cp == WIDE_TAIL) continue
+            sb.appendCodePoint(if (cp == 0) ' '.code else cp)
+            extra(i)?.combining?.forEach { sb.appendCodePoint(it) }
+        }
         return sb.toString()
+    }
+
+    companion object {
+        /** the right half of a wide character */
+        const val WIDE_TAIL = -1
     }
 }

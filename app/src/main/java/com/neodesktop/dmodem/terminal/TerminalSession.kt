@@ -55,6 +55,9 @@ class TerminalSession(
     @Volatile
     var onBell: (() -> Unit)? = null
 
+    /** the remote put text on the clipboard (OSC 52) */
+    var onClipboard: ((String) -> Unit)? = null
+
     private val _title = MutableStateFlow("")
     val title: StateFlow<String> = _title.asStateFlow()
 
@@ -94,6 +97,10 @@ class TerminalSession(
 
             override fun onBell() {
                 onBell?.invoke()
+            }
+
+            override fun onClipboard(text: String) {
+                onClipboard?.invoke(text)
             }
         }
         link.addListener(listener)
