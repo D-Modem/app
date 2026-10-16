@@ -1,0 +1,119 @@
+# build: the APK (all four ABIs), the unit tests and lint.
+# native: the native engine on the runner against a dmodemd over loopback
+#   SIP (native-test).
+# device: the instrumented tests on an emulator (x86_64): the native library
+#   loads, binds and answers AT commands.
+#
+# D-Modem-RE is a private submodule: the DMODEM_RE_TOKEN secret is a token
+# that can read it (a fine-grained personal access token with Contents:
+# read on Neo-Desktop/D-Modem-RE).
+name: Android
+
+on:
+  push:
+  pull_request:
+
+env:
+  NDK_VERSION: "29.0.14206865"
+  CMAKE_VERSION: "3.31.6"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.DMODEM_RE_TOKEN || github.token }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: SDK packages
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "ndk;$NDK_VERSION" "cmake;$CMAKE_VERSION" "platforms;android-37.0"
+
+      - name: Build, unit tests, lint
+        run: ./gradlew assembleDebug assembleDebugAndroidTest testDebugUnitTest lintDebug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reports
+          path: |
+            app/build/reports
+            app/build/test-results
+
+  native:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.DMODEM_RE_TOKEN || github.token }}
+
+      - name: Packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build g++ libssl-dev
+
+      - name: Build
+        run: |
+          cmake -S native-test -B build-host -G Ninja
+          cmake --build build-host
+
+      - name: Engine test
+        run: ctest --test-dir build-host --output-on-failure
+
+  device:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.DMODEM_RE_TOKEN || github.token }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: SDK packages
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "ndk;$NDK_VERSION" "cmake;$CMAKE_VERSION" "platforms;android-37.0"
+
+      - name: Instrumented tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: ./gradlew connectedDebugAndroidTest
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: device-reports
+          path: app/build/reports/androidTests

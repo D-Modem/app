@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- a handset over a box: the modem -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FF3F51B5"
+        android:pathData="M3,13h18a1,1 0,0 1,1 1v5a1,1 0,0 1,-1 1H3a1,1 0,0 1,-1 -1v-5a1,1 0,0 1,1 -1zM6,16a1,1 0,1 0,0.01 0zM10,16a1,1 0,1 0,0.01 0zM4,4c4,-2.5 12,-2.5 16,0l-1.5,4h-3l-0.5,-2c-2,-0.6 -4,-0.6 -6,0l-0.5,2h-3z" />
+</vector>
