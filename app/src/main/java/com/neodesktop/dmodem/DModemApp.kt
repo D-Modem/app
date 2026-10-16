@@ -6,6 +6,7 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import com.neodesktop.dmodem.modem.ModemState
+import com.neodesktop.dmodem.terminal.Terminal
 
 class DModemApp : Application() {
 
@@ -19,6 +20,8 @@ class DModemApp : Application() {
             CHANNEL_MODEM, getString(R.string.channel_modem), NotificationManager.IMPORTANCE_LOW,
         ).apply { description = getString(R.string.channel_modem_desc) }
         getSystemService(NotificationManager::class.java).createNotificationChannel(ch)
+
+        Terminal.init(this)
 
         // what the modem sends its DTE, as text, for the status screen's console
         ModemState.dte.addListener { data, length ->

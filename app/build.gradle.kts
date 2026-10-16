@@ -53,6 +53,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
+
     buildFeatures {
         compose = true
     }
@@ -85,6 +89,15 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.ext.junit)
+}
+
+// Robolectric fetches its Android framework jars itself: -ProbolectricRepoUrl=<a Maven mirror> to fetch them elsewhere
+tasks.withType<Test>().configureEach {
+    providers.gradleProperty("robolectricRepoUrl").orNull?.let {
+        systemProperty("robolectric.dependency.repo.url", it)
+    }
 }

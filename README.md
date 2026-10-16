@@ -21,6 +21,21 @@ network: the phone's own cellular calls go through speech codecs
 - **Settings**: the SIP account (or paste `user:password@host`, as
   dmodemd's `SIP_LOGIN`), taking incoming calls, T.38, the AT commands
   sent at start (`ATX3` by default: SIP has no dial tone), the log levels.
+- **Terminal**: a VT100/VT220/xterm terminal on the modem (256 and 24-bit
+  colours, the alternate screen, bracketed paste, DEC line drawing) that
+  also speaks what BBSes expect: CP437, ANSI.SYS's cursor save/restore and
+  clear-home, bold as bright, iCE colours, and box drawing and block
+  characters drawn to fill their cells so ANSI art has no gaps. Colour
+  themes (VGA, xterm, Solarized, Dracula, Monokai, Gruvbox, Nord, green
+  and amber phosphor), 80/132/40 fixed columns or pinch to zoom, scrollback
+  with fling, long-press selection with copy, paste, share and open link,
+  an extra keys bar (Esc, sticky Ctrl/Alt, Tab, arrows with auto-repeat,
+  Home/End/PgUp/PgDn, F1-F12), volume keys as font size or Ctrl/Alt,
+  bell as vibration or flash, full screen, snippets, session capture to a
+  file (shared to other apps), hang up (+++ with its guard times, ATH).
+- **Dial**: the dialing directory: each system's number (or SIP user), the
+  AT commands it needs before ATD, its character set and backspace; one
+  tap starts the modem if it is off and dials.
 - **Log**: the modem's and SIP's log.
 
 The modem runs in a foreground service (`ModemService`) with the CPU and
@@ -42,6 +57,10 @@ no `/etc/resolv.conf` for libre to read.
 - `app/src/main/java/com/neodesktop/dmodem`: `modem/` the service, the
   state the UI observes and `DteHub`, the modem's DTE shared by the
   console, the terminal and the bridges; `settings/`; `ui/` (Compose).
+- `app/src/main/java/com/neodesktop/dmodem/terminal`: the terminal:
+  `TerminalEmulator` (pure Kotlin, unit tested), `TerminalView` (drawing
+  and input), `TerminalSession` (the emulator on the modem's DTE),
+  `BoxDrawing`, `Themes`, the directory and snippets.
 - `native-test`: the engine on the build host, against a dmodemd over
   loopback SIP (dialling out, data both ways, restarting, a call coming
   in, the app closing its end).

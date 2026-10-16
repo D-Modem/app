@@ -55,7 +55,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
         modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text("SIP account", style = MaterialTheme.typography.titleMedium)
+        Text("SIP account (saved with the button below)", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
             value = login,
             onValueChange = { v ->
@@ -103,6 +103,9 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                 )
             }
         }
+
+        androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 8.dp))
+        TerminalSettingsSection()
     }
 }
 
