@@ -21,6 +21,8 @@ import androidx.core.app.ServiceCompat
 import com.neodesktop.dmodem.DModemApp
 import com.neodesktop.dmodem.NativeModem
 import com.neodesktop.dmodem.R
+import com.neodesktop.dmodem.bridge.Bridges
+import com.neodesktop.dmodem.settings.BridgeSettingsStore
 import com.neodesktop.dmodem.settings.ModemSettings
 import com.neodesktop.dmodem.settings.SettingsStore
 import com.neodesktop.dmodem.ui.MainActivity
@@ -92,6 +94,13 @@ class ModemService : Service() {
     override fun onCreate() {
         super.onCreate()
         store = SettingsStore(this)
+        // the TCP and Bluetooth bridges, as their settings are (now and as they change), while the modem is on
+        scope.launch {
+            combine(BridgeSettingsStore(this@ModemService).settings, ModemState.run) { b, r -> b to r }.collect { (b, r) ->
+                if (r == ModemState.Run.RUNNING) Bridges.apply(this@ModemService, b)
+                else if (r == ModemState.Run.STOPPED) Bridges.stopAll()
+            }
+        }
         scope.launch {
             combine(ModemState.run, ModemState.status) { r, s -> r to s }.collect { (r, s) ->
                 if (r != ModemState.Run.STOPPED) notify(notification(r, s))
@@ -215,6 +224,7 @@ class ModemService : Service() {
             ModemState.setRun(ModemState.Run.STOPPING)
             stopNative()
         }
+        Bridges.stopAll()
         unwatchNetwork()
         releaseLocks()
         restartPending = false

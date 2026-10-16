@@ -11,6 +11,17 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- the modem as a Bluetooth serial port (SPP): Android 12 on asks for BLUETOOTH_CONNECT -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-feature
+        android:name="android.hardware.bluetooth"
+        android:required="false" />
     <!-- the terminal's bell -->
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- the phone's shared storage in the Linux system (at /sdcard), when the user allows it:
