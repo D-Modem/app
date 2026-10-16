@@ -1,0 +1,11 @@
+# Gradle and Android Studio
+.gradle/
+build/
+/local.properties
+.idea/
+*.iml
+.cxx/
+.externalNativeBuild/
+captures/
+# host builds of native-test
+/build-host*/

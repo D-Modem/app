@@ -1,0 +1,96 @@
+/*
+ * SPDX-License-Identifier: AGPL-3.0-only
+ * Copyright (C) 2026 Neo-Desktop
+ *
+ *    engine.h - the app's modem: D-Modem's modem on a SIP line
+ *               (dmd::SipModem) in a thread of its own, its DTE one end
+ *               of a socket pair whose other end is the app's
+ *
+ *    No JNI here (jni.cpp is the binding), so that it builds and is
+ *    tested on the build host too (native-test/).
+ *
+ *    One modem in the process: the SIP user agent is the process's.
+ *
+ */
+
+#ifndef DMODEM_ANDROID_ENGINE_H
+#define DMODEM_ANDROID_ENGINE_H
+
+#include <functional>
+#include <mutex>
+#include <string>
+#include <thread>
+
+namespace dmd { class SipModem; }
+
+namespace dmodem_android {
+
+struct Config {
+	/* the SIP account: user, password, the registrar's or proxy's
+	   host[:port]; the local SIP port (0: 5060) */
+	std::string user, password, domain;
+	int sip_port = 5060;
+	/* register, and take calls in */
+	bool listen = false;
+	/* fax calls may go over to T.38 */
+	bool t38 = true;
+	/* the DNS servers for SRV and NAPTR (addresses apart by commas),
+	   from the network Android has: it has no /etc/resolv.conf */
+	std::string dns;
+	/* the modem's country (by name, empty: USA) */
+	std::string country;
+	/* what the pumps learn of the line over calls, kept in this file
+	   (empty: not kept) */
+	std::string data_file;
+	/* the modem's log level (0: errors only), SIP's (1 errors .. 4
+	   the SIP messages, 0 none) */
+	int log_level = 0;
+	int sip_log_level = 1;
+};
+
+/* what the modem's call is doing (dmd::SipModem::Status) */
+struct Status {
+	enum Link { IDLE, CONNECTING, ONLINE, HANGING_UP };
+	Link link = IDLE;
+	bool offhook = false;
+	unsigned tx_rate = 0, rx_rate = 0;
+};
+
+class Engine {
+public:
+	using LogFn = std::function<void(const char *line)>;
+	using StatusFn = std::function<void(const Status &)>;
+	/* the thread's end: 0 stopped (or the DTE gone), -1 an error */
+	using ExitFn = std::function<void(int result)>;
+
+	/* the process's one */
+	static Engine &instance();
+
+	/* the log's lines (the modem's and SIP's, from their threads) to
+	   fn; NULL: stderr.  Before start() */
+	void set_log(LogFn fn);
+
+	/* the modem started in its thread with cfg: the app's end of the
+	   DTE's socket pair (the caller's to close), or -1 if it is
+	   running already or can't be started.  status and done are
+	   called on the modem's thread */
+	int start(const Config &cfg, StatusFn status, ExitFn done);
+	/* the modem stopped (its call hung up, SIP gone), its thread
+	   joined; nothing if it isn't running */
+	void stop();
+	bool running();
+
+private:
+	Engine() = default;
+	void run(Config cfg, int dte, StatusFn status, ExitFn done);
+
+	std::mutex mu_;
+	std::thread thread_;
+	dmd::SipModem *modem_ = nullptr;        /* while run() has one */
+	bool active_ = false;                   /* run() hasn't ended */
+	bool stopping_ = false;
+};
+
+} // namespace dmodem_android
+
+#endif

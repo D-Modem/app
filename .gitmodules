@@ -1,0 +1,4 @@
+[submodule "external/d-modem-re"]
+	path = external/d-modem-re
+	url = https://github.com/Neo-Desktop/D-Modem-RE.git
+	branch = claude/android-support
