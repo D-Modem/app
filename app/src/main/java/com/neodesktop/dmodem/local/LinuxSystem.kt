@@ -2,107 +2,218 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.local
 
+import org.json.JSONObject
+import org.tukaani.xz.XZInputStream
+import java.io.BufferedInputStream
 import java.io.File
 import java.io.IOException
-import java.net.HttpURLConnection
-import java.net.URL
-import java.security.MessageDigest
+import java.io.InputStream
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.Paths
 import java.util.zip.GZIPInputStream
 
 /**
- * A Linux system to run in the local terminal: Alpine's minimal root file
- * system (its package manager, apk, to add the rest), run with proot. The
- * app can't run programs it has written itself (Android 10 on); proot is
- * the app's own (libproot.so, in its native library directory), and runs
- * the system's programs through its loader (libproot-loader.so), which
- * maps them rather than executing them.
+ * A Linux system to run in the local terminal (Alpine, Debian, Ubuntu,
+ * Fedora, Arch and the rest of [Distro.CATALOG], or one from any URL),
+ * run with proot. The app can't run programs it has written itself
+ * (Android 10 on); proot is the app's own (libproot.so, in its native
+ * library directory), and runs the system's programs through its loader
+ * (libproot-loader.so), which maps them rather than executing them.
  *
- * Inside: root (proot's fake one), the device's /dev, /proc and /sys, and
- * the phone's shared storage at /sdcard when the app may read it.
+ * Inside: root (proot's fake one) with its own login shell, the device's
+ * /dev, /proc and /sys, and the phone's shared storage at /sdcard when the
+ * app may read it. Each system in a directory of its own: rootfs/ and
+ * system.json (what it is).
  */
 class LinuxSystem(
-    /** where it lives: rootfs/ in it */
+    /** where it lives: rootfs/ and system.json in it; its name is the system's id */
     val dir: File,
     /** the app's native library directory: libproot.so and libproot-loader.so (a host build's, in the tests) */
     private val programDir: File,
     /** proot's own temporary files */
     private val tmpDir: File,
-    /** Alpine's name for the machine: aarch64, armv7, x86_64, x86 */
-    val arch: String,
     /** the phone's shared storage, when the app may use it (bound at /sdcard) */
     private val storage: () -> File? = { null },
     /** the name servers for /etc/resolv.conf (the phone's, or public ones) */
     private val nameServers: () -> List<String> = { DEFAULT_DNS },
     /** more for the system's environment (the tests' proxy) */
     private val extraEnv: Map<String, String> = emptyMap(),
-    private val mirror: String = MIRROR,
-    private val branch: String = BRANCH,
     /** whether a /proc file can be read here (Android hides some): ones that can't are given made-up ones */
     private val readable: (File) -> Boolean = { it.canRead() && runCatching { it.readBytes(); true }.getOrDefault(false) },
 ) {
+    val id: String get() = dir.name
     val rootfs: File get() = File(dir, "rootfs")
-    private val marker: File get() = File(dir, ".installed")
+    private val infoFile: File get() = File(dir, "system.json")
 
-    val installed: Boolean get() = marker.exists() && File(rootfs, "bin").exists()
+    /** what it is, as installed */
+    data class Info(val name: String, val version: String, val source: String, val installed: Long)
 
-    /** the version installed ("3.22.6"), or null */
-    val version: String? get() = runCatching { File(rootfs, "etc/alpine-release").readText().trim() }.getOrNull()
+    val info: Info?
+        get() = runCatching {
+            val o = JSONObject(infoFile.readText())
+            Info(o.getString("name"), o.optString("version"), o.optString("source"), o.optLong("installed"))
+        }.getOrNull() ?: legacyInfo()
 
-    data class Release(val file: String, val version: String, val sha256: String, val size: Long) {
-        val name get() = "Alpine Linux $version"
+    /** (the first release's Alpine: a marker file, no system.json) */
+    private fun legacyInfo(): Info? {
+        val m = File(dir, ".installed")
+        if (!m.exists()) return null
+        val v = runCatching { File(rootfs, "etc/alpine-release").readText().trim() }.getOrNull() ?: m.readText().trim()
+        return Info("Alpine Linux $v", v, Distro.ALPINE_MIRROR, m.lastModified())
     }
 
-    /** the latest minimal root file system for [arch], from Alpine's own list */
-    fun latestRelease(): Release {
-        val yaml = fetchText("$mirror/$branch/releases/$arch/latest-releases.yaml")
-        // (a list of releases, one per flavour: the minirootfs one's fields)
-        val blocks = yaml.split(Regex("\n-\\s*\n|\n- ")).filter { it.contains("flavor: alpine-minirootfs") }
-        val b = blocks.firstOrNull() ?: throw IOException("no minimal root file system for $arch")
-        fun field(k: String) = Regex("(?m)^\\s*$k:\\s*(\\S+)").find(b)?.groupValues?.get(1)
-        return Release(
-            field("file") ?: throw IOException("no file in Alpine's list"),
-            field("version") ?: "?",
-            field("sha256") ?: throw IOException("no checksum in Alpine's list"),
-            field("size")?.toLongOrNull() ?: -1,
-        )
+    val installed: Boolean get() = info != null && File(rootfs, "etc").isDirectory
+
+    val name: String get() = info?.name ?: id
+
+    /**
+     * Installed from [r]: downloaded, its checksum checked (when there is
+     * one), unpacked and set up. [progress]: what it's doing, and how far
+     * (0..1) when it can tell.
+     */
+    fun install(r: Rootfs, http: Http = Http(), progress: (String, Float?) -> Unit = { _, _ -> }) {
+        dir.mkdirs()
+        if (r.size > 0) {
+            // (unpacked, a compressed system takes about four times its download)
+            val need = r.size * 5
+            if (dir.usableSpace in 1 until need) throw IOException("not enough space: ${need shr 20} MB needed, ${dir.usableSpace shr 20} MB free")
+        }
+        val archive = File(dir, "rootfs.download")
+        try {
+            progress("Downloading ${r.name}…", 0f)
+            val sum = http.download(r.url, archive, r.size) { progress("Downloading ${r.name}…", it) }
+            if (r.sha256 != null && !sum.equals(r.sha256, ignoreCase = true)) {
+                throw IOException("the download's checksum doesn't match (${sum.take(12)}…, not ${r.sha256.take(12)}…)")
+            }
+            progress("Unpacking ${r.name}…", null)
+            if (rootfs.exists()) Tar.removeTree(rootfs)
+            openArchive(archive).use { Tar.extract(it, rootfs) }
+            hoist()
+            if (!File(rootfs, "etc").isDirectory || !(File(rootfs, "bin").exists() || File(rootfs, "usr/bin").isDirectory)) {
+                throw IOException("that isn't a Linux root file system (no /etc and /bin in it)")
+            }
+            configure()
+            infoFile.writeText(
+                JSONObject().put("name", r.name).put("version", r.version).put("source", r.url)
+                    .put("sha256", r.sha256 ?: "").put("installed", System.currentTimeMillis()).toString(2),
+            )
+            progress("Installed ${r.name}", 1f)
+        } catch (e: Exception) {
+            // (half a system is no use: nothing kept)
+            runCatching { Tar.removeTree(dir) }
+            throw e
+        } finally {
+            archive.delete()
+        }
+    }
+
+    /** the archive, uncompressed as its first bytes say: gzip, xz, or a plain tar */
+    private fun openArchive(f: File): InputStream {
+        val i = BufferedInputStream(f.inputStream(), 1 shl 16)
+        i.mark(8)
+        val head = ByteArray(6)
+        val n = i.read(head)
+        i.reset()
+        return when {
+            n >= 2 && head[0] == 0x1f.toByte() && head[1] == 0x8b.toByte() -> GZIPInputStream(i, 1 shl 16)
+            n >= 6 && head.contentEquals(byteArrayOf(0xfd.toByte(), '7'.code.toByte(), 'z'.code.toByte(), 'X'.code.toByte(), 'Z'.code.toByte(), 0)) ->
+                BufferedInputStream(XZInputStream(i), 1 shl 16)
+            n >= 3 && head[0] == 'B'.code.toByte() && head[1] == 'Z'.code.toByte() && head[2] == 'h'.code.toByte() -> {
+                i.close(); throw IOException("bzip2 archives aren't supported: use .tar.gz or .tar.xz")
+            }
+            n >= 4 && head[0] == 0x28.toByte() && head[1] == 0xb5.toByte() && head[2] == 0x2f.toByte() && head[3] == 0xfd.toByte() -> {
+                i.close(); throw IOException("zstd archives aren't supported: use .tar.gz or .tar.xz")
+            }
+            else -> i
+        }
+    }
+
+    /** a tarball with the system in one folder ("debian-rootfs/etc", …): its contents moved up */
+    private fun hoist() {
+        if (File(rootfs, "etc").isDirectory) return
+        val only = rootfs.listFiles()?.singleOrNull() ?: return
+        if (Files.isSymbolicLink(only.toPath()) || !File(only, "etc").isDirectory) return
+        val tmp = File(dir, "rootfs.hoist")
+        Files.move(only.toPath(), tmp.toPath())
+        Files.delete(rootfs.toPath())
+        Files.move(tmp.toPath(), rootfs.toPath())
     }
 
     /**
-     * Installed: downloaded, its checksum checked, unpacked and set up.
-     * [progress]: what it's doing, and how far (0..1) when it can tell.
+     * Its files set for this phone and for proot (again at each start):
+     * name servers, hosts, the prompt, mount points; apt and pacman told
+     * not to drop to users or sandboxes proot can't give them
      */
-    fun install(progress: (String, Float?) -> Unit = { _, _ -> }) {
-        progress("Finding the latest Alpine Linux…", null)
-        val r = latestRelease()
-        dir.mkdirs()
-        val tgz = File(dir, r.file)
-        progress("Downloading ${r.name}…", 0f)
-        download("$mirror/$branch/releases/$arch/${r.file}", tgz, r.size) { progress("Downloading ${r.name}…", it) }
-        val sum = sha256(tgz)
-        if (!sum.equals(r.sha256, ignoreCase = true)) {
-            tgz.delete()
-            throw IOException("the download's checksum doesn't match Alpine's")
-        }
-        progress("Unpacking…", null)
-        if (rootfs.exists()) Tar.removeTree(rootfs)
-        GZIPInputStream(tgz.inputStream().buffered()).use { Tar.extract(it, rootfs) }
-        tgz.delete()
-        configure()
-        marker.writeText(r.version + "\n")
-        progress("Installed ${r.name}", 1f)
-    }
-
-    /** its files set for this phone: name servers, host name, the prompt, mount points (again at each start) */
     fun configure() {
         val etc = File(rootfs, "etc")
         etc.mkdirs()
-        File(etc, "resolv.conf").apply { delete() }.writeText(nameServers().joinToString("") { "nameserver $it\n" })
-        File(etc, "hosts").apply { if (!exists() || !readText().contains("localhost")) writeText("127.0.0.1 localhost\n::1 localhost\n") }
-        File(etc, "hostname").takeIf { !it.exists() }?.writeText("dmodem\n")
+        // (a link to systemd's resolver, as many have it, replaced by a file)
+        File(etc, "resolv.conf").toPath().let { Files.deleteIfExists(it) }
+        File(etc, "resolv.conf").writeText(nameServers().joinToString("") { "nameserver $it\n" })
+        File(etc, "hosts").apply {
+            if (Files.isSymbolicLink(toPath()) || !exists() || !readText().contains("localhost")) {
+                Files.deleteIfExists(toPath())
+                writeText("127.0.0.1 localhost\n::1 localhost ip6-localhost ip6-loopback\n")
+            }
+        }
+        val mtab = File(etc, "mtab").toPath()
+        if (!Files.exists(mtab, LinkOption.NOFOLLOW_LINKS)) runCatching { Files.createSymbolicLink(mtab, Paths.get("/proc/self/mounts")) }
         File(etc, "profile.d").mkdirs()
-        File(etc, "profile.d/dmodem.sh").writeText(PROFILE)
+        File(etc, "profile.d/dmodem.sh").writeText(profile(shortName()))
+        // apt: no dropping to the _apt user (proot's root can't)
+        if (File(etc, "apt").isDirectory) {
+            File(etc, "apt/apt.conf.d").mkdirs()
+            File(etc, "apt/apt.conf.d/99-dmodem-proot").writeText(
+                "// D-Modem: under proot, apt can't switch to its own user\nAPT::Sandbox::User \"root\";\n",
+            )
+        }
+        // pacman: no sandbox (Landlock) or disk space check (proot's mounts aren't the phone's)
+        File(etc, "pacman.conf").takeIf { it.isFile }?.let { conf ->
+            var t = conf.readText()
+            t = t.replace(Regex("(?m)^CheckSpace\\s*$"), "#CheckSpace")
+            if (!Regex("(?m)^DisableSandbox").containsMatchIn(t)) t = t.replaceFirst("[options]", "[options]\nDisableSandbox")
+            conf.writeText(t)
+        }
         for (d in listOf("root", "tmp", "sdcard", "dev", "proc", "sys")) File(rootfs, d).mkdirs()
         File(rootfs, "tmp").setWritable(true, false)
+    }
+
+    /** the prompt's host: the distribution's own short name */
+    private fun shortName(): String {
+        val osRelease = listOf("etc/os-release", "usr/lib/os-release").map { File(rootfs, it) }.firstOrNull { it.isFile }
+        val osId = osRelease?.readLines()?.firstOrNull { it.startsWith("ID=") }?.removePrefix("ID=")?.trim('"', ' ')
+        return (osId ?: id).replace(Regex("[^A-Za-z0-9._-]"), "").ifEmpty { "linux" }
+    }
+
+    /** root's login shell, as the system's /etc/passwd has it (where it is there), else /bin/sh */
+    fun loginShell(): String {
+        val passwd = File(rootfs, "etc/passwd")
+        val shell = runCatching { passwd.readLines().firstOrNull { it.startsWith("root:") }?.split(':')?.getOrNull(6) }.getOrNull()
+        return shell?.takeIf { it.startsWith("/") && existsInside(it) } ?: "/bin/sh"
+    }
+
+    /** [path] is in the system: its links followed as the system sees them (an absolute one from its own root) */
+    fun existsInside(path: String): Boolean {
+        var todo = ArrayDeque(path.split('/').filter { it.isNotEmpty() })
+        val at = ArrayList<String>()
+        var hops = 0
+        while (todo.isNotEmpty()) {
+            val c = todo.removeFirst()
+            if (c == ".") continue
+            if (c == "..") { at.removeLastOrNull(); continue }
+            val f = rootfs.toPath().resolve((at + c).joinToString("/"))
+            if (!Files.exists(f, LinkOption.NOFOLLOW_LINKS)) return false
+            if (Files.isSymbolicLink(f)) {
+                if (++hops > 40) return false
+                val t = Files.readSymbolicLink(f).toString()
+                if (t.startsWith("/")) at.clear()
+                todo = ArrayDeque(t.split('/').filter { it.isNotEmpty() } + todo)
+            } else {
+                at.add(c)
+            }
+        }
+        return true
     }
 
     /** the system removed, all of it (links removed, never followed: /sdcard's among them) */
@@ -124,6 +235,7 @@ class LinuxSystem(
 
     /** proot's command: the system's login shell, as root, in /root */
     fun command(): List<String> {
+        val shell = loginShell()
         val c = arrayListOf(
             File(programDir, "libproot.so").path,
             "--kill-on-exit",
@@ -142,7 +254,7 @@ class LinuxSystem(
             "HOME" to "/root",
             "USER" to "root",
             "LOGNAME" to "root",
-            "SHELL" to "/bin/sh",
+            "SHELL" to shell,
             "LANG" to "C.UTF-8",
             "TERM" to "xterm-256color",
             "COLORTERM" to "truecolor",
@@ -151,7 +263,7 @@ class LinuxSystem(
         )
         env.putAll(extraEnv)
         for ((k, v) in env) c.add("$k=$v")
-        c.addAll(listOf("/bin/sh", "-l"))
+        c.addAll(listOf(shell, "-l"))
         return c
     }
 
@@ -168,79 +280,18 @@ class LinuxSystem(
 
     /** a link to a new shell in the system (configured again first: the name servers may have changed) */
     fun link(cols: Int = 80, rows: Int = 24): LocalLink {
-        if (!installed) throw IOException("Alpine Linux isn't installed")
+        if (!installed) throw IOException("$name isn't installed")
         configure()
         return LocalLink(command(), environment(), dir.path, cols, rows)
     }
 
-    // ------------------------------------------------------------------
-
-    private fun open(url: String): HttpURLConnection {
-        val c = URL(url).openConnection() as HttpURLConnection
-        c.connectTimeout = 20_000
-        c.readTimeout = 60_000
-        c.setRequestProperty("User-Agent", "D-Modem for Android")
-        if (c.responseCode != 200) throw IOException("$url: HTTP ${c.responseCode}")
-        return c
-    }
-
-    private fun fetchText(url: String): String = open(url).let { c -> c.inputStream.use { it.readBytes().decodeToString() } }
-
-    private fun download(url: String, to: File, size: Long, progress: (Float) -> Unit) {
-        val c = open(url)
-        val total = if (size > 0) size else c.contentLengthLong
-        val part = File(to.path + ".part")
-        c.inputStream.use { i ->
-            part.outputStream().use { o ->
-                val buf = ByteArray(64 * 1024)
-                var done = 0L
-                var shown = -1
-                while (true) {
-                    val n = i.read(buf)
-                    if (n < 0) break
-                    o.write(buf, 0, n)
-                    done += n
-                    if (total > 0) {
-                        val pct = (done * 100 / total).toInt()
-                        if (pct != shown) { shown = pct; progress(done.toFloat() / total) }
-                    }
-                }
-            }
-        }
-        if (!part.renameTo(to)) throw IOException("can't keep the download")
-    }
-
-    private fun sha256(f: File): String {
-        val md = MessageDigest.getInstance("SHA-256")
-        f.inputStream().use { i ->
-            val buf = ByteArray(64 * 1024)
-            while (true) {
-                val n = i.read(buf)
-                if (n < 0) break
-                md.update(buf, 0, n)
-            }
-        }
-        return md.digest().joinToString("") { "%02x".format(it) }
-    }
-
     companion object {
-        const val MIRROR = "https://dl-cdn.alpinelinux.org/alpine"
-        const val BRANCH = "v3.22"
         val DEFAULT_DNS = listOf("1.1.1.1", "8.8.8.8")
 
-        /** Alpine's machine for an Android ABI */
-        fun archFor(abi: String): String? = when (abi) {
-            "arm64-v8a" -> "aarch64"
-            "armeabi-v7a" -> "armv7"
-            "x86_64" -> "x86_64"
-            "x86" -> "x86"
-            else -> null
-        }
-
-        /** a coloured prompt, a few aliases; /sdcard named if it's there */
-        val PROFILE = """
-            |# D-Modem: this phone's Alpine Linux (rewritten at each start: put your own in /etc/profile.d/local.sh)
-            |PS1='\[\e[1;31m\]\u@alpine\[\e[0m\]:\[\e[1;34m\]\w\[\e[0m\]\${'$'} '
+        /** a coloured prompt (bash's and busybox's sh's escapes), a few aliases */
+        fun profile(host: String) = """
+            |# D-Modem: rewritten at each start (put your own in /etc/profile.d/local.sh, or ~/.profile)
+            |PS1='\[\e[1;31m\]\u@$host\[\e[0m\]:\[\e[1;34m\]\w\[\e[0m\]\${'$'} '
             |alias ls='ls --color=auto'
             |alias ll='ls -l'
             |alias la='ls -la'

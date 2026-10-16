@@ -78,6 +78,8 @@ import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import java.io.File
 
 /** The terminal on the modem: the screen, a bar of what's going on and its actions, the extra keys. */
@@ -105,6 +107,7 @@ fun TerminalScreen(
     var showSnippets by remember { mutableStateOf(false) }
     var showSsh by remember { mutableStateOf(false) }
     var showLinuxInstall by remember { mutableStateOf(false) }
+    var pickLinux by remember { mutableStateOf<List<com.neodesktop.dmodem.local.LinuxSystem>?>(null) }
     val ssh = session.link as? com.neodesktop.dmodem.ssh.SshLink
 
     // the modem session's character set follows the settings (a directory entry's own while its call
@@ -144,10 +147,13 @@ fun TerminalScreen(
                 onPaste = { view?.pasteClipboard() },
                 onSnippets = { showSnippets = true },
                 onNewLinux = {
-                    if (Linux.system(context).installed) {
-                        scope.launch { Terminal.openLinux(context)?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() } }
-                    } else {
-                        showLinuxInstall = true
+                    scope.launch {
+                        val systems = withContext(Dispatchers.IO) { Linux.systems(context) }
+                        when (systems.size) {
+                            0 -> showLinuxInstall = true
+                            1 -> Terminal.openLinux(context, systems[0].id)?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+                            else -> pickLinux = systems
+                        }
                     }
                 },
                 onNewShell = {
@@ -227,12 +233,23 @@ fun TerminalScreen(
     }
 
     if (showLinuxInstall) {
-        LinuxInstallDialog(
-            onInstalled = {
+        AddLinuxDialog(
+            onInstalled = { sys ->
                 showLinuxInstall = false
-                scope.launch { Terminal.openLinux(context)?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() } }
+                scope.launch { Terminal.openLinux(context, sys.id)?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() } }
             },
             onDismiss = { showLinuxInstall = false },
+        )
+    }
+    pickLinux?.let { systems ->
+        PickLinuxDialog(
+            systems,
+            onPick = { sys ->
+                pickLinux = null
+                scope.launch { Terminal.openLinux(context, sys.id)?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() } }
+            },
+            onAdd = { pickLinux = null; showLinuxInstall = true },
+            onDismiss = { pickLinux = null },
         )
     }
     if (showSsh && ssh != null) {
@@ -380,7 +397,7 @@ private fun TopBar(
                     DropdownMenuItem(text = { Text(if (isModem) "Hang up" else "Disconnect") }, onClick = { menu = false; onHangUp() })
                     DropdownMenuItem(text = { Text("Paste") }, onClick = { menu = false; onPaste() })
                     DropdownMenuItem(text = { Text("New local shell") }, onClick = { menu = false; onNewShell() })
-                    DropdownMenuItem(text = { Text("New Linux shell (Alpine)") }, onClick = { menu = false; onNewLinux() })
+                    DropdownMenuItem(text = { Text("New Linux shell…") }, onClick = { menu = false; onNewLinux() })
                     if (onSsh != null) {
                         DropdownMenuItem(text = { Text("Port forwards, agent, keys") }, onClick = { menu = false; onSsh() })
                     }

@@ -9,6 +9,7 @@ datastore = "1.2.1"
 junit = "4.13.2"
 robolectric = "4.17"
 sshj = "0.41.2"
+xz = "1.10"
 bouncycastle = "1.86"
 mina-sshd = "2.20.0"
 androidxTestCore = "1.7.0"
@@ -32,6 +33,7 @@ compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 junit = { module = "junit:junit", version.ref = "junit" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 sshj = { module = "com.hierynomus:sshj", version.ref = "sshj" }
+xz = { module = "org.tukaani:xz", version.ref = "xz" }
 bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
 bcpkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bouncycastle" }
 mina-sshd-core = { module = "org.apache.sshd:sshd-core", version.ref = "mina-sshd" }

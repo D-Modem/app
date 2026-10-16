@@ -96,6 +96,8 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     // SSH: sshj on BouncyCastle (Android's own "BC" is cut down: the full one is registered at start)
     implementation(libs.sshj)
+    // the Linux systems' root file systems (.tar.xz)
+    implementation(libs.xz)
     implementation(libs.bcprov)
     implementation(libs.bcpkix)
     implementation(platform(libs.compose.bom))

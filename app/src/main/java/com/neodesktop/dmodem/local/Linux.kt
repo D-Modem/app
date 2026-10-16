@@ -22,72 +22,122 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 /**
- * The app's Linux (Alpine, run with proot): where it lives on this phone,
- * its install and removal (which go on while the user moves about the
- * app), and the shared storage it is given.
+ * The app's Linux systems (run with proot): where they live on this
+ * phone (each in linux/<id>), their installs and removals (which go on
+ * while the user moves about the app; one at a time), and the shared
+ * storage they're given.
  */
 @SuppressLint("StaticFieldLeak") // the application's context only
 object Linux {
 
     sealed class Work {
         object Idle : Work()
-        data class Busy(val what: String, val fraction: Float?) : Work()
-        data class Failed(val why: String) : Work()
+        data class Busy(val id: String, val what: String, val fraction: Float?) : Work()
+        data class Failed(val id: String, val why: String) : Work()
     }
 
     private val _work = MutableStateFlow<Work>(Work.Idle)
     val work: StateFlow<Work> = _work.asStateFlow()
 
-    /** bumped when it's installed or removed (for the screens showing it) */
+    /** bumped when one is installed or removed (for the screens showing them) */
     private val _changes = MutableStateFlow(0)
     val changes: StateFlow<Int> = _changes.asStateFlow()
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    /** the system on this phone (the tests' own in theirs) */
-    var factory: (Context) -> LinuxSystem = { ctx -> phoneSystem(ctx) }
+    /** where the systems live and what they're given: the phone's (the tests' own in theirs) */
+    class Place(
+        val root: File,
+        val programDir: File,
+        val tmpDir: File,
+        val machine: Machine?,
+        val storage: () -> File? = { null },
+        val nameServers: () -> List<String> = { LinuxSystem.DEFAULT_DNS },
+        val extraEnv: Map<String, String> = emptyMap(),
+        val http: Http = Http(),
+    )
 
-    fun system(context: Context): LinuxSystem = factory(context.applicationContext)
+    var place: (Context) -> Place = { ctx -> phonePlace(ctx) }
 
-    /** this phone's ABI's Alpine, or null where there is none */
-    fun arch(): String? = Build.SUPPORTED_ABIS.firstNotNullOfOrNull { LinuxSystem.archFor(it) }
-
-    private fun phoneSystem(app: Context) = LinuxSystem(
-        dir = File(app.filesDir, "linux/alpine"),
+    private fun phonePlace(app: Context) = Place(
+        root = File(app.filesDir, "linux"),
         programDir = File(app.applicationInfo.nativeLibraryDir ?: app.filesDir.path),
         tmpDir = File(app.cacheDir, "proot"),
-        arch = arch() ?: "aarch64",
+        machine = machine(),
         storage = { if (storageGranted(app)) Environment.getExternalStorageDirectory() else null },
         nameServers = { nameServers(app) },
     )
 
-    /** installed (in the background); [onDone] on the main thread's caller's terms: called from IO */
-    fun install(context: Context, onDone: () -> Unit = {}) {
-        if (_work.value is Work.Busy) return
-        val sys = system(context)
-        _work.value = Work.Busy("Starting…", null)
-        scope.launch {
-            try {
-                sys.install { what, f -> _work.value = Work.Busy(what, f) }
-                _work.value = Work.Idle
-                _changes.value++
-                onDone()
-            } catch (e: Exception) {
-                _work.value = Work.Failed(e.message ?: e.javaClass.simpleName)
+    /** this phone's processor, or null where no Linux is built for it */
+    fun machine(): Machine? = Build.SUPPORTED_ABIS.firstNotNullOfOrNull { Machine.forAbi(it) }
+
+    fun system(context: Context, id: String): LinuxSystem {
+        val p = place(context.applicationContext)
+        return LinuxSystem(File(p.root, id), p.programDir, p.tmpDir, p.storage, p.nameServers, p.extraEnv)
+    }
+
+    /** the systems installed, the first installed first */
+    fun systems(context: Context): List<LinuxSystem> {
+        val root = place(context.applicationContext).root
+        return (root.listFiles() ?: emptyArray()).filter { it.isDirectory }.map { system(context, it.name) }
+            .filter { it.installed }.sortedBy { it.info?.installed ?: 0 }
+    }
+
+    /**
+     * which of the catalog's distributions are built for this phone (the
+     * Linux Containers index asked: blocking); all of them when it can't
+     * be asked
+     */
+    fun available(context: Context): Map<String, Boolean> {
+        val p = place(context.applicationContext)
+        val m = p.machine ?: return Distro.CATALOG.associate { it.id to false }
+        val index = runCatching { Distro.lxcIndex(p.http) }.getOrNull()
+        return Distro.CATALOG.associate { d ->
+            d.id to when (d) {
+                is Distro.Lxc -> index == null || d.availableFor(m, index)
+                is Distro.Ubuntu -> m.ubuntu != null
+                else -> true
             }
         }
     }
 
-    fun remove(context: Context) {
+    private val _done = MutableStateFlow<String?>(null)
+    /** the id of the system installed last (for the screen that asked for it to open it) */
+    val done: StateFlow<String?> = _done.asStateFlow()
+
+    /** [d] installed (in the background); [done] says so when it is */
+    fun install(context: Context, d: Distro) {
         if (_work.value is Work.Busy) return
-        val sys = system(context)
-        _work.value = Work.Busy("Removing…", null)
+        val p = place(context.applicationContext)
+        val sys = system(context, d.id)
+        _work.value = Work.Busy(d.id, "Finding ${d.name}…", null)
+        scope.launch {
+            try {
+                if (sys.installed) throw java.io.IOException("${sys.name} is installed already")
+                val m = p.machine ?: throw java.io.IOException("no Linux for this phone's processor")
+                val r = d.resolve(m, p.http)
+                sys.install(r, p.http) { what, f -> _work.value = Work.Busy(d.id, what, f) }
+                _work.value = Work.Idle
+                _done.value = sys.id
+                _changes.value++
+            } catch (e: Exception) {
+                _work.value = Work.Failed(d.id, e.message ?: e.javaClass.simpleName)
+                _changes.value++
+            }
+        }
+    }
+
+    fun remove(context: Context, id: String) {
+        if (_work.value is Work.Busy) return
+        if (_done.value == id) _done.value = null
+        val sys = system(context, id)
+        _work.value = Work.Busy(id, "Removing ${sys.name}…", null)
         scope.launch {
             try {
                 sys.remove()
                 _work.value = Work.Idle
             } catch (e: Exception) {
-                _work.value = Work.Failed(e.message ?: e.javaClass.simpleName)
+                _work.value = Work.Failed(id, e.message ?: e.javaClass.simpleName)
             }
             _changes.value++
         }
@@ -97,10 +147,10 @@ object Linux {
         if (_work.value is Work.Failed) _work.value = Work.Idle
     }
 
-    /** the disk it takes */
-    fun size(context: Context): Long {
+    /** the disk a system takes (links not followed) */
+    fun size(sys: LinuxSystem): Long {
         var total = 0L
-        system(context).dir.walkTopDown().onEnter { !java.nio.file.Files.isSymbolicLink(it.toPath()) }.forEach {
+        sys.dir.walkTopDown().onEnter { !java.nio.file.Files.isSymbolicLink(it.toPath()) }.forEach {
             if (it.isFile && !java.nio.file.Files.isSymbolicLink(it.toPath())) total += it.length()
         }
         return total

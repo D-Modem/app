@@ -27,6 +27,8 @@ class TerminalSession(
     val kind: Kind = Kind.MODEM,
     /** the directory entry it was opened from (SSH, Telnet) */
     val entry: DialEntry? = null,
+    /** the Linux system it runs in (LINUX): its id */
+    val linuxId: String? = null,
     /** where captures go */
     private val captureDir: () -> File?,
 ) {

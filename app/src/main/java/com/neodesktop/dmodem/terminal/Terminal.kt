@@ -177,19 +177,24 @@ object Terminal {
         return null
     }
 
-    /** a shell in the Linux system opened in a new session: null, else why it can't be */
-    suspend fun openLinux(context: Context): String? {
+    /** a shell in Linux system [id] opened in a new session: null, else why it can't be */
+    suspend fun openLinux(context: Context, id: String): String? {
         val (cols, rows) = synchronized(session.emulator) { session.emulator.cols to session.emulator.rows }
+        val sys = Linux.system(context, id)
         val link = try {
-            withContext(Dispatchers.IO) { Linux.system(context).link(cols, rows) }
+            withContext(Dispatchers.IO) { sys.link(cols, rows) }
         } catch (e: java.io.IOException) {
             return e.message
         }
         if (!withContext(Dispatchers.IO) { link.start() }) {
             return (link.state.value as? TerminalLink.State.Closed)?.reason ?: "Linux didn't start"
         }
-        val n = _sessions.value.count { it.kind == TerminalSession.Kind.LINUX }
-        val s = TerminalSession(link, label = if (n == 0) "Alpine" else "Alpine ${n + 1}", kind = TerminalSession.Kind.LINUX) {
+        // (the tab: the distribution's name without its version, numbered when there are more)
+        val short = sys.name.replace(Regex("\\s+[0-9(].*$"), "").removeSuffix(" Linux").ifEmpty { sys.name }
+        val n = _sessions.value.count { it.linuxId == id }
+        val s = TerminalSession(
+            link, label = if (n == 0) short else "$short ${n + 1}", kind = TerminalSession.Kind.LINUX, linuxId = id,
+        ) {
             app.getExternalFilesDir("captures")
         }
         s.charset = TermCharset.UTF8
@@ -219,7 +224,7 @@ object Terminal {
         }
         if (s.kind == TerminalSession.Kind.LINUX) {
             close(s)
-            return openLinux(context)
+            return openLinux(context, s.linuxId ?: return "no Linux system")
         }
         val e = s.entry ?: return "nothing to reconnect to"
         close(s)
