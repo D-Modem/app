@@ -96,6 +96,17 @@ class AppearanceTest {
         }
     }
 
+    private fun saved(want: (Appearance) -> Boolean) {
+        val end = System.currentTimeMillis() + 5000
+        while (true) {
+            compose.waitForIdle()
+            val a = runBlocking { store.appearance.first() }
+            if (want(a)) return
+            if (System.currentTimeMillis() > end) throw AssertionError("not saved: $a")
+            Thread.sleep(50)
+        }
+    }
+
     @Test
     fun chosenInSettings() {
         runBlocking { store.save(Appearance()) }
@@ -104,13 +115,10 @@ class AppearanceTest {
             compose.onNodeWithText("Black background").performScrollTo()
             compose.onNodeWithText("Dark").performClick()
             compose.onNodeWithText("Teal").performClick()
-            compose.waitForIdle()
-            val a = runBlocking { store.appearance.first() }
-            assertEquals(DarkMode.DARK, a.dark)
-            assertEquals(AppPalette.TEAL, a.palette)
+            // (saved in the background: waited for)
+            saved { it.dark == DarkMode.DARK && it.palette == AppPalette.TEAL }
             compose.onNodeWithText("System default").performClick()
-            compose.waitForIdle()
-            assertEquals(DarkMode.SYSTEM, runBlocking { store.appearance.first() }.dark)
+            saved { it.dark == DarkMode.SYSTEM }
         }
     }
 }

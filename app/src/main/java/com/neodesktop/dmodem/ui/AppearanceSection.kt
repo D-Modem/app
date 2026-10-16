@@ -55,8 +55,8 @@ fun AppearanceSection() {
     val scope = rememberCoroutineScope()
     val current by store.appearance.collectAsStateWithLifecycle(initialValue = null)
     val a = current ?: return
-    fun set(n: Appearance) {
-        scope.launch { store.save(n) }
+    fun set(change: (Appearance) -> Appearance) {
+        scope.launch { store.update(change) }
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -66,7 +66,7 @@ fun AppearanceSection() {
             DarkMode.entries.forEachIndexed { i, m ->
                 SegmentedButton(
                     selected = a.dark == m,
-                    onClick = { set(a.copy(dark = m)) },
+                    onClick = { set { it.copy(dark = m) } },
                     shape = SegmentedButtonDefaults.itemShape(i, DarkMode.entries.size),
                 ) { Text(m.label, maxLines = 1) }
             }
@@ -76,7 +76,7 @@ fun AppearanceSection() {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             for (p in palettes) {
                 val selected = a.palette == p || (a.palette == AppPalette.DYNAMIC && p == AppPalette.BASELINE && Build.VERSION.SDK_INT < 31)
-                Swatch(p, selected) { set(a.copy(palette = p)) }
+                Swatch(p, selected) { set { it.copy(palette = p) } }
             }
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -84,7 +84,7 @@ fun AppearanceSection() {
                 Text("Black background")
                 Text("In dark mode (for OLED screens)", style = MaterialTheme.typography.bodySmall)
             }
-            Switch(checked = a.black, onCheckedChange = { set(a.copy(black = it)) })
+            Switch(checked = a.black, onCheckedChange = { set { x -> x.copy(black = it) } })
         }
     }
 }

@@ -58,17 +58,17 @@ fun TerminalSettingsSection() {
     val scope = rememberCoroutineScope()
     val current by store.settings.collectAsStateWithLifecycle(initialValue = null)
     val s = current ?: return
-    fun set(n: TerminalSettings) {
-        scope.launch { store.save(n) }
+    fun set(change: (TerminalSettings) -> TerminalSettings) {
+        scope.launch { store.update(change) }
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Terminal", style = MaterialTheme.typography.titleMedium)
-        Choice("Colours", TermTheme.byId(s.themeId).name, TermTheme.ALL.map { it.name to it.id }) { set(s.copy(themeId = it)) }
-        Choice("Font", s.font.label, TerminalFont.entries.map { it.label to it }) { set(s.copy(font = it)) }
+        Choice("Colours", TermTheme.byId(s.themeId).name, TermTheme.ALL.map { it.name to it.id }) { set { t -> t.copy(themeId = it) } }
+        Choice("Font", s.font.label, TerminalFont.entries.map { it.label to it }) { set { t -> t.copy(font = it) } }
         FontPreview(s.font, TermTheme.byId(s.themeId))
         if (s.font.ligatures) {
-            Flag("Ligatures (-> != ==)", s.ligatures) { set(s.copy(ligatures = it)) }
+            Flag("Ligatures (-> != ==)", s.ligatures) { set { t -> t.copy(ligatures = it) } }
         }
         var showLicenses by remember { mutableStateOf(false) }
         TextButton(onClick = { showLicenses = true }) { Text("Font licences") }
@@ -76,30 +76,30 @@ fun TerminalSettingsSection() {
         Choice(
             "Width", if (s.fixedColumns > 0) "${s.fixedColumns} columns" else "By font size",
             listOf("80 columns (BBS)" to 80, "132 columns" to 132, "40 columns" to 40, "By font size" to 0),
-        ) { set(s.copy(fixedColumns = it)) }
+        ) { set { t -> t.copy(fixedColumns = it) } }
         if (s.fixedColumns == 0) {
             Text("Font size: ${"%.1f".format(s.fontSize)} sp (or pinch the screen)", style = MaterialTheme.typography.bodyMedium)
-            Slider(value = s.fontSize, onValueChange = { set(s.copy(fontSize = it)) }, valueRange = 6f..28f)
+            Slider(value = s.fontSize, onValueChange = { set { t -> t.copy(fontSize = it) } }, valueRange = 6f..28f)
         }
-        Choice("Character set", s.charset.label, TermCharset.entries.map { it.label to it }) { set(s.copy(charset = it)) }
-        Choice("Backspace sends", s.backspace.label, BackspaceMode.entries.map { it.label to it }) { set(s.copy(backspace = it)) }
-        Choice("Enter sends", s.enter.label, EnterMode.entries.map { it.label to it }) { set(s.copy(enter = it)) }
-        Choice("Cursor", s.cursor.label, CursorShape.entries.map { it.label to it }) { set(s.copy(cursor = it)) }
-        Choice("Bell", s.bell.label, BellMode.entries.map { it.label to it }) { set(s.copy(bell = it)) }
-        Choice("Volume keys", s.volumeKeys.label, VolumeKeys.entries.map { it.label to it }) { set(s.copy(volumeKeys = it)) }
-        Flag("Blinking cursor", s.cursorBlink) { set(s.copy(cursorBlink = it)) }
-        Flag("Bold as bright colours (DOS, BBS)", s.boldBright) { set(s.copy(boldBright = it)) }
-        Flag("iCE colours (blink as bright background)", s.iceColors) { set(s.copy(iceColors = it)) }
-        Flag("Draw line and block characters (gapless ANSI art)", s.drawBoxes) { set(s.copy(drawBoxes = it)) }
-        Flag("Local echo", s.localEcho) { set(s.copy(localEcho = it)) }
-        Flag("Extra keys bar", s.extraKeys) { set(s.copy(extraKeys = it)) }
-        Flag("Keep the screen on", s.keepScreenOn) { set(s.copy(keepScreenOn = it)) }
+        Choice("Character set", s.charset.label, TermCharset.entries.map { it.label to it }) { set { t -> t.copy(charset = it) } }
+        Choice("Backspace sends", s.backspace.label, BackspaceMode.entries.map { it.label to it }) { set { t -> t.copy(backspace = it) } }
+        Choice("Enter sends", s.enter.label, EnterMode.entries.map { it.label to it }) { set { t -> t.copy(enter = it) } }
+        Choice("Cursor", s.cursor.label, CursorShape.entries.map { it.label to it }) { set { t -> t.copy(cursor = it) } }
+        Choice("Bell", s.bell.label, BellMode.entries.map { it.label to it }) { set { t -> t.copy(bell = it) } }
+        Choice("Volume keys", s.volumeKeys.label, VolumeKeys.entries.map { it.label to it }) { set { t -> t.copy(volumeKeys = it) } }
+        Flag("Blinking cursor", s.cursorBlink) { set { t -> t.copy(cursorBlink = it) } }
+        Flag("Bold as bright colours (DOS, BBS)", s.boldBright) { set { t -> t.copy(boldBright = it) } }
+        Flag("iCE colours (blink as bright background)", s.iceColors) { set { t -> t.copy(iceColors = it) } }
+        Flag("Draw line and block characters (gapless ANSI art)", s.drawBoxes) { set { t -> t.copy(drawBoxes = it) } }
+        Flag("Local echo", s.localEcho) { set { t -> t.copy(localEcho = it) } }
+        Flag("Extra keys bar", s.extraKeys) { set { t -> t.copy(extraKeys = it) } }
+        Flag("Keep the screen on", s.keepScreenOn) { set { t -> t.copy(keepScreenOn = it) } }
         var scrollback by remember(s.scrollback) { mutableStateOf(s.scrollback.toString()) }
         OutlinedTextField(
             value = scrollback,
             onValueChange = { v ->
                 scrollback = v.filter { it.isDigit() }.take(6)
-                scrollback.toIntOrNull()?.let { set(s.copy(scrollback = it.coerceIn(0, 100_000))) }
+                scrollback.toIntOrNull()?.let { set { t -> t.copy(scrollback = it.coerceIn(0, 100_000)) } }
             },
             label = { Text("Scrollback lines") },
             singleLine = true,
@@ -109,7 +109,7 @@ fun TerminalSettingsSection() {
         var answerback by remember(s.answerback) { mutableStateOf(s.answerback) }
         OutlinedTextField(
             value = answerback,
-            onValueChange = { answerback = it; set(s.copy(answerback = it)) },
+            onValueChange = { answerback = it; set { t -> t.copy(answerback = it) } },
             label = { Text("Answerback (sent for ^E)") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),

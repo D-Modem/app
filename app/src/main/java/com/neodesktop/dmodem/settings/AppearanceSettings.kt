@@ -49,13 +49,25 @@ class AppearanceStore(private val context: Context) {
         val black = booleanPreferencesKey("black")
     }
 
-    val appearance: Flow<Appearance> = context.appearanceStore.data.map { p ->
+    private fun from(p: Preferences): Appearance {
         val d = Appearance()
-        Appearance(
+        return Appearance(
             dark = p[K.dark]?.let { runCatching { DarkMode.valueOf(it) }.getOrNull() } ?: d.dark,
             palette = p[K.palette]?.let { runCatching { AppPalette.valueOf(it) }.getOrNull() } ?: d.palette,
             black = p[K.black] ?: d.black,
         )
+    }
+
+    val appearance: Flow<Appearance> = context.appearanceStore.data.map { from(it) }
+
+    /** one change made to what is saved now (not to a copy that may be behind: taps in quick succession) */
+    suspend fun update(change: (Appearance) -> Appearance) {
+        context.appearanceStore.edit { p ->
+            val a = change(from(p))
+            p[K.dark] = a.dark.name
+            p[K.palette] = a.palette.name
+            p[K.black] = a.black
+        }
     }
 
     suspend fun save(a: Appearance) {

@@ -4,6 +4,7 @@ package com.neodesktop.dmodem.settings
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -91,9 +92,11 @@ class TerminalSettingsStore(private val context: Context) {
     private inline fun <reified E : Enum<E>> enumOf(s: String?, d: E): E =
         s?.let { runCatching { enumValueOf<E>(it) }.getOrNull() } ?: d
 
-    val settings: Flow<TerminalSettings> = context.terminalStore.data.map { p ->
+    val settings: Flow<TerminalSettings> = context.terminalStore.data.map { from(it) }
+
+    private fun from(p: Preferences): TerminalSettings {
         val d = TerminalSettings()
-        TerminalSettings(
+        return TerminalSettings(
             themeId = p[K.theme] ?: d.themeId,
             font = enumOf(p[K.font], d.font),
             ligatures = p[K.ligatures] ?: d.ligatures,
@@ -119,29 +122,36 @@ class TerminalSettingsStore(private val context: Context) {
 
     suspend fun current(): TerminalSettings = settings.first()
 
+    /** one change made to what is saved now (not to a copy that may be behind: changes in quick succession) */
+    suspend fun update(change: (TerminalSettings) -> TerminalSettings) {
+        context.terminalStore.edit { p -> write(p, change(from(p))) }
+    }
+
     suspend fun save(s: TerminalSettings) {
-        context.terminalStore.edit { p ->
-            p[K.theme] = s.themeId
-            p[K.font] = s.font.name
-            p[K.ligatures] = s.ligatures
-            p[K.fontSize] = s.fontSize
-            p[K.fixedColumns] = s.fixedColumns
-            p[K.charset] = s.charset.name
-            p[K.backspace] = s.backspace.name
-            p[K.enter] = s.enter.name
-            p[K.bell] = s.bell.name
-            p[K.volumeKeys] = s.volumeKeys.name
-            p[K.keepScreenOn] = s.keepScreenOn
-            p[K.scrollback] = s.scrollback
-            p[K.cursor] = s.cursor.name
-            p[K.cursorBlink] = s.cursorBlink
-            p[K.boldBright] = s.boldBright
-            p[K.iceColors] = s.iceColors
-            p[K.localEcho] = s.localEcho
-            p[K.extraKeys] = s.extraKeys
-            p[K.answerback] = s.answerback
-            p[K.drawBoxes] = s.drawBoxes
-        }
+        context.terminalStore.edit { p -> write(p, s) }
+    }
+
+    private fun write(p: MutablePreferences, s: TerminalSettings) {
+        p[K.theme] = s.themeId
+        p[K.font] = s.font.name
+        p[K.ligatures] = s.ligatures
+        p[K.fontSize] = s.fontSize
+        p[K.fixedColumns] = s.fixedColumns
+        p[K.charset] = s.charset.name
+        p[K.backspace] = s.backspace.name
+        p[K.enter] = s.enter.name
+        p[K.bell] = s.bell.name
+        p[K.volumeKeys] = s.volumeKeys.name
+        p[K.keepScreenOn] = s.keepScreenOn
+        p[K.scrollback] = s.scrollback
+        p[K.cursor] = s.cursor.name
+        p[K.cursorBlink] = s.cursorBlink
+        p[K.boldBright] = s.boldBright
+        p[K.iceColors] = s.iceColors
+        p[K.localEcho] = s.localEcho
+        p[K.extraKeys] = s.extraKeys
+        p[K.answerback] = s.answerback
+        p[K.drawBoxes] = s.drawBoxes
     }
 
     suspend fun setFontSize(sp: Float) {
