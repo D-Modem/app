@@ -62,6 +62,11 @@ android {
 
     testOptions {
         unitTests.isIncludeAndroidResources = true
+        unitTests.all {
+            // UTF-8 file names, as Android has them (the JVM takes its file name encoding from the locale)
+            it.environment("LC_ALL", "C.UTF-8")
+            it.environment("LANG", "C.UTF-8")
+        }
     }
 
     buildFeatures {

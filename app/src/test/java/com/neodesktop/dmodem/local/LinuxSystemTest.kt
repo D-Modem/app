@@ -55,11 +55,27 @@ class LinuxSystemTest {
         return out
     }
 
+    /** behind this host's proxy (HTTPS only): the mirrors' plain http:// made https:// (the test's doing; a phone needs none) */
+    private fun httpsMirrors(sys: LinuxSystem) {
+        if (proxyEnv().isEmpty()) return
+        val dirs = listOf("etc/apt/sources.list", "etc/apt/sources.list.d", "etc/pacman.d/mirrorlist", "etc/xbps.d", "usr/share/xbps.d", "etc/zypp/repos.d", "etc/yum.repos.d")
+        for (d in dirs) {
+            val f = File(sys.rootfs, d)
+            val files = if (f.isDirectory) f.listFiles()?.toList() ?: emptyList() else listOf(f)
+            for (x in files) if (x.isFile && !Files.isSymbolicLink(x.toPath())) x.writeText(x.readText().replace("http://", "https://"))
+        }
+    }
+
     /** behind a proxy that re-signs TLS: its CA added to the system's own bundles (the test's doing, not the app's) */
     private fun trustHostCa(sys: LinuxSystem) {
         val ca = File("/etc/ssl/certs/ca-certificates.crt")
         if (proxyEnv().isEmpty() || !ca.exists()) return
-        for (b in listOf("etc/ssl/certs/ca-certificates.crt", "etc/pki/tls/certs/ca-bundle.crt", "etc/ssl/ca-bundle.pem", "etc/ca-certificates/extracted/tls-ca-bundle.pem", "etc/ssl/cert.pem")) {
+        // (the bundles themselves: the links to them followed inside the system, not on the host)
+        for (b in listOf(
+            "etc/ssl/certs/ca-certificates.crt", "etc/pki/tls/certs/ca-bundle.crt", "etc/ssl/ca-bundle.pem",
+            "etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem", "etc/ca-certificates/extracted/tls-ca-bundle.pem",
+            "var/lib/ca-certificates/ca-bundle.pem", "etc/ssl/cert.pem",
+        )) {
             val f = File(sys.rootfs, b)
             if (f.isFile && !Files.isSymbolicLink(f.toPath())) f.appendText("\n" + ca.readText())
         }
@@ -165,7 +181,8 @@ class LinuxSystemTest {
     /** a package added with the system's own package manager, and run */
     private fun packageManager(sys: LinuxSystem, id: String) {
         val (l, s) = shell(sys)
-        waitFor("the prompt", s, 60) { it.contains("root@") }
+        // (root's prompt, as the distribution's own start-up files may have it: openSUSE's "host:~ #")
+        waitFor("the prompt", s, 60) { it.trimEnd().endsWith("#") }
         val cmd = INSTALL_LUA[id] ?: throw AssertionError("no command for $id")
         l.write("$cmd && \$LUA -e 'print(\"lua says \" .. 6*7)'\r".toByteArray())
         waitFor("Lua from $id's package manager", s, secs = 900) { it.contains("lua says 42") }
@@ -207,6 +224,7 @@ class LinuxSystemTest {
                 val r = d.resolve(Setup.machine!!, Http())
                 sys.install(r, Http())
                 trustHostCa(sys)
+                httpsMirrors(sys)
                 println("DISTRO $id: ${sys.name}, shell ${sys.loginShell()}, installed in ${(System.currentTimeMillis() - t0) / 1000}s")
                 packageManager(sys, id)
                 println("DISTRO $id: package manager works (${(System.currentTimeMillis() - t0) / 1000}s)")

@@ -168,12 +168,14 @@ class LinuxSystem(
                 "// D-Modem: under proot, apt can't switch to its own user\nAPT::Sandbox::User \"root\";\n",
             )
         }
-        // pacman: no sandbox (Landlock) or disk space check (proot's mounts aren't the phone's)
+        // pacman: no sandbox (Landlock) or disk space check (proot's mounts aren't the phone's), and its
+        // keyring made on the first start (the images come without one: nothing could be installed)
         File(etc, "pacman.conf").takeIf { it.isFile }?.let { conf ->
             var t = conf.readText()
             t = t.replace(Regex("(?m)^CheckSpace\\s*$"), "#CheckSpace")
             if (!Regex("(?m)^DisableSandbox").containsMatchIn(t)) t = t.replaceFirst("[options]", "[options]\nDisableSandbox")
             conf.writeText(t)
+            File(etc, "profile.d/00-dmodem-pacman-keyring.sh").writeText(PACMAN_KEYRING)
         }
         for (d in listOf("root", "tmp", "sdcard", "dev", "proc", "sys")) File(rootfs, d).mkdirs()
         File(rootfs, "tmp").setWritable(true, false)
@@ -296,6 +298,14 @@ class LinuxSystem(
             |alias ll='ls -l'
             |alias la='ls -la'
             |""".trimMargin()
+
+        /** pacman's keyring made once, on the first login */
+        const val PACMAN_KEYRING = """# D-Modem: pacman's keyring, made once (the image has none)
+if [ ! -e /etc/pacman.d/gnupg/pubring.gpg ] && [ ! -e /etc/pacman.d/gnupg/pubring.kbx ] && command -v pacman-key >/dev/null 2>&1; then
+    echo "Setting up pacman's keyring (once)..."
+    pacman-key --init >/dev/null 2>&1 && pacman-key --populate >/dev/null 2>&1
+fi
+"""
 
         /** /proc files Android keeps from apps, as proot-distro makes them up */
         val FAKE_PROC = linkedMapOf(
