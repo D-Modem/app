@@ -166,8 +166,13 @@ class ZModem(
                 continue
             }
             val kind = readByte() and 0x7f
-            // (the ZDLE before a header is also a CAN: one isn't a cancel)
-            if (kind == CAN) { cans = 2; continue }
+            // (the ZDLE before a header is also a CAN: one isn't a cancel; a cancel is
+            // CANs in a row, and an escape in skipped data, ZDLE then a letter, is none)
+            if (kind == CAN) {
+                if (++cans >= 5) throw TransferCancelled("cancelled by the other side")
+                continue
+            }
+            cans = 0
             return when (kind) {
                 'A'.code -> readBinHeader(false)
                 'C'.code -> readBinHeader(true)

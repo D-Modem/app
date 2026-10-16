@@ -166,12 +166,14 @@ object Terminal {
     suspend fun openLocal(context: Context): String? {
         val (cols, rows) = synchronized(session.emulator) { session.emulator.cols to session.emulator.rows }
         val link = withContext(Dispatchers.IO) { localShell(context).link(cols, rows) }
-        if (!withContext(Dispatchers.IO) { link.start() }) {
-            return (link.state.value as? TerminalLink.State.Closed)?.reason ?: "the shell didn't start"
-        }
         val n = _sessions.value.count { it.kind == TerminalSession.Kind.LOCAL }
+        // (the session listening before the shell starts: its first prompt not lost)
         val s = TerminalSession(link, label = if (n == 0) "Shell" else "Shell ${n + 1}", kind = TerminalSession.Kind.LOCAL) {
             app.getExternalFilesDir("captures")
+        }
+        if (!withContext(Dispatchers.IO) { link.start() }) {
+            s.close()
+            return (link.state.value as? TerminalLink.State.Closed)?.reason ?: "the shell didn't start"
         }
         s.charset = TermCharset.UTF8
         s.keys.backspace = BackspaceMode.DEL
@@ -192,16 +194,18 @@ object Terminal {
         } catch (e: java.io.IOException) {
             return e.message
         }
-        if (!withContext(Dispatchers.IO) { link.start() }) {
-            return (link.state.value as? TerminalLink.State.Closed)?.reason ?: "Linux didn't start"
-        }
         // (the tab: the distribution's name without its version, numbered when there are more)
         val short = sys.name.replace(Regex("\\s+[0-9(].*$"), "").removeSuffix(" Linux").ifEmpty { sys.name }
         val n = _sessions.value.count { it.linuxId == id }
+        // (listening before the shell starts: its first prompt not lost)
         val s = TerminalSession(
             link, label = if (n == 0) short else "$short ${n + 1}", kind = TerminalSession.Kind.LINUX, linuxId = id,
         ) {
             app.getExternalFilesDir("captures")
+        }
+        if (!withContext(Dispatchers.IO) { link.start() }) {
+            s.close()
+            return (link.state.value as? TerminalLink.State.Closed)?.reason ?: "Linux didn't start"
         }
         s.charset = TermCharset.UTF8
         s.keys.backspace = BackspaceMode.DEL
