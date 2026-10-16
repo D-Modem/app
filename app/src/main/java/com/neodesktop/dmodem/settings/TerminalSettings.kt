@@ -14,6 +14,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.neodesktop.dmodem.terminal.BackspaceMode
 import com.neodesktop.dmodem.terminal.EnterMode
 import com.neodesktop.dmodem.terminal.TermCharset
+import com.neodesktop.dmodem.terminal.TerminalFont
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -31,6 +32,9 @@ enum class VolumeKeys(val label: String) {
 /** How the terminal looks and behaves. */
 data class TerminalSettings(
     val themeId: String = "vga",
+    val font: TerminalFont = TerminalFont.SYSTEM,
+    /** programming ligatures (-> != ==) in the fonts that have them */
+    val ligatures: Boolean = false,
     /** the text's size (sp) when the columns aren't fixed */
     val fontSize: Float = 12f,
     /** the columns the screen is fitted to (the text sized for them): 0 to size by fontSize */
@@ -63,6 +67,8 @@ class TerminalSettingsStore(private val context: Context) {
 
     private object K {
         val theme = stringPreferencesKey("theme")
+        val font = stringPreferencesKey("font")
+        val ligatures = booleanPreferencesKey("ligatures")
         val fontSize = floatPreferencesKey("font_size")
         val fixedColumns = intPreferencesKey("fixed_columns")
         val charset = stringPreferencesKey("charset")
@@ -89,6 +95,8 @@ class TerminalSettingsStore(private val context: Context) {
         val d = TerminalSettings()
         TerminalSettings(
             themeId = p[K.theme] ?: d.themeId,
+            font = enumOf(p[K.font], d.font),
+            ligatures = p[K.ligatures] ?: d.ligatures,
             fontSize = p[K.fontSize] ?: d.fontSize,
             fixedColumns = p[K.fixedColumns] ?: d.fixedColumns,
             charset = enumOf(p[K.charset], d.charset),
@@ -114,6 +122,8 @@ class TerminalSettingsStore(private val context: Context) {
     suspend fun save(s: TerminalSettings) {
         context.terminalStore.edit { p ->
             p[K.theme] = s.themeId
+            p[K.font] = s.font.name
+            p[K.ligatures] = s.ligatures
             p[K.fontSize] = s.fontSize
             p[K.fixedColumns] = s.fixedColumns
             p[K.charset] = s.charset.name

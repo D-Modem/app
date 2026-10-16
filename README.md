@@ -27,7 +27,10 @@ network: the phone's own cellular calls go through speech codecs
   clear-home, bold as bright, iCE colours, and box drawing and block
   characters drawn to fill their cells so ANSI art has no gaps. Colour
   themes (VGA, xterm, Solarized, Dracula, Monokai, Gruvbox, Nord, green
-  and amber phosphor), 80/132/40 fixed columns or pinch to zoom, scrollback
+  and amber phosphor), fonts (Cascadia Code, Sauce Code Pro Nerd Font,
+  Source Code Pro, Roboto Mono, JetBrains Mono, Fira Code, OpenDyslexic
+  Mono, Inconsolata, Droid Sans Mono or the system's; real bold weights
+  from the variable fonts, optional ligatures; `app/src/main/assets/fonts`), 80/132/40 fixed columns or pinch to zoom, scrollback
   with fling, long-press selection with copy, paste, share and open link,
   an extra keys bar (Esc, sticky Ctrl/Alt, Tab, arrows with auto-repeat,
   Home/End/PgUp/PgDn, F1-F12), volume keys as font size or Ctrl/Alt,

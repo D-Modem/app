@@ -105,9 +105,20 @@ class TerminalView @JvmOverloads constructor(
         applySettings(settings)
     }
 
+    private var regularFace: Typeface = Typeface.MONOSPACE
+    private var boldFace: Typeface? = null
+
     fun applySettings(s: TerminalSettings) {
-        val sizeChanged = s.fontSize != settings.fontSize || s.fixedColumns != settings.fixedColumns
+        val fontChanged = s.font != settings.font || s.ligatures != settings.ligatures || boldFace == null
+        val sizeChanged = fontChanged || s.fontSize != settings.fontSize || s.fixedColumns != settings.fixedColumns
         settings = s
+        if (fontChanged) {
+            regularFace = FontCache.typeface(context, s.font, false)
+            boldFace = if (s.font.hasBold) FontCache.typeface(context, s.font, true) else null
+            textPaint.typeface = regularFace
+            // (ligatures off: one glyph per cell, as a terminal has it)
+            textPaint.fontFeatureSettings = if (s.ligatures) null else "'liga' 0, 'calt' 0, 'clig' 0, 'dlig' 0"
+        }
         theme = TermTheme.byId(s.themeId)
         keepScreenOn = s.keepScreenOn
         session?.let {
@@ -141,9 +152,15 @@ class TerminalView @JvmOverloads constructor(
         fontPx = fontPx.coerceIn(4f, 200f)
         textPaint.textSize = fontPx
         cellW = textPaint.measureText("M")
+        // the font's ascent and descent, or its glyphs' ink where that goes beyond them
+        // (some fonts declare less than they draw: OpenDyslexic)
         val fm = textPaint.fontMetrics
-        cellH = floor(fm.descent - fm.ascent + 0.5f).coerceAtLeast(1f)
-        ascent = -fm.ascent
+        val ink = Rect()
+        textPaint.getTextBounds(METRIC_SAMPLE, 0, METRIC_SAMPLE.length, ink)
+        val up = max(-fm.ascent, -ink.top.toFloat())
+        val down = max(fm.descent, ink.bottom.toFloat())
+        cellH = floor(up + down + 0.5f).coerceAtLeast(1f)
+        ascent = up
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -240,15 +257,19 @@ class TerminalView @JvmOverloads constructor(
         if (a and Style.BLINK != 0 && !settings.iceColors && !blinkOn) return
         textPaint.color = fg
         fillPaint.color = fg
-        textPaint.isFakeBoldText = a and Style.BOLD != 0 && !(settings.boldBright && Style.fg(st) in 0..7)
+        // bold glyphs (not only bright colours): the font's bold face, or the paint's
+        val heavy = a and Style.BOLD != 0 && !(settings.boldBright && Style.fg(st) in 0..7)
+        val bf = boldFace
+        textPaint.typeface = if (heavy && bf != null) bf else regularFace
+        textPaint.isFakeBoldText = heavy && bf == null
         textPaint.textSkewX = if (a and Style.ITALIC != 0) -0.2f else 0f
         runText.setLength(0)
         var runStart = from
+        var runCells = 0
         fun flush(at: Int) {
-            if (runText.isNotEmpty()) {
-                c.drawText(runText, 0, runText.length, runStart * cellW, y + ascent, textPaint)
-                runText.setLength(0)
-            }
+            if (runText.isNotEmpty()) drawRun(c, runText, runStart, runCells, y)
+            runText.setLength(0)
+            runCells = 0
             runStart = at
         }
         for (x in from until to) {
@@ -263,15 +284,43 @@ class TerminalView @JvmOverloads constructor(
                 continue
             }
             if (runText.isEmpty()) runStart = x
-            // one glyph per cell: a wider glyph is drawn on its own, at its cell
             runText.appendCodePoint(cp)
+            runCells++
         }
         flush(to)
+        textPaint.typeface = regularFace
+        textPaint.isFakeBoldText = false
         if (a and Style.UNDERLINE != 0) {
             c.drawRect(px(from), y + cellH - max(1f, floor(cellH / 14f)), px(to), y + cellH, fillPaint)
         }
         if (a and Style.STRIKE != 0) {
             c.drawRect(px(from), floor(y + cellH / 2), px(to), floor(y + cellH / 2) + max(1f, floor(cellH / 14f)), fillPaint)
+        }
+    }
+
+    /**
+     * cells' text from a column: as one run when its glyphs are the cells'
+     * width (the font's own), else each glyph in its cell (a fallback
+     * font's, wider or narrower), narrowed to fit it if need be
+     */
+    private fun drawRun(c: Canvas, text: CharSequence, col: Int, cells: Int, y: Float) {
+        val w = textPaint.measureText(text, 0, text.length)
+        if (abs(w - cells * cellW) < 0.5f) {
+            c.drawText(text, 0, text.length, col * cellW, y + ascent, textPaint)
+            return
+        }
+        var i = 0
+        var x = col
+        while (i < text.length) {
+            val n = Character.charCount(Character.codePointAt(text, i))
+            val gw = textPaint.measureText(text, i, i + n)
+            val scale = if (gw > cellW) cellW / gw else 1f
+            textPaint.textScaleX = scale
+            val left = x * cellW + (cellW - gw * scale) / 2
+            c.drawText(text, i, i + n, left, y + ascent, textPaint)
+            textPaint.textScaleX = 1f
+            i += n
+            x++
         }
     }
 
@@ -762,6 +811,8 @@ class TerminalView @JvmOverloads constructor(
     }
 
     companion object {
+        /** glyphs whose ink the cells' height must hold */
+        private const val METRIC_SAMPLE = "MHWgjpqy|_[]{}()"
         private const val BLINK_MS = 530L
         private const val FLASH_MS = 120L
         const val MIN_SP = 5f
