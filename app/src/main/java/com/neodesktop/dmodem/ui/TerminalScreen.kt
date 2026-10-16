@@ -63,6 +63,7 @@ import com.neodesktop.dmodem.terminal.Key
 import com.neodesktop.dmodem.terminal.TermCharset
 import com.neodesktop.dmodem.terminal.Terminal
 import com.neodesktop.dmodem.terminal.TerminalView
+import com.neodesktop.dmodem.local.LocalLink
 import com.neodesktop.dmodem.terminal.TerminalLink
 import com.neodesktop.dmodem.terminal.TerminalSession
 import androidx.compose.foundation.clickable
@@ -140,6 +141,9 @@ fun TerminalScreen(
                 onKeyboard = { view?.toggleKeyboard() },
                 onPaste = { view?.pasteClipboard() },
                 onSnippets = { showSnippets = true },
+                onNewShell = {
+                    scope.launch { Terminal.openLocal(context)?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() } }
+                },
                 onSsh = if (ssh != null && linkState == TerminalLink.State.Open) ({ showSsh = true }) else null,
                 onCapture = {
                     if (capture != null) {
@@ -192,6 +196,7 @@ fun TerminalScreen(
             if (!isModem && closed != null) {
                 Disconnected(
                     closed.reason,
+                    local = session.kind == TerminalSession.Kind.LOCAL,
                     onReconnect = {
                         scope.launch {
                             Terminal.reconnect(context, session)?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
@@ -265,6 +270,14 @@ private fun SessionTabs(sessions: List<TerminalSession>, active: TerminalSession
 
 /** a connection's state, for the bar */
 private fun linkText(s: TerminalSession, st: TerminalLink.State, title: String): String {
+    if (s.kind == TerminalSession.Kind.LOCAL) {
+        val state = when (st) {
+            TerminalLink.State.Connecting -> "Starting…"
+            TerminalLink.State.Open -> s.label
+            is TerminalLink.State.Closed -> "Exited" + ((s.link as? LocalLink)?.exitStatus?.takeIf { it != 0 }?.let { " ($it)" } ?: "")
+        }
+        return if (title.isNotBlank() && st == TerminalLink.State.Open) "$state — $title" else state
+    }
     val what = if (s.kind == TerminalSession.Kind.SSH) "SSH" else "Telnet"
     val where = s.entry?.address ?: s.label
     val state = when (st) {
@@ -277,15 +290,15 @@ private fun linkText(s: TerminalSession, st: TerminalLink.State, title: String):
 
 /** a connection that has ended: why, and to connect again or close it */
 @Composable
-private fun Disconnected(reason: String?, onReconnect: () -> Unit, onClose: () -> Unit, modifier: Modifier) {
+private fun Disconnected(reason: String?, local: Boolean, onReconnect: () -> Unit, onClose: () -> Unit, modifier: Modifier) {
     Surface(modifier.fillMaxWidth().padding(12.dp), tonalElevation = 6.dp, shape = RoundedCornerShape(12.dp), shadowElevation = 6.dp) {
         Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Disconnected", style = MaterialTheme.typography.titleSmall)
-                if (reason != null) Text(reason, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(if (local) "The shell has exited" else "Disconnected", style = MaterialTheme.typography.titleSmall)
+                if (reason != null && !local) Text(reason, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             TextButton(onClick = onClose) { Text("Close") }
-            Button(onClick = onReconnect) { Text("Reconnect") }
+            Button(onClick = onReconnect) { Text(if (local) "New shell" else "Reconnect") }
         }
     }
 }
@@ -319,6 +332,7 @@ private fun TopBar(
     onKeyboard: () -> Unit,
     onPaste: () -> Unit,
     onSnippets: () -> Unit,
+    onNewShell: () -> Unit,
     /** an SSH connection's forwards, agent and keys (null: not one) */
     onSsh: (() -> Unit)?,
     onCapture: () -> Unit,
@@ -346,6 +360,7 @@ private fun TopBar(
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(text = { Text(if (isModem) "Hang up" else "Disconnect") }, onClick = { menu = false; onHangUp() })
                     DropdownMenuItem(text = { Text("Paste") }, onClick = { menu = false; onPaste() })
+                    DropdownMenuItem(text = { Text("New local shell") }, onClick = { menu = false; onNewShell() })
                     if (onSsh != null) {
                         DropdownMenuItem(text = { Text("Port forwards, agent, keys") }, onClick = { menu = false; onSsh() })
                     }

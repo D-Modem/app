@@ -30,7 +30,7 @@ class TerminalSession(
     /** where captures go */
     private val captureDir: () -> File?,
 ) {
-    enum class Kind { MODEM, SSH, TELNET }
+    enum class Kind { MODEM, SSH, TELNET, LOCAL }
 
     val id: String = java.util.UUID.randomUUID().toString()
 

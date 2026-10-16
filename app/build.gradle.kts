@@ -23,8 +23,8 @@ android {
         }
         externalNativeBuild {
             cmake {
-                // only the JNI library: not dmodemd or D-Modem-RE's other programs
-                targets += "dmodem_jni"
+                // only the app's libraries (the modem's, the local shell's ptys): not dmodemd or D-Modem-RE's other programs
+                targets += listOf("dmodem_jni", "dmodem_pty")
                 arguments += listOf("-DANDROID_STL=c++_static")
             }
         }

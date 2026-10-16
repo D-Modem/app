@@ -11,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import com.neodesktop.dmodem.local.LocalShell
 import com.neodesktop.dmodem.ssh.AgentKeys
 import com.neodesktop.dmodem.ssh.ForwardSpec
 import com.neodesktop.dmodem.ssh.KeystoreBox
@@ -137,7 +138,6 @@ object Terminal {
         return null
     }
 
-    /** a network session closed and gone (the modem's stays) */
     /** the app's keys as an agent for [e]'s connection: each use asked of the user unless the entry says not to */
     private fun agentKeys(e: DialEntry) = AgentKeys(
         list = { keys.keys.value.mapNotNull { k -> runCatching { k.name to keys.keyPair(k.id) }.getOrNull() } },
@@ -153,6 +153,30 @@ object Terminal {
         },
     )
 
+    /** the local shell (Android's; the tests' a host's) */
+    var localShell: (Context) -> LocalShell = { LocalShell(it.applicationContext.filesDir, it.applicationContext.cacheDir) }
+
+    /** a local shell opened in a new session (on the screen from now): null, else why it can't be */
+    suspend fun openLocal(context: Context): String? {
+        val (cols, rows) = synchronized(session.emulator) { session.emulator.cols to session.emulator.rows }
+        val link = withContext(Dispatchers.IO) { localShell(context).link(cols, rows) }
+        if (!withContext(Dispatchers.IO) { link.start() }) {
+            return (link.state.value as? TerminalLink.State.Closed)?.reason ?: "the shell didn't start"
+        }
+        val n = _sessions.value.count { it.kind == TerminalSession.Kind.LOCAL }
+        val s = TerminalSession(link, label = if (n == 0) "Shell" else "Shell ${n + 1}", kind = TerminalSession.Kind.LOCAL) {
+            app.getExternalFilesDir("captures")
+        }
+        s.charset = TermCharset.UTF8
+        s.keys.backspace = BackspaceMode.DEL
+        s.keys.enter = com.neodesktop.dmodem.terminal.EnterMode.CR
+        _sessions.value = _sessions.value + s
+        _active.value = s
+        ConnectionService.update(app)
+        return null
+    }
+
+    /** a session closed and gone (the modem's stays) */
     fun close(s: TerminalSession) {
         if (s === session) return
         s.close()
@@ -162,14 +186,18 @@ object Terminal {
         ConnectionService.update(app)
     }
 
-    /** a closed session's entry opened again in its place */
+    /** a closed session's entry opened again in its place (a shell: a new one) */
     suspend fun reconnect(context: Context, s: TerminalSession): String? {
+        if (s.kind == TerminalSession.Kind.LOCAL) {
+            close(s)
+            return openLocal(context)
+        }
         val e = s.entry ?: return "nothing to reconnect to"
         close(s)
         return open(context, directory.items.value.firstOrNull { it.id == e.id } ?: e)
     }
 
-    /** the network sessions still connected (or connecting) */
+    /** the sessions (network ones, shells) still open or opening: the service keeps them going */
     fun openNetworkSessions(): Int =
         _sessions.value.count { it.kind != TerminalSession.Kind.MODEM && it.link.state.value !is TerminalLink.State.Closed }
 

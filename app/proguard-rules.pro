@@ -19,3 +19,6 @@
 -dontwarn org.ietf.jgss.**
 -dontwarn javax.security.auth.login.**
 -dontwarn org.bouncycastle.**
+
+# the local shell's pseudo-terminals: libdmodem_pty's JNI functions are named after these
+-keep class com.neodesktop.dmodem.local.Pty { native <methods>; }

@@ -40,4 +40,9 @@ if(ANDROID)
 	# 16 KB pages (Android 15 on)
 	target_link_options(dmodem_jni PRIVATE
 		-Wl,-z,max-page-size=16384 -Wl,--gc-sections)
+
+	# the local shell's pseudo-terminals (plain C: the unit tests build it for the host too)
+	add_library(dmodem_pty SHARED pty.c)
+	target_compile_options(dmodem_pty PRIVATE -Wall -Wextra)
+	target_link_options(dmodem_pty PRIVATE -Wl,-z,max-page-size=16384)
 endif()

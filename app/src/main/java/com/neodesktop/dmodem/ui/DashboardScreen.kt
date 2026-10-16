@@ -156,6 +156,12 @@ fun DashboardScreen(
         SectionTitle("Open")
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Shortcut(">_", "Terminal", "VT100 / ANSI-BBS", Modifier.weight(1f), onOpenTerminal)
+            Shortcut("$", "Shell", "This phone's", Modifier.weight(1f), onClick = {
+                scope.launch {
+                    val err = Terminal.openLocal(context)
+                    if (err != null) Toast.makeText(context, err, Toast.LENGTH_LONG).show() else onOpenTerminal()
+                }
+            })
             Shortcut(null, "Directory", "${entries.size} system${if (entries.size == 1) "" else "s"}", Modifier.weight(1f), onOpenDirectory) {
                 Icon(Icons.AutoMirrored.Filled.List, null)
             }
