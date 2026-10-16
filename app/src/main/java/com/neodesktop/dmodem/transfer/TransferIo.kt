@@ -51,6 +51,16 @@ class TransferIo(private val send: (ByteArray) -> Unit) {
         }
     }
 
+    /** the next byte if one is waiting (left there), else -1: without waiting */
+    fun peek(): Int {
+        while (true) {
+            val c = cur
+            if (c != null && pos < c.size) return c[pos].toInt() and 0xff
+            cur = queue.poll() ?: return -1
+            pos = 0
+        }
+    }
+
     /** whether bytes are waiting (without waiting for any) */
     fun available(): Boolean = (cur?.let { pos < it.size } == true) || queue.isNotEmpty()
 

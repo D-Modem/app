@@ -550,7 +550,14 @@ class ZModem(
             sendBin(Header.pos(ZDATA, r.pos))
             var sinceAck = 0
             while (true) {
-                // the receiver's word in between, if any: a ZRPOS (an error: back to it)
+                // the receiver's word in between, if any: a ZRPOS (an error: back to it).
+                // (what isn't the start of a header let go first: the XON, CR LF a hex header ends
+                // with, else it would be waited on as a header that never comes)
+                while (true) {
+                    val c = io.peek()
+                    if (c < 0 || c == ZPAD || c == ZDLE) break
+                    io.read(0)
+                }
                 if (io.available()) {
                     val h = readHeaderOrNull()
                     when (h?.type) {

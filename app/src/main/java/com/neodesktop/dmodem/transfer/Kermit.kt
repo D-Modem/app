@@ -510,7 +510,10 @@ class Kermit(
                 var reply = ByteArray(0)
                 when (r.type) {
                     'F' -> {
-                        val name = decodeText(r.data)
+                        val name = decodeText(r.data).let { n ->
+                            // (a name sent "converted", all capitals, as C-Kermit does: back in lower case)
+                            if (n.any { it.isLetter() } && n.none { it.isLowerCase() }) n.lowercase() else n
+                        }
                         val (o, actual) = into.create(name, -1)
                         out = o.buffered()
                         current = actual

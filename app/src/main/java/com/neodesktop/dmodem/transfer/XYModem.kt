@@ -246,7 +246,7 @@ class XYModem(
         val end = blockBytes(0, ByteArray(128), true)
         for (attempt in 0 until 3) {
             io.write(end)
-            if (answer(allowC = true) == ACK) return
+            if (answer(allowC = true, wait = 2_000) == ACK) return
         }
     }
 
@@ -328,8 +328,8 @@ class XYModem(
      * an ACK for block 0 when [allowC] (receivers that ask for the data
      * straight away)
      */
-    private fun answer(allowC: Boolean): Int {
-        val deadline = System.currentTimeMillis() + timeoutMs
+    private fun answer(allowC: Boolean, wait: Long = timeoutMs): Int {
+        val deadline = System.currentTimeMillis() + wait
         while (true) {
             val left = deadline - System.currentTimeMillis()
             if (left <= 0) return NAK
