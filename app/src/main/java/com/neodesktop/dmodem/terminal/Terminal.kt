@@ -4,7 +4,6 @@ package com.neodesktop.dmodem.terminal
 
 import android.content.Context
 import com.neodesktop.dmodem.NativeModem
-import com.neodesktop.dmodem.modem.DteHub
 import com.neodesktop.dmodem.modem.ModemService
 import com.neodesktop.dmodem.modem.ModemState
 import com.neodesktop.dmodem.settings.TerminalSettingsStore
@@ -12,29 +11,147 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import com.neodesktop.dmodem.ssh.KeystoreBox
+import com.neodesktop.dmodem.ssh.KnownHosts
+import com.neodesktop.dmodem.ssh.PasswordStore
+import com.neodesktop.dmodem.ssh.PromptBroker
+import com.neodesktop.dmodem.ssh.SecretBox
+import com.neodesktop.dmodem.ssh.SshKeys
+import com.neodesktop.dmodem.ssh.SshLink
+import com.neodesktop.dmodem.telnet.TelnetLink
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-/** The app's terminal: its session, its dialing directory and its snippets. */
+/**
+ * The app's terminal: its sessions (the modem's, always there, and the
+ * SSH and Telnet connections opened from the directory), the one on the
+ * screen, the dialing directory, the snippets, the SSH keys and known
+ * hosts, and the questions the connections ask the user.
+ */
+@android.annotation.SuppressLint("StaticFieldLeak")
 object Terminal {
+    /** the modem's session (on its DTE) */
     lateinit var session: TerminalSession
         private set
     lateinit var directory: JsonListStore<DialEntry>
         private set
     lateinit var snippets: JsonListStore<Snippet>
         private set
+    lateinit var keys: SshKeys
+        private set
+    lateinit var knownHosts: KnownHosts
+        private set
+    lateinit var passwords: PasswordStore
+        private set
+    val prompts = PromptBroker()
 
-    fun init(context: Context) {
-        val app = context.applicationContext
+    private val _sessions = MutableStateFlow<List<TerminalSession>>(emptyList())
+    /** the sessions, the modem's first */
+    val sessions: StateFlow<List<TerminalSession>> = _sessions.asStateFlow()
+    private val _active = MutableStateFlow<TerminalSession?>(null)
+    /** the session on the screen */
+    val active: StateFlow<TerminalSession?> = _active.asStateFlow()
+
+    // (the application's context: it lives as long as the process does)
+    @android.annotation.SuppressLint("StaticFieldLeak")
+    private lateinit var app: Context
+
+    fun init(context: Context, box: SecretBox = KeystoreBox()) {
+        app = context.applicationContext
         session = TerminalSession(ModemState.dte) { app.getExternalFilesDir("captures") }
+        _sessions.value = listOf(session)
+        _active.value = session
         directory = JsonListStore(
             File(app.filesDir, "directory.json"), DialEntry::toJson, DialEntry::fromJson, DialEntry::id,
         )
         snippets = JsonListStore(
             File(app.filesDir, "snippets.json"), Snippet::toJson, Snippet::fromJson, Snippet::id, Snippet.DEFAULTS,
         )
+        keys = SshKeys(File(app.filesDir, "ssh"), box)
+        knownHosts = KnownHosts(File(app.filesDir, "ssh/known_hosts")) { p, owner -> prompts.ask(p, owner) }
+        passwords = PasswordStore(File(app.filesDir, "ssh/passwords.json"), box)
     }
+
+    fun select(s: TerminalSession) {
+        if (s in _sessions.value) _active.value = s
+    }
+
+    /**
+     * An SSH or Telnet entry opened in a new session (on the screen from
+     * now): null when it is on its way, else why it can't be.
+     */
+    suspend fun open(context: Context, e: DialEntry): String? {
+        if (!e.complete) return "the entry is missing its host, user or key"
+        val t = TerminalSettingsStore(context).current()
+        val (cols, rows) = synchronized(session.emulator) { session.emulator.cols to session.emulator.rows }
+        val link: TerminalLink = when (e.kind) {
+            EntryKind.SSH -> {
+                val key = if (e.auth == SshAuth.KEY) {
+                    try {
+                        keys.provider(e.keyId)
+                    } catch (x: Exception) {
+                        return "the key can't be opened: ${x.message}"
+                    }
+                } else {
+                    null
+                }
+                SshLink(
+                    e.host.trim(), e.portOrDefault, e.user.trim(), key, knownHosts,
+                    ask = { p, owner -> prompts.ask(p, owner) },
+                    cancelAsks = { prompts.cancel(it) },
+                    savedPassword = if (e.auth == SshAuth.PASSWORD) passwords.get(e.id) else null,
+                    // (a password that can't be kept is still used for this login)
+                    keepPassword = { runCatching { passwords.put(e.id, it) } },
+                    cols = cols, rows = rows,
+                ).also { it.connect() }
+            }
+            EntryKind.TELNET -> TelnetLink(
+                e.host.trim(), e.portOrDefault,
+                termType = if ((e.charset ?: t.charset) == TermCharset.CP437) "ANSI" else "XTERM-256COLOR",
+                cols = cols, rows = rows,
+            ).also { it.connect() }
+            EntryKind.MODEM -> return "a modem entry is dialled, not opened"
+        }
+        val s = TerminalSession(
+            link,
+            label = e.name.ifBlank { e.address },
+            kind = if (e.kind == EntryKind.SSH) TerminalSession.Kind.SSH else TerminalSession.Kind.TELNET,
+            entry = e,
+        ) { app.getExternalFilesDir("captures") }
+        s.charset = e.charset ?: (if (e.kind == EntryKind.SSH) TermCharset.UTF8 else t.charset)
+        s.keys.backspace = e.backspace ?: (if (e.kind == EntryKind.SSH) BackspaceMode.DEL else t.backspace)
+        s.keys.enter = t.enter
+        _sessions.value = _sessions.value + s
+        _active.value = s
+        directory.put(e.copy(lastDialed = System.currentTimeMillis(), dialCount = e.dialCount + 1))
+        ConnectionService.update(app)
+        return null
+    }
+
+    /** a network session closed and gone (the modem's stays) */
+    fun close(s: TerminalSession) {
+        if (s === session) return
+        s.close()
+        val left = _sessions.value - s
+        _sessions.value = left
+        if (_active.value === s) _active.value = left.lastOrNull() ?: session
+        ConnectionService.update(app)
+    }
+
+    /** a closed session's entry opened again in its place */
+    suspend fun reconnect(context: Context, s: TerminalSession): String? {
+        val e = s.entry ?: return "nothing to reconnect to"
+        close(s)
+        return open(context, directory.items.value.firstOrNull { it.id == e.id } ?: e)
+    }
+
+    /** the network sessions still connected (or connecting) */
+    fun openNetworkSessions(): Int =
+        _sessions.value.count { it.kind != TerminalSession.Kind.MODEM && it.link.state.value !is TerminalLink.State.Closed }
 
     /** the captures' folder */
     fun capturesDir(context: Context): File? = context.applicationContext.getExternalFilesDir("captures")
@@ -45,6 +162,7 @@ object Terminal {
      * ATD. Null when the dial went out, else why it didn't.
      */
     suspend fun dial(context: Context, e: DialEntry): String? {
+        if (e.kind != EntryKind.MODEM) return open(context, e)
         if (e.number.isBlank()) return "no number to dial"
         if (ModemState.run.value != ModemState.Run.RUNNING) {
             // (an error of an earlier start isn't this one's)
@@ -66,6 +184,7 @@ object Terminal {
         for (cmd in e.initCommands.split(';', '\n').map { it.trim() }.filter { it.isNotEmpty() }) {
             withContext(Dispatchers.IO) { sendAndWait(cmd + "\r", 2000) }
         }
+        _active.value = session
         session.send("ATD" + e.number.trim() + "\r")
         directory.put(e.copy(lastDialed = System.currentTimeMillis(), dialCount = e.dialCount + 1))
         return null
@@ -75,7 +194,7 @@ object Terminal {
     private fun sendAndWait(text: String?, ms: Long) {
         val got = CountDownLatch(1)
         val seen = StringBuilder()
-        val l = DteHub.Listener { d, n ->
+        val l = TerminalLink.Listener { d, n ->
             synchronized(seen) {
                 seen.append(String(d, 0, n, Charsets.ISO_8859_1))
                 if (seen.contains("OK") || seen.contains("ERROR")) got.countDown()

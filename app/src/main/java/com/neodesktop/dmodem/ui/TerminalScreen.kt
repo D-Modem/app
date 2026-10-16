@@ -63,6 +63,17 @@ import com.neodesktop.dmodem.terminal.Key
 import com.neodesktop.dmodem.terminal.TermCharset
 import com.neodesktop.dmodem.terminal.Terminal
 import com.neodesktop.dmodem.terminal.TerminalView
+import com.neodesktop.dmodem.terminal.TerminalLink
+import com.neodesktop.dmodem.terminal.TerminalSession
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Tab
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
@@ -79,7 +90,11 @@ fun TerminalScreen(
     val store = remember { TerminalSettingsStore(context.applicationContext) }
     val settings by store.settings.collectAsStateWithLifecycle(initialValue = null)
     val s = settings ?: return
-    val session = Terminal.session
+    val sessions by Terminal.sessions.collectAsStateWithLifecycle()
+    val active by Terminal.active.collectAsStateWithLifecycle()
+    val session = active ?: Terminal.session
+    val isModem = session.kind == TerminalSession.Kind.MODEM
+    val linkState by session.link.state.collectAsStateWithLifecycle()
     val status by ModemState.status.collectAsStateWithLifecycle()
     val run by ModemState.run.collectAsStateWithLifecycle()
     val title by session.title.collectAsStateWithLifecycle()
@@ -87,11 +102,12 @@ fun TerminalScreen(
     var view by remember { mutableStateOf<TerminalView?>(null) }
     var showSnippets by remember { mutableStateOf(false) }
 
-    // the session's character set follows the settings (a directory entry's own while its call lasts)
-    LaunchedEffect(s.charset) { session.charset = s.charset }
+    // the modem session's character set follows the settings (a directory entry's own while its call
+    // lasts); an SSH or Telnet session keeps its entry's
+    LaunchedEffect(s.charset) { Terminal.session.charset = s.charset }
 
     // the bell
-    DisposableEffect(s.bell, view) {
+    DisposableEffect(s.bell, view, session) {
         session.onBell = {
             if (s.bell == BellMode.VIBRATE || s.bell == BellMode.BOTH) vibrate(context)
             if (s.bell == BellMode.FLASH || s.bell == BellMode.BOTH) view?.post { view?.flash() }
@@ -111,9 +127,13 @@ fun TerminalScreen(
     }
 
     Column(modifier.fillMaxSize().imePadding()) {
+        if (!fullscreen && sessions.size > 1) {
+            SessionTabs(sessions, session)
+        }
         if (!fullscreen) {
             TopBar(
-                text = barText(run, status, onlineSince, now, title),
+                text = if (isModem) barText(run, status, onlineSince, now, title) else linkText(session, linkState, title),
+                isModem = isModem,
                 capturing = capture != null,
                 onKeyboard = { view?.toggleKeyboard() },
                 onPaste = { view?.pasteClipboard() },
@@ -129,7 +149,13 @@ fun TerminalScreen(
                         ).show()
                     }
                 },
-                onHangUp = { scope.launch { session.hangUp(status.link == NativeModem.Link.ONLINE) } },
+                onHangUp = {
+                    if (isModem) {
+                        scope.launch { session.hangUp(status.link == NativeModem.Link.ONLINE) }
+                    } else {
+                        Terminal.close(session)
+                    }
+                },
                 onClear = { session.clear() },
                 onReset = { session.reset() },
                 onFullscreen = { onFullscreen(true) },
@@ -137,10 +163,11 @@ fun TerminalScreen(
                 onCharset = { cs -> scope.launch { store.save(s.copy(charset = cs)) } },
             )
         }
+        Box(Modifier.weight(1f).fillMaxWidth()) {
         AndroidView(
             factory = { ctx ->
                 TerminalView(ctx).apply {
-                    this.session = Terminal.session
+                    this.session = session
                     applySettings(s)
                     onFontSizeChanged = { sp ->
                         scope.launch {
@@ -152,9 +179,26 @@ fun TerminalScreen(
                     post { requestFocus() }
                 }
             },
-            update = { v -> if (v.settings != s) v.applySettings(s) },
-            modifier = Modifier.weight(1f).fillMaxWidth(),
+            update = { v ->
+                if (v.session !== session) v.session = session
+                if (v.settings != s) v.applySettings(s)
+            },
+            modifier = Modifier.fillMaxSize(),
         )
+            val closed = linkState as? TerminalLink.State.Closed
+            if (!isModem && closed != null) {
+                Disconnected(
+                    closed.reason,
+                    onReconnect = {
+                        scope.launch {
+                            Terminal.reconnect(context, session)?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+                        }
+                    },
+                    onClose = { Terminal.close(session) },
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                )
+            }
+        }
         if (s.extraKeys) {
             ExtraKeys(
                 onKey = { k -> view?.scrollToBottom(); session.sendKey(k) },
@@ -174,6 +218,69 @@ fun TerminalScreen(
             },
             onDismiss = { showSnippets = false },
         )
+    }
+}
+
+/** the sessions as tabs: the modem's, then the connections (each with its close) */
+@Composable
+private fun SessionTabs(sessions: List<TerminalSession>, active: TerminalSession) {
+    ScrollableTabRow(selectedTabIndex = sessions.indexOf(active).coerceAtLeast(0), edgePadding = 4.dp) {
+        for (t in sessions) {
+            val st by t.link.state.collectAsStateWithLifecycle()
+            Tab(
+                selected = t === active,
+                onClick = { Terminal.select(t) },
+                text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        val dot = when {
+                            t.kind == TerminalSession.Kind.MODEM -> null
+                            st is TerminalLink.State.Open -> Color(0xff2e7d32)
+                            st is TerminalLink.State.Connecting -> Color(0xffef6c00)
+                            else -> Color(0xff9e9e9e)
+                        }
+                        if (dot != null) {
+                            Box(Modifier.size(8.dp).background(dot, CircleShape))
+                            Spacer(Modifier.width(6.dp))
+                        }
+                        Text(t.label, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 160.dp))
+                        if (t.kind != TerminalSession.Kind.MODEM) {
+                            Text(
+                                "  ✕",
+                                modifier = Modifier.clickable { Terminal.close(t) },
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                },
+            )
+        }
+    }
+}
+
+/** a connection's state, for the bar */
+private fun linkText(s: TerminalSession, st: TerminalLink.State, title: String): String {
+    val what = if (s.kind == TerminalSession.Kind.SSH) "SSH" else "Telnet"
+    val where = s.entry?.address ?: s.label
+    val state = when (st) {
+        TerminalLink.State.Connecting -> "Connecting to $where…"
+        TerminalLink.State.Open -> "$what $where"
+        is TerminalLink.State.Closed -> "Disconnected" + (st.reason?.let { ": $it" } ?: "")
+    }
+    return if (title.isNotBlank() && st == TerminalLink.State.Open) "$state — $title" else state
+}
+
+/** a connection that has ended: why, and to connect again or close it */
+@Composable
+private fun Disconnected(reason: String?, onReconnect: () -> Unit, onClose: () -> Unit, modifier: Modifier) {
+    Surface(modifier.fillMaxWidth().padding(12.dp), tonalElevation = 6.dp, shape = RoundedCornerShape(12.dp), shadowElevation = 6.dp) {
+        Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Disconnected", style = MaterialTheme.typography.titleSmall)
+                if (reason != null) Text(reason, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            TextButton(onClick = onClose) { Text("Close") }
+            Button(onClick = onReconnect) { Text("Reconnect") }
+        }
     }
 }
 
@@ -201,6 +308,7 @@ private fun barText(
 @Composable
 private fun TopBar(
     text: String,
+    isModem: Boolean,
     capturing: Boolean,
     onKeyboard: () -> Unit,
     onPaste: () -> Unit,
@@ -228,7 +336,7 @@ private fun TopBar(
             Box {
                 IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "More") }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(text = { Text("Hang up") }, onClick = { menu = false; onHangUp() })
+                    DropdownMenuItem(text = { Text(if (isModem) "Hang up" else "Disconnect") }, onClick = { menu = false; onHangUp() })
                     DropdownMenuItem(text = { Text("Paste") }, onClick = { menu = false; onPaste() })
                     HorizontalDivider()
                     for (cs in TermCharset.entries) {
@@ -255,7 +363,7 @@ private fun ExtraKeys(
     fullscreen: Boolean,
     onExitFullscreen: () -> Unit,
 ) {
-    val session = Terminal.session
+    val session = Terminal.active.collectAsStateWithLifecycle().value ?: Terminal.session
     val ctrl by session.ctrl.collectAsStateWithLifecycle()
     val alt by session.alt.collectAsStateWithLifecycle()
     var fn by remember { mutableStateOf(false) }

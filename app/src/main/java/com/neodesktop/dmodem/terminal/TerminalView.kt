@@ -122,9 +122,13 @@ class TerminalView @JvmOverloads constructor(
         theme = TermTheme.byId(s.themeId)
         keepScreenOn = s.keepScreenOn
         session?.let {
-            it.keys.backspace = s.backspace
-            it.keys.enter = s.enter
-            it.localEcho = s.localEcho
+            // (the keys and the echo are the modem session's from the settings; a
+            // connection has its entry's)
+            if (it.kind == TerminalSession.Kind.MODEM) {
+                it.keys.backspace = s.backspace
+                it.keys.enter = s.enter
+                it.localEcho = s.localEcho
+            }
             synchronized(it.emulator) {
                 it.emulator.historyMax = s.scrollback
                 it.emulator.answerback = s.answerback
@@ -173,7 +177,7 @@ class TerminalView @JvmOverloads constructor(
         if (width <= 0 || height <= 0) return
         val cols = max(1, (width / cellW).toInt())
         val rows = max(1, (height / cellH).toInt())
-        synchronized(s.emulator) { s.emulator.resize(cols, rows) }
+        s.resize(cols, rows)
         scrollRows = scrollRows.coerceIn(0, historySize())
     }
 

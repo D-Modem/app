@@ -62,6 +62,11 @@ android {
     }
 
     packaging {
+        resources {
+            // (sshj's dependencies each carry these: one is enough, the licences are in the app's)
+            excludes += setOf("META-INF/LICENSE.md", "META-INF/NOTICE.md", "META-INF/LICENSE-notice.md", "META-INF/versions/9/OSGI-INF/MANIFEST.MF")
+            pickFirsts += setOf("META-INF/INDEX.LIST")
+        }
         jniLibs {
             // 16 KB page alignment, uncompressed in the APK
             useLegacyPackaging = false
@@ -81,6 +86,10 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.datastore.preferences)
+    // SSH: sshj on BouncyCastle (Android's own "BC" is cut down: the full one is registered at start)
+    implementation(libs.sshj)
+    implementation(libs.bcprov)
+    implementation(libs.bcpkix)
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.tooling.preview)
@@ -91,6 +100,8 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
+    // an SSH server for the SSH client's tests
+    testImplementation(libs.mina.sshd.core)
     testImplementation(platform(libs.compose.bom))
     testImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)

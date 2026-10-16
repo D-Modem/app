@@ -3,6 +3,10 @@
 package com.neodesktop.dmodem.modem
 
 import android.os.ParcelFileDescriptor
+import com.neodesktop.dmodem.terminal.TerminalLink
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
@@ -15,24 +19,22 @@ import java.util.concurrent.CopyOnWriteArrayList
  * service restarts it when the network changes): [attach] the new one's
  * streams, and the listeners stay.
  */
-class DteHub {
+class DteHub : TerminalLink {
 
-    fun interface Listener {
-        /** The modem's octets: [data] up to [length], valid only during the call. */
-        fun onData(data: ByteArray, length: Int)
-    }
-
-    private val listeners = CopyOnWriteArrayList<Listener>()
+    private val listeners = CopyOnWriteArrayList<TerminalLink.Listener>()
+    private val _state = MutableStateFlow<TerminalLink.State>(TerminalLink.State.Closed(null))
+    /** open while a modem is attached */
+    override val state: StateFlow<TerminalLink.State> = _state.asStateFlow()
     private val outLock = Any()
     private var output: OutputStream? = null
     private var input: InputStream? = null
     private var reader: Thread? = null
 
-    fun addListener(l: Listener) {
+    override fun addListener(l: TerminalLink.Listener) {
         listeners.add(l)
     }
 
-    fun removeListener(l: Listener) {
+    override fun removeListener(l: TerminalLink.Listener) {
         listeners.remove(l)
     }
 
@@ -50,6 +52,7 @@ class DteHub {
         detach()
         input = inStream
         synchronized(outLock) { output = outStream }
+        _state.value = TerminalLink.State.Open
         reader = Thread({ read(inStream) }, "dte-reader").apply {
             isDaemon = true
             start()
@@ -73,13 +76,14 @@ class DteHub {
         }
         input = null
         reader = null
+        _state.value = TerminalLink.State.Closed(null)
         if (r != null && r != Thread.currentThread()) r.join(2000)
     }
 
     val attached: Boolean get() = synchronized(outLock) { output != null }
 
     /** Octets to the modem: false if there is no modem, or it has gone. */
-    fun write(data: ByteArray, offset: Int = 0, length: Int = data.size): Boolean =
+    override fun write(data: ByteArray, offset: Int, length: Int): Boolean =
         synchronized(outLock) {
             val o = output ?: return false
             try {

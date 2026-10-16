@@ -58,6 +58,7 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(full) { setSystemBars(!full) }
                 BackHandler(enabled = full) { fullscreen = false }
 
+                PromptHost()
                 Scaffold(
                     bottomBar = {
                         if (!full) {

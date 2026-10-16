@@ -2,7 +2,6 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.terminal
 
-import com.neodesktop.dmodem.modem.DteHub
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,15 +14,28 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * The terminal on the modem's DTE: what the modem sends goes into the
- * emulator (and the capture file, if one is open), what is typed goes to
- * the modem in the session's character set. It outlives the activity:
- * the screen and its scrollback are there when the app comes back.
+ * A terminal on a link (the modem's DTE, an SSH channel, a Telnet
+ * connection): what the far end sends goes into the emulator (and the
+ * capture file, if one is open), what is typed goes to it in the
+ * session's character set. It outlives the activity: the screen and its
+ * scrollback are there when the app comes back.
  */
-class TerminalSession(private val dte: DteHub, private val captureDir: () -> File?) {
+class TerminalSession(
+    val link: TerminalLink,
+    /** what the session's tab says */
+    val label: String = "Modem",
+    val kind: Kind = Kind.MODEM,
+    /** the directory entry it was opened from (SSH, Telnet) */
+    val entry: DialEntry? = null,
+    /** where captures go */
+    private val captureDir: () -> File?,
+) {
+    enum class Kind { MODEM, SSH, TELNET }
+
+    val id: String = java.util.UUID.randomUUID().toString()
 
     /** the emulator; lock on it to read or change it */
-    val emulator = TerminalEmulator(80, 25, 5000) { reply -> dte.write(reply) }
+    val emulator = TerminalEmulator(80, 25, 5000) { reply -> link.write(reply) }
 
     val keys = KeyEncoder()
 
@@ -57,7 +69,7 @@ class TerminalSession(private val dte: DteHub, private val captureDir: () -> Fil
             synchronized(emulator) { emulator.decoder.charset = v; emulator.decoder.reset() }
         }
 
-    private val listener = DteHub.Listener { data, length ->
+    private val listener = TerminalLink.Listener { data, length ->
         synchronized(captureLock) {
             try {
                 captureOut?.write(data, 0, length)
@@ -79,13 +91,13 @@ class TerminalSession(private val dte: DteHub, private val captureDir: () -> Fil
                 onBell?.invoke()
             }
         }
-        dte.addListener(listener)
+        link.addListener(listener)
     }
 
     // to the modem
 
     /** octets to the modem as they are */
-    fun sendBytes(b: ByteArray): Boolean = dte.write(b)
+    fun sendBytes(b: ByteArray): Boolean = link.write(b)
 
     /** text to the modem in the session's set (and on the screen, with local echo) */
     fun send(text: String): Boolean {
@@ -94,7 +106,7 @@ class TerminalSession(private val dte: DteHub, private val captureDir: () -> Fil
             synchronized(emulator) { emulator.appendText(text.replace("\r", "\r\n")) }
             onChange?.invoke()
         }
-        return dte.write(charset.encode(text))
+        return link.write(charset.encode(text))
     }
 
     /** a key, with the latched modifiers and those held */
@@ -145,13 +157,30 @@ class TerminalSession(private val dte: DteHub, private val captureDir: () -> Fil
     suspend fun hangUp(online: Boolean) {
         if (online) {
             delay(GUARD_MS)
-            dte.write("+++")
+            link.write("+++".toByteArray())
             delay(GUARD_MS)
         }
-        dte.write("ATH\r")
+        link.write("ATH\r".toByteArray())
     }
 
     // the screen
+
+    /** the screen's new size, and the far end told (SSH's window change, Telnet's NAWS) */
+    fun resize(cols: Int, rows: Int) {
+        val changed = synchronized(emulator) {
+            val c = emulator.cols != cols || emulator.rows != rows
+            emulator.resize(cols, rows)
+            c
+        }
+        if (changed) link.resize(cols, rows)
+    }
+
+    /** the session over: its listener off the link, the link closed, the capture ended */
+    fun close() {
+        link.removeListener(listener)
+        stopCapture()
+        if (kind != Kind.MODEM) link.close()
+    }
 
     fun reset() {
         synchronized(emulator) { emulator.reset() }

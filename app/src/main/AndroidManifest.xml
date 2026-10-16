@@ -53,5 +53,13 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="A software dial-up modem: it holds a SIP call's real-time audio (G.711 RTP) and the modem's data connection for as long as the user keeps the modem on, and answers incoming modem calls." />
         </service>
+        <service
+            android:name=".terminal.ConnectionService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Interactive remote shells (SSH and Telnet) the user opened in the app's terminal, kept connected while the app is in the background until the user disconnects them." />
+        </service>
     </application>
 </manifest>

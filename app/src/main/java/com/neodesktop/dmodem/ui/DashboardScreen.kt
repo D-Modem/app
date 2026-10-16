@@ -73,6 +73,7 @@ import com.neodesktop.dmodem.modem.ModemState
 import com.neodesktop.dmodem.settings.ModemSettings
 import com.neodesktop.dmodem.settings.SettingsStore
 import com.neodesktop.dmodem.terminal.DialEntry
+import com.neodesktop.dmodem.terminal.EntryKind
 import com.neodesktop.dmodem.terminal.Terminal
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -143,7 +144,7 @@ fun DashboardScreen(
             }
         } else {
             for (e in recent) {
-                QuickDial(e, enabled = status.link == NativeModem.Link.IDLE && !status.offhook) {
+                QuickDial(e, enabled = e.kind != EntryKind.MODEM || (status.link == NativeModem.Link.IDLE && !status.offhook)) {
                     scope.launch {
                         val err = Terminal.dial(context, e)
                         if (err != null) Toast.makeText(context, err, Toast.LENGTH_LONG).show() else onOpenTerminal()
@@ -299,18 +300,19 @@ private fun QuickDial(e: DialEntry, enabled: Boolean, onDial: () -> Unit) {
                 Modifier.size(40.dp).background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(e.name.ifBlank { e.number }.take(1).uppercase(), style = MaterialTheme.typography.titleMedium)
+                Text(e.name.ifBlank { e.address }.take(1).uppercase(), style = MaterialTheme.typography.titleMedium)
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(e.name.ifBlank { e.number }, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(e.name.ifBlank { e.address }, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val last = if (e.lastDialed > 0) " · " + DateUtils.getRelativeTimeSpanString(e.lastDialed) else ""
-                Text(e.number + last, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, maxLines = 1)
+                val via = if (e.kind == EntryKind.MODEM) "" else e.kind.label + " · "
+                Text(via + e.address + last, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, maxLines = 1)
             }
             FilledTonalButton(onClick = onDial, enabled = enabled) {
                 Icon(Icons.Filled.Call, null, Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Dial")
+                Text(if (e.kind == EntryKind.MODEM) "Dial" else "Open")
             }
         }
     }

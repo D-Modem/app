@@ -49,6 +49,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.neodesktop.dmodem.terminal.BackspaceMode
 import com.neodesktop.dmodem.terminal.DialEntry
+import com.neodesktop.dmodem.terminal.EntryKind
+import com.neodesktop.dmodem.terminal.SshAuth
 import com.neodesktop.dmodem.terminal.Snippet
 import com.neodesktop.dmodem.terminal.TermCharset
 import com.neodesktop.dmodem.terminal.Terminal
@@ -69,7 +71,7 @@ fun DirectoryScreen(modifier: Modifier = Modifier, onDialed: () -> Unit) {
             Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
                 Text("No systems yet", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "Add a BBS, a host or an ISP: its number (or SIP user), the AT commands it needs and its character set.",
+                    "Add a BBS, a host or an ISP: by the modem (its number or SIP user and the AT commands it needs), SSH or Telnet.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
@@ -83,10 +85,11 @@ fun DirectoryScreen(modifier: Modifier = Modifier, onDialed: () -> Unit) {
                 Card(Modifier.fillMaxWidth()) {
                     Row(Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text(e.name.ifBlank { e.number }, style = MaterialTheme.typography.titleMedium)
-                            Text(e.number, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodyMedium)
+                            Text(e.name.ifBlank { e.address }, style = MaterialTheme.typography.titleMedium)
+                            Text(e.address, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodyMedium)
                             val details = listOfNotNull(
-                                e.initCommands.takeIf { it.isNotBlank() },
+                                e.kind.takeIf { it != EntryKind.MODEM }?.label,
+                                e.initCommands.takeIf { it.isNotBlank() && e.kind == EntryKind.MODEM },
                                 e.charset?.label,
                                 if (e.lastDialed > 0) {
                                     "called " + DateUtils.getRelativeTimeSpanString(e.lastDialed) + " (${e.dialCount}×)"
@@ -136,8 +139,14 @@ fun DirectoryScreen(modifier: Modifier = Modifier, onDialed: () -> Unit) {
     deleting?.let { e ->
         AlertDialog(
             onDismissRequest = { deleting = null },
-            title = { Text("Delete ${e.name.ifBlank { e.number }}?") },
-            confirmButton = { TextButton(onClick = { Terminal.directory.remove(e); deleting = null }) { Text("Delete") } },
+            title = { Text("Delete ${e.name.ifBlank { e.address }}?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    Terminal.directory.remove(e)
+                    Terminal.passwords.remove(e.id)
+                    deleting = null
+                }) { Text("Delete") }
+            },
             dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
         )
     }
@@ -146,30 +155,65 @@ fun DirectoryScreen(modifier: Modifier = Modifier, onDialed: () -> Unit) {
 @Composable
 private fun EntryDialog(entry: DialEntry, onSave: (DialEntry) -> Unit, onDismiss: () -> Unit) {
     var e by remember(entry.id) { mutableStateOf(entry) }
+    val keys by Terminal.keys.keys.collectAsStateWithLifecycle()
+    var hasPassword by remember(entry.id) { mutableStateOf(Terminal.passwords.get(entry.id) != null) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (entry.name.isEmpty() && entry.number.isEmpty()) "New system" else "Edit system") },
+        title = { Text(if (entry.name.isEmpty() && entry.address.isEmpty()) "New system" else "Edit system") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(e.name, { e = e.copy(name = it) }, label = { Text("Name") }, singleLine = true)
-                OutlinedTextField(e.number, { e = e.copy(number = it) }, label = { Text("Number or SIP user") }, singleLine = true)
-                OutlinedTextField(
-                    e.initCommands, { e = e.copy(initCommands = it) },
-                    label = { Text("AT commands before dialling (; between)") }, singleLine = true,
-                )
+                Choice("Connect by", e.kind.label, EntryKind.entries.map { it.label to it }) { e = e.copy(kind = it) }
+                when (e.kind) {
+                    EntryKind.MODEM -> {
+                        OutlinedTextField(e.number, { e = e.copy(number = it) }, label = { Text("Number or SIP user") }, singleLine = true)
+                        OutlinedTextField(
+                            e.initCommands, { e = e.copy(initCommands = it) },
+                            label = { Text("AT commands before dialling (; between)") }, singleLine = true,
+                        )
+                    }
+                    EntryKind.SSH, EntryKind.TELNET -> {
+                        OutlinedTextField(e.host, { e = e.copy(host = it.trim()) }, label = { Text("Host") }, singleLine = true)
+                        OutlinedTextField(
+                            if (e.port > 0) e.port.toString() else "",
+                            { v -> e = e.copy(port = v.filter { it.isDigit() }.take(5).toIntOrNull() ?: 0) },
+                            label = { Text("Port (${if (e.kind == EntryKind.SSH) 22 else 23})") }, singleLine = true,
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                        )
+                        if (e.kind == EntryKind.SSH) {
+                            OutlinedTextField(e.user, { e = e.copy(user = it.trim()) }, label = { Text("User") }, singleLine = true)
+                            Choice("Log in with", e.auth.label, SshAuth.entries.map { it.label to it }) { e = e.copy(auth = it) }
+                            if (e.auth == SshAuth.KEY) {
+                                if (keys.isEmpty()) {
+                                    Text("No keys yet: make or import one in Settings, SSH keys.", style = MaterialTheme.typography.bodySmall)
+                                } else {
+                                    Choice(
+                                        "Key", keys.firstOrNull { it.id == e.keyId }?.name ?: "Choose a key",
+                                        keys.map { "${it.name} (${it.algorithm})" to it.id },
+                                    ) { e = e.copy(keyId = it) }
+                                }
+                            } else if (hasPassword) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("A password is kept for it", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                                    TextButton(onClick = { Terminal.passwords.remove(entry.id); hasPassword = false }) { Text("Forget") }
+                                }
+                            }
+                        }
+                    }
+                }
                 Choice(
-                    "Character set", e.charset?.label ?: "Terminal's",
-                    listOf("Terminal's" to null) + TermCharset.entries.map { it.label to it },
+                    "Character set", e.charset?.label ?: "Default",
+                    listOf("Default" to null) + TermCharset.entries.map { it.label to it },
                 ) { e = e.copy(charset = it) }
                 Choice(
-                    "Backspace", e.backspace?.label ?: "Terminal's",
-                    listOf("Terminal's" to null) + BackspaceMode.entries.map { it.label to it },
+                    "Backspace", e.backspace?.label ?: "Default",
+                    listOf("Default" to null) + BackspaceMode.entries.map { it.label to it },
                 ) { e = e.copy(backspace = it) }
                 OutlinedTextField(e.notes, { e = e.copy(notes = it) }, label = { Text("Notes") })
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(e) }, enabled = e.number.isNotBlank()) { Text("Save") }
+            TextButton(onClick = { onSave(e) }, enabled = e.complete) { Text("Save") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
