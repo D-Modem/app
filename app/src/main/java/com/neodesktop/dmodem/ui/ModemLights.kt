@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,8 +25,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
@@ -66,7 +68,7 @@ data class Lights(
  * correction and blinking in a fax call. [compact]: the row alone.
  */
 @Composable
-fun ModemLights(modifier: Modifier = Modifier, compact: Boolean = false) {
+fun ModemLights(modifier: Modifier = Modifier, compact: Boolean = false, bare: Boolean = false) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val store = remember { com.neodesktop.dmodem.settings.SettingsStore(context.applicationContext) }
     val modem by store.settings.collectAsStateWithLifecycle(initialValue = null)
@@ -118,7 +120,7 @@ fun ModemLights(modifier: Modifier = Modifier, compact: Boolean = false) {
         sd = on && sd,
         arq = on && (if (faxing) blink else ec),
     )
-    Panel(lights, modifier, compact)
+    Panel(lights, modifier, compact, bare)
 }
 
 private val Case = Brush.verticalGradient(listOf(Color(0xff45474b), Color(0xff2a2b2e), Color(0xff1d1e20)))
@@ -127,15 +129,17 @@ private val Badge = Color(0xffeceef1)
 
 /** the panel drawn for [lights] (the screenshots draw it too) */
 @Composable
-fun Panel(lights: Lights, modifier: Modifier = Modifier, compact: Boolean = false) {
-    val shape = RoundedCornerShape(if (compact) 8.dp else 18.dp)
-    val described = lights.list().filter { it.second }.joinToString { it.first }.ifEmpty { "none" }
+fun Panel(lights: Lights, modifier: Modifier = Modifier, compact: Boolean = false, bare: Boolean = false) {
+    if (bare) {
+        Strip(lights, modifier, compact = false)
+        return
+    }
+    val shape = RectangleShape
     Box(
         modifier
             .fillMaxWidth()
             .background(Case, shape)
-            .border(1.dp, Brush.verticalGradient(listOf(Color(0x66ffffff), Color(0x11ffffff), Color(0x33000000))), shape)
-            .semantics { contentDescription = "Modem lights lit: $described" },
+            .border(1.dp, Brush.verticalGradient(listOf(Color(0x66ffffff), Color(0x11ffffff), Color(0x33000000))), shape),
     ) {
         Column(Modifier.padding(horizontal = if (compact) 10.dp else 16.dp, vertical = if (compact) 5.dp else 14.dp)) {
             if (!compact) {
@@ -147,42 +151,59 @@ fun Panel(lights: Lights, modifier: Modifier = Modifier, compact: Boolean = fals
                 // (the strip the lights sit in)
                 Spacer(Modifier.height(10.dp))
             }
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xff141516), RoundedCornerShape(if (compact) 5.dp else 9.dp))
-                    .padding(vertical = if (compact) 4.dp else 8.dp, horizontal = 4.dp),
-            ) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    for ((label, lit) in lights.list()) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                label, color = Legend, fontSize = if (compact) 7.sp else 8.5.sp,
-                                fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp, maxLines = 1,
-                            )
-                            Spacer(Modifier.height(if (compact) 2.dp else 5.dp))
-                            Led(lit, if (compact) 7.dp else 11.dp)
-                        }
-                    }
+            Strip(lights, Modifier, compact)
+        }
+    }
+}
+
+/** the strip the lights sit in: their legends over them */
+@Composable
+private fun Strip(lights: Lights, modifier: Modifier, compact: Boolean) {
+    Box(
+        modifier
+            .fillMaxWidth()
+            .background(Color(0xff141516), RectangleShape)
+            .semantics { contentDescription = "Modem lights lit: " + lights.list().filter { it.second }.joinToString { it.first }.ifEmpty { "none" } }
+            .padding(vertical = if (compact) 4.dp else 8.dp, horizontal = 4.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            for ((label, lit) in lights.list()) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        label, color = Legend, fontSize = if (compact) 7.sp else 8.5.sp,
+                        fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp, maxLines = 1,
+                    )
+                    Spacer(Modifier.height(if (compact) 2.dp else 5.dp))
+                    Led(lit, if (compact) 4.dp else 6.dp)
                 }
             }
         }
     }
 }
 
-/** an LED: a dark red dome when off; lit, its glow around a bright centre */
+/** an LED: a sharp-cornered red bar, dark when off; lit, bright with a square glow around it */
 @Composable
-private fun Led(lit: Boolean, size: Dp) {
-    Canvas(Modifier.size(size * 2)) {
-        val c = Offset(this.size.width / 2, this.size.height / 2)
-        val r = size.toPx() / 2
+private fun Led(lit: Boolean, height: Dp) {
+    val w = height * 2.2f
+    val pad = height * 0.6f
+    Canvas(Modifier.size(w + pad * 2, height + pad * 2)) {
+        val p = pad.toPx()
+        val bw = w.toPx()
+        val bh = height.toPx()
+        val at = Offset(p, p)
+        val bar = Size(bw, bh)
         if (lit) {
-            drawCircle(Brush.radialGradient(listOf(Color(0x99ff2a1f), Color(0x00ff2a1f)), c, r * 2), r * 2, c)
-            drawCircle(Brush.radialGradient(listOf(Color(0xffffe4dc), Color(0xffff4b33), Color(0xffc4120c)), Offset(c.x - r * 0.25f, c.y - r * 0.25f), r * 1.1f), r, c)
+            // (the glow: square-edged bands fading out)
+            for (k in 3 downTo 1) {
+                val g = p * k / 3
+                drawRect(Color(0xff2a1f).copy(alpha = 0.16f), Offset(p - g, p - g), Size(bw + g * 2, bh + g * 2))
+            }
+            drawRect(Brush.verticalGradient(listOf(Color(0xffffd2c8), Color(0xffff4b33), Color(0xffc4120c)), p, p + bh), at, bar)
         } else {
-            drawCircle(Brush.radialGradient(listOf(Color(0xff6a1d1a), Color(0xff3a0d0c), Color(0xff1f0706)), Offset(c.x - r * 0.3f, c.y - r * 0.3f), r * 1.2f), r, c)
-            // (its dome's highlight)
-            drawCircle(Color(0x33ffffff), r * 0.28f, Offset(c.x - r * 0.35f, c.y - r * 0.35f))
+            drawRect(Brush.verticalGradient(listOf(Color(0xff5a1816), Color(0xff3a0d0c), Color(0xff1f0706)), p, p + bh), at, bar)
+            // (the lens's edge catching the light)
+            drawRect(Color(0x33ffffff), at, Size(bw, bh * 0.18f))
         }
+        drawRect(Color(0x99000000), at, bar, style = Stroke(1f))
     }
 }

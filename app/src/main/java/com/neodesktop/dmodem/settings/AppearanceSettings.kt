@@ -38,6 +38,8 @@ data class Appearance(
     val palette: AppPalette = AppPalette.DYNAMIC,
     /** dark mode's surfaces black (OLED screens) */
     val black: Boolean = false,
+    /** the modem's lights at the top of Home, above its status, as a bare strip (no case around them) */
+    val lightsOnTop: Boolean = false,
 )
 
 private val Context.appearanceStore: DataStore<Preferences> by preferencesDataStore("appearance")
@@ -47,6 +49,7 @@ class AppearanceStore(private val context: Context) {
         val dark = stringPreferencesKey("dark")
         val palette = stringPreferencesKey("palette")
         val black = booleanPreferencesKey("black")
+        val lightsOnTop = booleanPreferencesKey("lights_on_top")
     }
 
     private fun from(p: Preferences): Appearance {
@@ -55,6 +58,7 @@ class AppearanceStore(private val context: Context) {
             dark = p[K.dark]?.let { runCatching { DarkMode.valueOf(it) }.getOrNull() } ?: d.dark,
             palette = p[K.palette]?.let { runCatching { AppPalette.valueOf(it) }.getOrNull() } ?: d.palette,
             black = p[K.black] ?: d.black,
+            lightsOnTop = p[K.lightsOnTop] ?: d.lightsOnTop,
         )
     }
 
@@ -67,6 +71,7 @@ class AppearanceStore(private val context: Context) {
             p[K.dark] = a.dark.name
             p[K.palette] = a.palette.name
             p[K.black] = a.black
+            p[K.lightsOnTop] = a.lightsOnTop
         }
     }
 
@@ -75,6 +80,7 @@ class AppearanceStore(private val context: Context) {
             p[K.dark] = a.dark.name
             p[K.palette] = a.palette.name
             p[K.black] = a.black
+            p[K.lightsOnTop] = a.lightsOnTop
         }
     }
 }

@@ -41,11 +41,13 @@ class ModemLightsTest {
                 Modifier.testTag("all").background(Color(0xfff5f5f7)).padding(16.dp).width(380.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                // off; ready (answering calls); online with data both ways, error corrected; the compact strip online
+                // off; ready (answering calls); online with data both ways, error corrected; the compact strip online; the bare strip
                 Panel(Lights())
                 Panel(Lights(mr = true, tr = true, cs = true, aa = true))
                 Panel(Lights(mr = true, tr = true, cs = true, aa = true, cd = true, oh = true, rd = true, sd = false, arq = true))
                 Panel(Lights(mr = true, tr = true, cs = true, cd = true, oh = true, sd = true, arq = true), compact = true)
+                // the bare strip (Home's, above the status)
+                Panel(Lights(mr = true, tr = true, cs = true, cd = true, oh = true, rd = true, sd = true), bare = true)
             }
         }
         compose.waitForIdle()

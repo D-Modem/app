@@ -98,6 +98,9 @@ fun DashboardScreen(
     val settings by store.settings.collectAsStateWithLifecycle(initialValue = ModemSettings())
     val entries by Terminal.directory.items.collectAsStateWithLifecycle()
     val network = rememberNetwork(context)
+    val looks = remember { com.neodesktop.dmodem.settings.AppearanceStore(context.applicationContext) }
+    val appearance by looks.appearance.collectAsStateWithLifecycle(initialValue = null)
+    val lightsOnTop = appearance?.lightsOnTop == true
 
     // the call's time online
     var since by remember { mutableLongStateOf(0L) }
@@ -114,6 +117,8 @@ fun DashboardScreen(
         modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        if (lightsOnTop) ModemLights(bare = true)
+
         HeroCard(
             run = run,
             status = status,
@@ -127,7 +132,7 @@ fun DashboardScreen(
             onSetUp = onOpenSettings,
         )
 
-        ModemLights()
+        if (appearance != null && !lightsOnTop) ModemLights()
 
         LineCard(settings, run, network, onOpenSettings)
 

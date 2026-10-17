@@ -86,6 +86,13 @@ fun AppearanceSection() {
             }
             Switch(checked = a.black, onCheckedChange = { set { x -> x.copy(black = it) } })
         }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Modem lights at the top")
+                Text("On Home, above the status: the lights alone, without the modem's case", style = MaterialTheme.typography.bodySmall)
+            }
+            Switch(checked = a.lightsOnTop, onCheckedChange = { set { x -> x.copy(lightsOnTop = it) } })
+        }
     }
 }
 
