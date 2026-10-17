@@ -21,6 +21,7 @@ open class TestModem(
     listen: Boolean,
     leadMs: Int,
     closers: MutableList<() -> Unit>,
+    pin: String = "",
 ) {
     val out = LinkedBlockingQueue<String>()
     val log = CopyOnWriteArrayList<String>()
@@ -63,6 +64,7 @@ open class TestModem(
             target = { dial -> target(dial) },
             log = { log.add(it) },
             ringMs = 1000,
+            pin = pin,
         )
         line.start(listen)
         closers.add { line.stop() }

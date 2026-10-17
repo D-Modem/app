@@ -41,6 +41,8 @@ data class ModemSettings(
     val peerName: String = "",
     /** the TCP port phones call each other on */
     val peerPort: Int = 5070,
+    /** the PIN between the two phones (empty: none): callers must know this phone's, ours answers the other's */
+    val peerPin: String = "",
     /** the modem's speaker on the phone's: the dialling and the handshake heard (as ATM and ATL have it) */
     val speaker: Boolean = true,
     /** the modulation on mobile calls (+MS): V21 (300 bit/s, what a speech codec carries), V22, V22B */
@@ -106,6 +108,7 @@ class SettingsStore(private val context: Context) {
         val peerAddress = stringPreferencesKey("peer_address")
         val peerName = stringPreferencesKey("peer_name")
         val peerPort = intPreferencesKey("peer_port")
+        val peerPin = stringPreferencesKey("peer_pin")
         val speaker = booleanPreferencesKey("speaker")
         val cellSpeed = stringPreferencesKey("cell_speed")
     }
@@ -127,6 +130,7 @@ class SettingsStore(private val context: Context) {
             peerAddress = p[Keys.peerAddress] ?: d.peerAddress,
             peerName = p[Keys.peerName] ?: d.peerName,
             peerPort = p[Keys.peerPort] ?: d.peerPort,
+            peerPin = p[Keys.peerPin] ?: d.peerPin,
             speaker = p[Keys.speaker] ?: d.speaker,
             cellSpeed = p[Keys.cellSpeed] ?: d.cellSpeed,
         )
@@ -150,6 +154,7 @@ class SettingsStore(private val context: Context) {
             p[Keys.peerAddress] = s.peerAddress.trim()
             p[Keys.peerName] = s.peerName
             p[Keys.peerPort] = s.peerPort
+            p[Keys.peerPin] = s.peerPin.trim()
             p[Keys.speaker] = s.speaker
             p[Keys.cellSpeed] = s.cellSpeed
         }

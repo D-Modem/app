@@ -78,6 +78,8 @@ object Peers {
                 }
             },
             log = { log("line: $it") },
+            // (a mobile call has the phone network's own: none of ours)
+            pin = if (cell) "" else s.peerPin.trim(),
             _state = _state,
             _lastError = _error,
         )

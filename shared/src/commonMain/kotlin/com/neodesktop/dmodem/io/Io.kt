@@ -111,6 +111,9 @@ fun sleepMs(ms: Long) {
 /** the local time zone's offset from UTC at [epochSec] (seconds) */
 expect fun localOffsetSeconds(epochSec: Long): Int
 
+/** [n] bytes from the system's secure random source */
+expect fun secureRandomBytes(n: Int): ByteArray
+
 /** a byte from the source (0-255), -1 at its end */
 fun Source.read(): Int {
     val b = ByteArray(1)

@@ -86,6 +86,21 @@ fun PeerLineFields(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
             androidx.compose.material3.Switch(checked = s.listen, onCheckedChange = { onChange(s.copy(listen = it)) })
         }
         if (wifi) WifiPeer(s, onChange) else BluetoothPeer(s, onChange, context)
+        OutlinedTextField(
+            value = s.peerPin,
+            onValueChange = { v -> onChange(s.copy(peerPin = v.filter { it in '!'..'~' }.take(32))) },
+            label = { Text("PIN (optional)") },
+            supportingText = {
+                Text(
+                    "Set the same PIN on both phones: calls without it are turned down. " +
+                        "Without one, anyone " + (if (wifi) "on this network" else "paired with this phone") + " can call while calls are taken.",
+                )
+            },
+            singleLine = true,
+            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 

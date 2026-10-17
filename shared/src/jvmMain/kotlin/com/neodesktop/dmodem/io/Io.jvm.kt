@@ -31,3 +31,7 @@ fun Sink.asOutputStream(): OutputStream = object : OutputStream() {
     override fun flush() = this@asOutputStream.flush()
     override fun close() = this@asOutputStream.close()
 }
+
+private val secure = java.security.SecureRandom()
+
+actual fun secureRandomBytes(n: Int): ByteArray = ByteArray(n).also { secure.nextBytes(it) }

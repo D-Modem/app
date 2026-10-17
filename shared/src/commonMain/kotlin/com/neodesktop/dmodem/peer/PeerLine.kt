@@ -42,6 +42,13 @@ interface PeerTransport : AutoCloseable {
  * `ANSWER`; from then on both carry the modems' samples as they are,
  * each way. Hanging up is closing it. The samples' pace is the modems':
  * each answers every sample with one of its own (the native side).
+ *
+ * With a [pin], the phone called first answers the RING with
+ * `CHALLENGE <nonce>` (random hex), the caller `AUTH <md5 of
+ * "DMODEM/1:" nonce ":" PIN, hex>`: the PIN itself never on the
+ * connection. A wrong one (or none) gets `DENIED` (and the line closed)
+ * and, failure after failure, the next call a longer wait first; the
+ * right one rings as before. A caller's own [pin] answers a challenge.
  */
 class PeerLine(
     private val transport: PeerTransport,
@@ -50,6 +57,8 @@ class PeerLine(
     private val target: (String) -> String?,
     private val log: (String) -> Unit = {},
     private val ringMs: Long = 3000,
+    /** the PIN a caller must know (and ours to give when we call); empty: none */
+    private val pin: String = "",
     /** where the state and the last failure go (the app's, kept across lines) */
     private val _state: MutableStateFlow<State> = MutableStateFlow(State.Off),
     private val _lastError: MutableStateFlow<String?> = MutableStateFlow(null),
@@ -75,6 +84,9 @@ class PeerLine(
     private var pending: Call? = null
     /** the call on the line (ours dialled, or answered) */
     private var call: Call? = null
+    /** wrong PINs in a row, and no PIN checked again before this (monotonicMs) */
+    private var failures = 0
+    private var blockedUntil = 0L
 
     fun start(listen: Boolean) {
         running = true
@@ -265,6 +277,7 @@ class PeerLine(
             runCatching { conn.close() }
             return
         }
+        if (pin.isNotEmpty() && !authenticate(conn)) return
         val c = Call(caller = false, conn = conn)
         val busy = synchronized(lock) {
             if (!running || pending != null || call != null) true else { pending = c; false }
@@ -284,6 +297,40 @@ class PeerLine(
             }
         }
         c.connToLine()
+    }
+
+    /** the caller challenged for the PIN: true if it knows it; else told DENIED, closed */
+    private fun authenticate(conn: Duplex): Boolean {
+        val nonce = secureRandomBytes(16).toHex()
+        val reply = try {
+            conn.output.write("CHALLENGE $nonce\n".encodeToByteArray())
+            conn.output.flush()
+            readLine(conn.input)
+        } catch (_: IOException) {
+            null
+        }
+        if (reply == null) {
+            runCatching { conn.close() }
+            return false
+        }
+        val wait = synchronized(lock) { blockedUntil - monotonicMs() }
+        // (after wrong PINs: no answer, right or wrong, until the wait is over)
+        if (wait > 0) sleepMs(wait)
+        val ok = reply.startsWith("AUTH ") && constantTimeEquals(reply.substring(5).trim().lowercase(), pinProof(nonce, pin))
+        synchronized(lock) {
+            if (ok) {
+                failures = 0
+            } else {
+                failures++
+                blockedUntil = monotonicMs() + minOf(BLOCK_MAX_MS, 1000L shl minOf(failures - 1, 10))
+            }
+        }
+        if (ok) return true
+        log("call from ${conn.name}: ${if (reply.startsWith("AUTH ")) "the wrong PIN" else "no PIN"}, denied")
+        _lastError.value = "a call from ${conn.name} with the wrong PIN"
+        runCatching { conn.output.write("DENIED\n".encodeToByteArray()); conn.output.flush() }
+        runCatching { conn.close() }
+        return false
     }
 
     /**
@@ -355,7 +402,17 @@ class PeerLine(
             conn.output.write("DMODEM/1 RING ${dial.filter { it in ' '..'~' }.take(100)}\n".encodeToByteArray())
             conn.output.flush()
             c.ringing = true
-            readLine(conn.input)
+            var r = readLine(conn.input)
+            if (r != null && r.startsWith("CHALLENGE ")) {
+                if (pin.isEmpty()) {
+                    fail(c, 403, "${conn.name} wants a PIN: set the other phone's in the settings")
+                    return
+                }
+                conn.output.write("AUTH ${pinProof(r.substring(10).trim(), pin)}\n".encodeToByteArray())
+                conn.output.flush()
+                r = readLine(conn.input)
+            }
+            r
         } catch (_: IOException) {
             null
         }
@@ -373,6 +430,7 @@ class PeerLine(
                 c.connToLine()
             }
             "BUSY" -> fail(c, 486, "${conn.name} is busy")
+            "DENIED" -> fail(c, 403, "${conn.name} turned the call down: the wrong PIN")
             else -> if (!c.ended.value) fail(c, 503, "${conn.name} didn't answer the call")
         }
     }
@@ -397,6 +455,21 @@ class PeerLine(
         private const val TONE = 5000.0
         /** the line's octets before an answer kept at most */
         private const val EARLY_MAX = 256 * 1024
+        /** the longest wait after wrong PINs */
+        private const val BLOCK_MAX_MS = 60_000L
+
+        /** what proves the PIN for a challenge's [nonce] */
+        fun pinProof(nonce: String, pin: String): String =
+            Md5.digest("DMODEM/1:$nonce:$pin".encodeToByteArray()).toHex()
+
+        private fun ByteArray.toHex() = joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') }
+
+        private fun constantTimeEquals(a: String, b: String): Boolean {
+            if (a.length != b.length) return false
+            var d = 0
+            for (i in a.indices) d = d or (a[i].code xor b[i].code)
+            return d == 0
+        }
 
         /** a line of up to [max] octets, without its newline; null at the end */
         fun readLine(input: Source, max: Int = 300): String? {

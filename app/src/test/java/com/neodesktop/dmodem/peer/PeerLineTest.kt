@@ -34,8 +34,8 @@ class PeerLineTest {
     fun tearDown() = closers.asReversed().forEach { runCatching { it() } }
 
     /** a phone: its modem (peer_host), its DTE, its line on TCP */
-    private inner class Phone(name: String, listen: Boolean, leadMs: Int = 100, var callTo: String = "") :
-        TestModem(name, TcpPeerTransport(0, InetAddress.getLoopbackAddress()), listen, leadMs, closers) {
+    private inner class Phone(name: String, listen: Boolean, leadMs: Int = 100, var callTo: String = "", pin: String = "") :
+        TestModem(name, TcpPeerTransport(0, InetAddress.getLoopbackAddress()), listen, leadMs, closers, pin) {
         override fun target(dial: String) = PeerLine.wifiTarget(dial, callTo)
         val port: Int get() = (transport as TcpPeerTransport).localPort
     }
@@ -156,6 +156,25 @@ class PeerLineTest {
         // A and B still on: data
         a.send("still here\r\n")
         b.expect("still here")
+    }
+
+    @Test
+    fun aPinToCall() {
+        val b = Phone("B", listen = true, pin = "2468")
+        val w = Phone("W", listen = false, callTo = "127.0.0.1:${b.port}", pin = "1357")
+        b.command("ATE0S0=1")
+        // the wrong PIN: the modem's NO CARRIER, B never rang
+        w.send("ATD1\r")
+        w.expect("NO CARRIER", 20)
+        assertTrue(w.events.contains("FAILED 403"))
+        assertTrue(b.events.none { it == "RING" })
+        // the right one: connected
+        val a = Phone("A", listen = false, callTo = "127.0.0.1:${b.port}", pin = "2468")
+        a.send("ATD1\r")
+        connectLine(a)
+        connectLine(b)
+        a.send("let me in\r\n")
+        b.expect("let me in")
     }
 
     @Test

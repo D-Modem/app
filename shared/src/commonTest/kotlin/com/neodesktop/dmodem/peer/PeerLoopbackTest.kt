@@ -82,13 +82,13 @@ class PeerLoopbackTest {
     }
 
     /** a phone: its line, its "modem" answering each sample with [mark], what it heard and was told */
-    private inner class Phone(val name: String, exchange: Exchange, listen: Boolean, val mark: Byte) {
+    private inner class Phone(val name: String, exchange: Exchange, listen: Boolean, val mark: Byte, pin: String = "") {
         val events = ArrayList<String>()
         val lock = SynchronizedObject()
         @Volatile var heardOther = 0
         @Volatile var hungUp = false
         val line = PeerLine(exchange.transport(name), events = { e -> synchronized(lock) { events.add(e) } },
-            target = { it }, ringMs = 300)
+            target = { it }, ringMs = 300, pin = pin)
 
         init { line.start(listen) }
 
@@ -153,5 +153,42 @@ class PeerLoopbackTest {
         } finally {
             a.line.stop(); b.line.stop(); c.line.stop()
         }
+    }
+
+    @Test
+    fun aPinToCall() {
+        val ex = Exchange().apply { pipeOf = { a, b -> pipe(a, b) } }
+        val b = Phone("B", ex, listen = true, mark = 2, pin = "4321")
+        val wrong = Phone("W", ex, listen = false, mark = 3, pin = "1234")
+        val none = Phone("N", ex, listen = false, mark = 4)
+        val a = Phone("A", ex, listen = false, mark = 1, pin = "4321")
+        try {
+            // the wrong PIN: turned down (NO CARRIER for the modem), B never rang
+            wrong.offHook(caller = true, dial = "B")
+            waitFor("W's denial") { "FAILED 403" in wrong.events() }
+            assertTrue(wrong.line.lastError.value!!.contains("PIN"))
+            // no PIN: the same
+            none.offHook(caller = true, dial = "B")
+            waitFor("N's denial") { "FAILED 403" in none.events() }
+            assertTrue(none.line.lastError.value!!.contains("wants a PIN"))
+            assertTrue("RING" !in b.events())
+            assertTrue(b.line.lastError.value!!.contains("wrong PIN"))
+            // the right one (after the wait the wrong one earned): rung, answered
+            a.offHook(caller = true, dial = "B")
+            waitFor("RING at B") { "RING" in b.events() }
+            b.offHook(caller = false, dial = "")
+            waitFor("ANSWERED at A") { "ANSWERED" in a.events() }
+            waitFor("B's samples at A") { a.heardOther > 1000 }
+        } finally {
+            a.line.stop(); b.line.stop(); wrong.line.stop(); none.line.stop()
+        }
+    }
+
+    @Test
+    fun theProof() {
+        // (the PIN never on the line: md5("DMODEM/1:" nonce ":" PIN))
+        assertEquals("4f977da0881b962516dbccec5ebd585d", PeerLine.pinProof("ab", "1"))
+        assertTrue(PeerLine.pinProof("ab", "1") != PeerLine.pinProof("ab", "2"))
+        assertTrue(PeerLine.pinProof("ab", "1") != PeerLine.pinProof("ac", "1"))
     }
 }
