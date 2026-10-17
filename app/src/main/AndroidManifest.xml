@@ -97,6 +97,14 @@
             </intent-filter>
         </service>
         <service
+            android:name=".bridge.HostService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="A dial-up internet host the user turned on: computers on the phone's serial ports (USB, Bluetooth, TCP) dial it and get the internet through PPP, for as long as the user keeps it on." />
+        </service>
+        <service
             android:name=".terminal.ConnectionService"
             android:exported="false"
             android:foregroundServiceType="specialUse">

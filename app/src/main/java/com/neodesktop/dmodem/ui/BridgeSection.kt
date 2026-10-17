@@ -53,7 +53,12 @@ fun BridgeSection() {
     val current by store.settings.collectAsStateWithLifecycle(initialValue = null)
     val s = current ?: return
     fun change(f: (BridgeSettings) -> BridgeSettings) {
-        scope.launch { store.update(f) }
+        scope.launch {
+            store.update(f)
+            // (internet mode: its own service, on or off again as the settings now are)
+            val now = store.current()
+            if (now.internet && now.anyOn) runCatching { com.neodesktop.dmodem.bridge.HostService.update(context) }
+        }
     }
     val run by ModemState.run.collectAsStateWithLifecycle()
     val tcpState by Bridges.tcpState.collectAsStateWithLifecycle()
@@ -73,10 +78,18 @@ fun BridgeSection() {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Serial port for other devices", style = MaterialTheme.typography.titleMedium)
         Text(
-            "Programs and computers use the modem as if on a serial cable, one at a time, while the modem is on." +
-                if (run == ModemState.Run.STOPPED) " (The modem is off now.)" else "",
+            if (s.internet) {
+                "Computers dial the phone as if it were their ISP's modem (ATDT anything, or a direct cable " +
+                    "connection) and get the internet through it: PPP, no call made, no SIP account needed."
+            } else {
+                "Programs and computers use the modem as if on a serial cable, one at a time, while the modem is on." +
+                    if (run == ModemState.Run.STOPPED) " (The modem is off now.)" else ""
+            },
             style = MaterialTheme.typography.bodySmall,
         )
+        Text("Clients get", style = MaterialTheme.typography.bodyMedium)
+        Choice("The modem (calls over SIP)", !s.internet) { change { it.copy(internet = false) } }
+        Choice("The internet (the phone is their dial-up ISP)", s.internet) { change { it.copy(internet = true) } }
         client?.let { c ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("In use: ${c.name} (${c.via})", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)

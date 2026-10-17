@@ -40,7 +40,12 @@ data class BridgeSettings(
     val usbDtrHangsUp: Boolean = true,
     /** the phone's own USB port as a serial port to a computer (root) */
     val usbGadget: Boolean = false,
-)
+    /** clients get the internet (the phone as their dial-up ISP, PPP, no call) instead of the modem */
+    val internet: Boolean = false,
+) {
+    /** any way for a client to come */
+    val anyOn: Boolean get() = tcp || bluetooth || usb || usbGadget
+}
 
 private val Context.bridgeStore: DataStore<Preferences> by preferencesDataStore("bridges")
 
@@ -60,6 +65,7 @@ class BridgeSettingsStore(private val context: Context) {
         val usbCarrierOnDtr = booleanPreferencesKey("usb_carrier_on_dtr")
         val usbDtrHangsUp = booleanPreferencesKey("usb_dtr_hangs_up")
         val usbGadget = booleanPreferencesKey("usb_gadget")
+        val internet = booleanPreferencesKey("internet")
     }
 
     val settings: Flow<BridgeSettings> = context.bridgeStore.data.map { from(it) }
@@ -81,6 +87,7 @@ class BridgeSettingsStore(private val context: Context) {
             usbCarrierOnDtr = p[K.usbCarrierOnDtr] ?: d.usbCarrierOnDtr,
             usbDtrHangsUp = p[K.usbDtrHangsUp] ?: d.usbDtrHangsUp,
             usbGadget = p[K.usbGadget] ?: d.usbGadget,
+            internet = p[K.internet] ?: d.internet,
         )
     }
 
@@ -111,6 +118,7 @@ class BridgeSettingsStore(private val context: Context) {
             p[K.usbCarrierOnDtr] = s.usbCarrierOnDtr
             p[K.usbDtrHangsUp] = s.usbDtrHangsUp
             p[K.usbGadget] = s.usbGadget
+            p[K.internet] = s.internet
         }
     }
 }

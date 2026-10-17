@@ -86,6 +86,11 @@ object Bridges {
     fun apply(context: Context, s: BridgeSettings) {
         watch()
         serial.hangUpOnClose = s.hangUpOnClose
+        // the internet (the phone as each client's ISP) or the modem
+        val app = context.applicationContext
+        serial.host = if (s.internet) {
+            { com.neodesktop.dmodem.ppp.PppHost(dnsServers = { phoneDns(app) }, log = { ModemState.log.add("host: $it") }) }
+        } else null
         val old = applied
         applied = s
         val tcpSame = old != null && old.tcp == s.tcp && old.tcpPort == s.tcpPort && old.tcpAnyAddress == s.tcpAnyAddress &&
@@ -161,6 +166,12 @@ object Bridges {
         // (su and a rebind: off the caller's thread)
         if (g != null) scope.launch { g.stop() }
         _gadget.value = UsbGadget.State.Stopped
+    }
+
+    /** the phone's DNS servers (its default network's) */
+    fun phoneDns(context: Context): List<java.net.InetAddress> {
+        val cm = context.getSystemService(android.net.ConnectivityManager::class.java) ?: return emptyList()
+        return cm.activeNetwork?.let { cm.getLinkProperties(it) }?.dnsServers.orEmpty()
     }
 
     /** "8N1" as a format at [baud] */

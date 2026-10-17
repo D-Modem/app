@@ -114,7 +114,7 @@ class UsbPortLink(
         var computerDtr: Boolean? = null
         runCatching { port.setRTS(true) }
         while (open) {
-            val s = signals.value
+            val s = bridge.lines()
             val carrier = if (carrierOnDtr) s.carrier else s.ready
             if (carrier != lastCarrier) {
                 runCatching { port.setDTR(carrier) }

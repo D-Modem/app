@@ -97,6 +97,8 @@ class ModemService : Service() {
         // the TCP and Bluetooth bridges, as their settings are (now and as they change), while the modem is on
         scope.launch {
             combine(BridgeSettingsStore(this@ModemService).settings, ModemState.run) { b, r -> b to r }.collect { (b, r) ->
+                // (in internet mode they're the host service's, the modem not needed)
+                if (b.internet) return@collect
                 if (r == ModemState.Run.RUNNING) Bridges.apply(this@ModemService, b)
                 else if (r == ModemState.Run.STOPPED) Bridges.stopAll()
             }
@@ -224,7 +226,7 @@ class ModemService : Service() {
             ModemState.setRun(ModemState.Run.STOPPING)
             stopNative()
         }
-        Bridges.stopAll()
+        if (!runBlocking { BridgeSettingsStore(this@ModemService).current() }.internet) Bridges.stopAll()
         unwatchNetwork()
         releaseLocks()
         restartPending = false

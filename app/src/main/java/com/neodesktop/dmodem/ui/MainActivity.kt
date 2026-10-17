@@ -27,6 +27,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.activity.SystemBarStyle
 import android.app.UiModeManager
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import com.neodesktop.dmodem.settings.AppearanceStore
 import com.neodesktop.dmodem.settings.DarkMode
 import androidx.compose.runtime.getValue
@@ -53,6 +55,11 @@ class MainActivity : ComponentActivity() {
             PackageManager.PERMISSION_GRANTED
         ) {
             askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        // the internet host's service, if it was on (the app in the foreground now: it may start)
+        lifecycleScope.launch {
+            val b = com.neodesktop.dmodem.settings.BridgeSettingsStore(applicationContext).current()
+            if (b.internet && b.anyOn) runCatching { com.neodesktop.dmodem.bridge.HostService.update(applicationContext) }
         }
         val appearanceStore = AppearanceStore(applicationContext)
         setContent {

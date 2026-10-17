@@ -27,7 +27,12 @@ class Ppp(
     /** how long between retries, and how many before it gives up */
     private val retryMs: Long = 3000,
     private val maxRetries: Int = 10,
+    /** the server's side instead (no login asked): its address, the peer's to give, the DNS server to name */
+    private val server: Server? = null,
 ) {
+    /** what a server gives the peer */
+    data class Server(val local: Inet4Address, val peer: Inet4Address, val dns: Inet4Address)
+
     /** the link's address and DNS servers, once IPCP has them */
     data class IpConfig(val address: Inet4Address, val peer: Inet4Address?, val dns: List<Inet4Address>, val mtu: Int)
 
@@ -80,6 +85,14 @@ class Ppp(
     private var askDns1 = true
     private var askDns2 = true
     private var peerAddr: ByteArray? = null
+
+    init {
+        if (server != null) {
+            ourAddr = server.local.address
+            askDns1 = false
+            askDns2 = false
+        }
+    }
 
     // counts
     @Volatile var bytesIn = 0L
@@ -425,7 +438,7 @@ class Ppp(
         val code = p[0].toInt() and 0xff
         val id = p[1].toInt() and 0xff
         when (code) {
-            CONF_REQ -> {
+            CONF_REQ -> if (server != null) serverIpcpRequest(p, id) else {
                 val o = options(p) ?: return
                 val reject = o.filter { (t, d) -> t != 3 || d.size != 4 }
                 if (reject.isNotEmpty()) {
@@ -455,12 +468,38 @@ class Ppp(
         }
     }
 
+    /**
+     * a server's answer to the peer's request: other than its address and
+     * the DNS servers, rejected (compression, NBNS); the address and DNS
+     * not ours to give, Nak'd with ours; else Ack'd
+     */
+    private fun serverIpcpRequest(p: ByteArray, id: Int) {
+        val s = server ?: return
+        val o = options(p) ?: return
+        val reject = o.filter { (t, d) -> t !in listOf(3, 129, 131) || d.size != 4 }
+        if (reject.isNotEmpty()) {
+            out(PROTO_IPCP, packet(CONF_REJ, id, opts(reject)))
+            return
+        }
+        val want = mapOf(3 to s.peer.address, 129 to s.dns.address, 131 to s.dns.address)
+        val nak = o.filter { (t, d) -> !d.contentEquals(want.getValue(t)) }.map { (t, _) -> t to want.getValue(t) }
+        if (nak.isNotEmpty()) {
+            out(PROTO_IPCP, packet(CONF_NAK, id, opts(nak)))
+            return
+        }
+        peerAddr = s.peer.address
+        dns1 = s.dns.address
+        out(PROTO_IPCP, packet(CONF_ACK, id, p.copyOfRange(4, len(p).coerceAtMost(p.size))))
+        ipcpTheirAcked = true
+        ipcpMaybeUp()
+    }
+
     private fun ipcpMaybeUp() {
         if (!(ipcpOurAcked && ipcpTheirAcked) || phase != Phase.NETWORK) return
         if (ourAddr.all { it.toInt() == 0 }) { stopLocked("no address came"); return }
         phase = Phase.OPEN
         val dns = listOf(dns1, dns2).filter { d -> d.any { it.toInt() != 0 } }
-            .map { InetAddress.getByAddress(it) as Inet4Address }
+            .map { InetAddress.getByAddress(it) as Inet4Address }.distinct()
         val cfg = IpConfig(
             InetAddress.getByAddress(ourAddr) as Inet4Address,
             peerAddr?.let { InetAddress.getByAddress(it) as Inet4Address },

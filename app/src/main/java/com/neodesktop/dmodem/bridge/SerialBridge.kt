@@ -40,6 +40,16 @@ class SerialBridge(
     private val hangUp: () -> Unit,
     @Volatile var hangUpOnClose: Boolean = true,
 ) {
+    /**
+     * clients given the internet instead of the modem: each its own PPP
+     * host ([PppHost]: the phone as the ISP, no call), when set
+     */
+    @Volatile var host: (() -> com.neodesktop.dmodem.ppp.PppHost)? = null
+    @Volatile private var currentHost: com.neodesktop.dmodem.ppp.PppHost? = null
+
+    /** the lines the client sees now: the modem's, or its PPP host's (carrier: its link up) */
+    fun lines(): LineSignals = currentHost?.let { h -> LineSignals(ready = true, offhook = h.carrier, carrier = h.carrier) } ?: signals.value
+
     private val _client = MutableStateFlow<BridgeClient?>(null)
     /** who has the modem now, through which bridge */
     val client: StateFlow<BridgeClient?> = _client.asStateFlow()
@@ -64,6 +74,10 @@ class SerialBridge(
      * speaks Telnet (and maybe RFC 2217)
      */
     fun serve(p: Port, telnet: Telnet?) {
+        // the modem's DTE, or the client's own internet host
+        val h = host?.invoke()
+        currentHost = h
+        val dte: TerminalLink = h ?: this.dte
         val out = LinkedBlockingQueue<ByteArray>()
         val listener = TerminalLink.Listener { data, n ->
             val b = data.copyOf(n)
@@ -89,7 +103,7 @@ class SerialBridge(
             Thread({
                 while (on.get()) {
                     // (null unless they changed, or the client has just asked for RFC 2217)
-                    t.modemState(signals.value)?.let { out.put(it) }
+                    t.modemState(lines())?.let { out.put(it) }
                     try { Thread.sleep(100) } catch (_: InterruptedException) { break }
                 }
             }, "bridge-lines-${p.via}").apply { isDaemon = true; start() }
@@ -120,12 +134,19 @@ class SerialBridge(
                     _client.value = null
                 }
             }
-            if (hangUpOnClose) dropDtr()
+            if (h != null) {
+                // (its link over with it, whatever the setting)
+                currentHost = null
+                h.close()
+            } else if (hangUpOnClose) {
+                dropDtr()
+            }
         }
     }
 
     /** DTR off: the call over (as AT&D2 has it) */
     fun dropDtr() {
+        currentHost?.let { it.hangUp(); return }
         val s = signals.value
         if (s.offhook || s.carrier) Thread({ hangUp() }, "bridge-hangup").apply { isDaemon = true; start() }
     }
