@@ -146,7 +146,7 @@ fun Panel(lights: Lights, modifier: Modifier = Modifier, compact: Boolean = fals
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text("D-Modem", color = Badge, fontSize = 17.sp, fontWeight = FontWeight.Black, fontStyle = FontStyle.Italic, letterSpacing = (-0.3).sp)
                     Spacer(Modifier.width(8.dp))
-                    Text("56K V.92 FAXMODEM", color = Legend.copy(alpha = 0.75f), fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp, modifier = Modifier.padding(bottom = 2.dp))
+                    Text("56K V.92 VOICE/FAX/DATA MODEM", color = Legend.copy(alpha = 0.75f), fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp, modifier = Modifier.padding(bottom = 2.dp))
                 }
                 // (the strip the lights sit in)
                 Spacer(Modifier.height(10.dp))
