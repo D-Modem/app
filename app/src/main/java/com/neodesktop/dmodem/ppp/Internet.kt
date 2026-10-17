@@ -180,6 +180,11 @@ object Internet {
         if (p != null) p.stop("disconnected") else line?.cancel("disconnected")
     }
 
+    /** (for the screenshots: a link's state shown) */
+    internal fun show(s: State?) {
+        _state.value = s
+    }
+
     fun dismiss() {
         if (!running) _state.value = null
     }

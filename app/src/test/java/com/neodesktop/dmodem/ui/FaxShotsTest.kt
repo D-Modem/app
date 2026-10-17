@@ -62,6 +62,27 @@ class FaxShotsTest {
     }
 
     @Test
+    fun internetOnHome() {
+        val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+        runBlocking { com.neodesktop.dmodem.settings.IspSettingsStore(ctx).save(com.neodesktop.dmodem.settings.IspSettings("18005551000", "alice", "x")) }
+        ModemState.setRun(ModemState.Run.RUNNING)
+        ModemState.setStatus(ModemState.IDLE)
+        val cfg = com.neodesktop.dmodem.ppp.Ppp.IpConfig(
+            java.net.InetAddress.getByName("192.0.2.42") as java.net.Inet4Address, null,
+            listOf(java.net.InetAddress.getByName("192.0.2.1") as java.net.Inet4Address), 1500,
+        )
+        com.neodesktop.dmodem.ppp.Internet.show(
+            com.neodesktop.dmodem.ppp.Internet.State("", cfg, "CONNECT 50666/V92/LAPM/V44", System.currentTimeMillis() - 754_000, 1_843_200, 96_512),
+        )
+        compose.mainClock.autoAdvance = false
+        compose.mainClock.advanceTimeBy(500)
+        val bmp = compose.onNodeWithText("Connected to the internet").let { compose.onRoot() }.captureToImage().asAndroidBitmap()
+        File("build/screens").mkdirs()
+        File("build/screens/internet-1-home.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        com.neodesktop.dmodem.ppp.Internet.show(null)
+    }
+
+    @Test
     fun faxSettings() {
         compose.onNodeWithText("Settings").performClick()
         compose.onNodeWithText("Fastest rate").performScrollTo()
