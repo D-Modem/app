@@ -109,6 +109,12 @@ object Internet {
                 if (r == null || !r.startsWith("CONNECT")) throw IOException(dialResult(r))
                 online = true
                 set { it.copy(phase = "Logging in", connect = r) }
+                // the ISP's login script first, if it has one (a text login before PPP)
+                if (isp.script.isNotBlank()) {
+                    set { it.copy(phase = "Running the login script") }
+                    ChatScript(isp.script, isp.user, isp.password).run(io) { ModemState.log.add("script: $it") }
+                    set { it.copy(phase = "Logging in") }
+                }
                 val done = java.util.concurrent.CountDownLatch(1)
                 val p = Ppp(
                     send = { b -> if (!hub.writeAs(listener, b)) throw IOException("the modem has gone") },

@@ -80,7 +80,13 @@ class InternetLineTest {
     private fun dump() = (ModemState.log.flow.value.takeLast(40) + log.takeLast(40)).joinToString("\n")
 
     @Test
-    fun onlineAndPacketsBothWays() {
+    fun onlineAndPacketsBothWays() = online(script = false)
+
+    /** an ISP that asks for a text login first (its PPP after "Starting PPP"), and a script for it */
+    @Test
+    fun aLoginScriptBeforePpp() = online(script = true)
+
+    private fun online(script: Boolean) {
         // the ISP's modem, and its PPP once the call is up
         ProcessBuilder("stty", "-F", b, "raw", "-echo").start().waitFor()
         val input = FileInputStream(b)
@@ -103,7 +109,8 @@ class InternetLineTest {
         val fromLink = ArrayBlockingQueue<ByteArray>(100)
         val tunnels = ArrayBlockingQueue<Ppp.IpConfig>(1)
         var closed = false
-        val err = Internet.connect(IspSettings("5551000", "alice", "s3cret")) { cfg ->
+        val isp0 = IspSettings("5551000", "alice", "s3cret", script = if (script) "ABORT incorrect ogin:--ogin: \\U assword: \\P PPP" else "")
+        val err = Internet.connect(isp0) { cfg ->
             tunnels.add(cfg)
             object : Internet.Tunnel {
                 override fun write(packet: ByteArray) { fromLink.add(packet) }
@@ -113,6 +120,23 @@ class InternetLineTest {
         assertEquals(null, err)
         assertTrue(dump(), waitLog("modemA: run cmd: ATD5551000"))
         assertTrue(c.command("A", 60_000).orEmpty().startsWith("CONNECT"))
+        if (script) {
+            // the host's text login: a banner, login:, Password:, then PPP
+            fun say(s: String) { output.write(s.toByteArray()); output.flush() }
+            say("\r\nD-Modem test ISP\r\nlogin: ")
+            fun typed(): String {
+                val sb = StringBuilder()
+                while (true) {
+                    val ch = io.read(30_000)
+                    if (ch < 0 || ch == '\r'.code) return sb.toString()
+                    if (ch != '\n'.code) sb.append(ch.toChar())
+                }
+            }
+            assertEquals("alice", typed())
+            say("Password: ")
+            assertEquals("s3cret", typed())
+            say("\r\nStarting PPP...\r\n")
+        }
         isp = TestIsp(Ppp.PROTO_CHAP, "alice", "s3cret", echo = true) { f -> output.write(f); output.flush() }
         isp.start()
 

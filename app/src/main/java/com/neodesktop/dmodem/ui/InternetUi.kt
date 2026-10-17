@@ -146,6 +146,20 @@ fun IspSettingsSection() {
             value = s.initCommands, onValueChange = { s = s.copy(initCommands = it) }, label = { Text("AT commands before the dial (optional)") },
             singleLine = true, modifier = Modifier.fillMaxWidth(),
         )
+        OutlinedTextField(
+            value = s.script, onValueChange = { s = s.copy(script = it) },
+            label = { Text("Login script before PPP (optional)") },
+            placeholder = { Text("ogin: \\U assword: \\P") },
+            supportingText = {
+                Text(
+                    "As chat has them: what to wait for, then what to send, in turn; \\U the user, \\P the password, " +
+                        "\\d a second's wait, \\c no return after; ABORT text, TIMEOUT seconds; \"\" waits for nothing",
+                )
+            },
+            minLines = 2,
+            textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+            modifier = Modifier.fillMaxWidth(),
+        )
         Button(onClick = {
             scope.launch { store.save(s) }
             Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()

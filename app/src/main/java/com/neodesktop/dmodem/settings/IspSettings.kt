@@ -18,6 +18,8 @@ data class IspSettings(
     val user: String = "",
     val password: String = "",
     val initCommands: String = "",
+    /** a login script for after the CONNECT, before PPP (chat's: "ogin: \\U assword: \\P"); empty: none */
+    val script: String = "",
 ) {
     val complete: Boolean get() = number.isNotBlank()
 }
@@ -30,10 +32,11 @@ class IspSettingsStore(private val context: Context) {
         val user = stringPreferencesKey("user")
         val password = stringPreferencesKey("password")
         val init = stringPreferencesKey("init")
+        val script = stringPreferencesKey("script")
     }
 
     val settings: Flow<IspSettings> = context.ispStore.data.map { p ->
-        IspSettings(p[K.number] ?: "", p[K.user] ?: "", p[K.password] ?: "", p[K.init] ?: "")
+        IspSettings(p[K.number] ?: "", p[K.user] ?: "", p[K.password] ?: "", p[K.init] ?: "", p[K.script] ?: "")
     }
 
     suspend fun current(): IspSettings = settings.first()
@@ -44,6 +47,7 @@ class IspSettingsStore(private val context: Context) {
             p[K.user] = s.user.trim()
             p[K.password] = s.password
             p[K.init] = s.initCommands.trim()
+            p[K.script] = s.script.trim()
         }
     }
 }
