@@ -11,8 +11,23 @@ analogue modem (a BBS on a real phone line) it is the V.90/V.92 digital
 modem, up to 56000 bit/s downstream; toward another digital modem
 (D-Modem, an ISP's modem bank) V.91, up to 62667 bit/s both ways, or V.34.
 The SIP provider must carry G.711 (PCMU/PCMA) end to end to the telephone
-network: the phone's own cellular calls go through speech codecs
-(AMR, EVS) that no modem faster than V.22bis survives.
+network.
+
+The phone's own mobile calls can be the line too, slowly, where Android
+lets the app have a call's sound: Android 13 or later, the app privileged
+(CALL_AUDIO_INTERCEPTION; on a rooted phone the app installs itself as a
+Magisk module), and a phone whose audio supports it. Mobile calls carry
+speech through codecs that wreck modem signals; native-test's
+`codec_line` measured it, two modems back to back through each codec:
+
+| Codec | Gets through |
+|---|---|
+| AMR-NB 12.2 kbit/s (a 3G/4G call, good signal) | V.21 (300 bit/s); V.22 and V.22bis connect but lose data about half the time; V.32 and up don't connect |
+| AMR-NB 7.95, 5.9 kbit/s (a busy network) | V.21 only |
+| AMR-NB 4.75 kbit/s, GSM full rate (2G) | nothing reliable |
+
+So the mobile-call line starts the modem at V.21 (+MS=V21), with 1200 and
+2400 bit/s as settings to try.
 
 ## The app
 

@@ -28,6 +28,20 @@
         android:required="false" />
     <!-- the terminal's bell -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- the phone's own mobile calls as the modem's line: placing, answering and ending
+         them, their state, the microphone muted for the modem's sound; their sound itself
+         (CALL_AUDIO_INTERCEPTION) only for a privileged app (root: Settings, Line) -->
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission
+        android:name="android.permission.CALL_AUDIO_INTERCEPTION"
+        tools:ignore="ProtectedPermissions" />
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <!-- the phone's shared storage in the Linux system (at /sdcard), when the user allows it:
          "all files access" from Android 11, these before -->
     <uses-permission
@@ -82,7 +96,7 @@
         <service
             android:name=".modem.ModemService"
             android:exported="false"
-            android:foregroundServiceType="specialUse">
+            android:foregroundServiceType="specialUse|microphone">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="A software dial-up modem: it holds a SIP call's real-time audio (G.711 RTP) and the modem's data connection for as long as the user keeps the modem on, and answers incoming modem calls." />

@@ -305,8 +305,9 @@ private fun PeerLineRows(s: ModemSettings, run: ModemState.Run, network: String?
     val st by com.neodesktop.dmodem.peer.Peers.state.collectAsStateWithLifecycle()
     val error by com.neodesktop.dmodem.peer.Peers.error.collectAsStateWithLifecycle()
     val wifi = s.line == ModemSettings.LINE_WIFI
-    InfoRow("Via", if (wifi) "another phone on Wi-Fi" else "another phone on Bluetooth")
-    InfoRow("Calls", s.peerName.ifBlank { s.peerAddress }.ifBlank { if (wifi) "the address dialled" else "no phone chosen" })
+    val cell = s.line == ModemSettings.LINE_CELL
+    InfoRow("Via", if (cell) "this phone's mobile calls" else if (wifi) "another phone on Wi-Fi" else "another phone on Bluetooth")
+    if (!cell) InfoRow("Calls", s.peerName.ifBlank { s.peerAddress }.ifBlank { if (wifi) "the address dialled" else "no phone chosen" })
     InfoRow("Calls in", if (s.listen) "answered" else "off")
     if (wifi) InfoRow("Network", network ?: "none")
     if (run == ModemState.Run.RUNNING) InfoRow("Now", peerText(st, s))

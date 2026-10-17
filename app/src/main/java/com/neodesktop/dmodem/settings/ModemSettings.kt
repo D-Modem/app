@@ -43,17 +43,32 @@ data class ModemSettings(
     val peerPort: Int = 5070,
     /** the modem's speaker on the phone's: the dialling and the handshake heard (as ATM and ATL have it) */
     val speaker: Boolean = true,
+    /** the modulation on mobile calls (+MS): V21 (300 bit/s, what a speech codec carries), V22, V22B */
+    val cellSpeed: String = "V21",
 ) {
-    /** the line is another phone, not SIP */
+    /** the line is another phone (or this phone's mobile calls), not SIP: the app carries its samples */
     val peer: Boolean get() = line != LINE_SIP
 
     /** Enough to start: an account (or the line another phone's). */
     val complete: Boolean get() = peer || (user.isNotBlank() && domain.isNotBlank())
 
+    /** the commands sent as the modem starts: the init commands, on mobile calls the modulation first */
+    fun startCommands(): String {
+        val init = initCommands.trim()
+        if (line != LINE_CELL) return init
+        val ms = "AT+MS=$cellSpeed"
+        return when {
+            init.isEmpty() -> ms
+            init.startsWith("AT", ignoreCase = true) -> "$ms;" + init.substring(2)
+            else -> init.lines().joinToString("\r") + "\r" + ms
+        }
+    }
+
     companion object {
         const val LINE_SIP = "sip"
         const val LINE_WIFI = "wifi"
         const val LINE_BLUETOOTH = "bluetooth"
+        const val LINE_CELL = "cell"
 
         /**
          * An account as `user:password@host[:port]` (dmodemd's SIP_LOGIN): null if it isn't one.
@@ -92,6 +107,7 @@ class SettingsStore(private val context: Context) {
         val peerName = stringPreferencesKey("peer_name")
         val peerPort = intPreferencesKey("peer_port")
         val speaker = booleanPreferencesKey("speaker")
+        val cellSpeed = stringPreferencesKey("cell_speed")
     }
 
     val settings: Flow<ModemSettings> = context.dataStore.data.map { p ->
@@ -112,6 +128,7 @@ class SettingsStore(private val context: Context) {
             peerName = p[Keys.peerName] ?: d.peerName,
             peerPort = p[Keys.peerPort] ?: d.peerPort,
             speaker = p[Keys.speaker] ?: d.speaker,
+            cellSpeed = p[Keys.cellSpeed] ?: d.cellSpeed,
         )
     }
 
@@ -134,6 +151,7 @@ class SettingsStore(private val context: Context) {
             p[Keys.peerName] = s.peerName
             p[Keys.peerPort] = s.peerPort
             p[Keys.speaker] = s.speaker
+            p[Keys.cellSpeed] = s.cellSpeed
         }
     }
 }

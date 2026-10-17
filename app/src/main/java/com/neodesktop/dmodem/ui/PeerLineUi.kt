@@ -24,6 +24,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -48,6 +49,9 @@ fun LineChoice(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
     LineRadio("Another phone with D-Modem, on Wi-Fi", s.line == ModemSettings.LINE_WIFI) {
         onChange(s.copy(line = ModemSettings.LINE_WIFI, peerAddress = if (s.line == ModemSettings.LINE_WIFI) s.peerAddress else "", peerName = ""))
     }
+    LineRadio("This phone's mobile calls (slow; root)", s.line == ModemSettings.LINE_CELL) {
+        onChange(s.copy(line = ModemSettings.LINE_CELL))
+    }
     LineRadio("Another phone with D-Modem, on Bluetooth", s.line == ModemSettings.LINE_BLUETOOTH) {
         if (!BluetoothBridge.hasPermission(context)) {
             askBt.launch(BluetoothBridge.permissions())
@@ -64,6 +68,10 @@ fun LineChoice(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
  */
 @Composable
 fun PeerLineFields(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
+    if (s.line == ModemSettings.LINE_CELL) {
+        CellLineFields(s, onChange)
+        return
+    }
     val context = LocalContext.current
     val wifi = s.line == ModemSettings.LINE_WIFI
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -186,6 +194,94 @@ fun peerText(st: PeerLine.State, s: ModemSettings): String = when (st) {
     PeerLine.State.Off -> "Starts with the modem"
     is PeerLine.State.Ready -> if (st.listening) "Waiting for the other phone's calls" else "Ready to call"
     is PeerLine.State.Ringing -> "Ringing: ${st.from} calls"
-    is PeerLine.State.Calling -> "Calling ${s.peerName.ifBlank { st.to }}…"
+    is PeerLine.State.Calling -> "Calling ${s.peerName.takeIf { s.line != ModemSettings.LINE_CELL }?.ifBlank { null } ?: st.to}…"
     is PeerLine.State.Connected -> "On a call with ${s.peerName.takeIf { st.caller && it.isNotBlank() } ?: st.with}"
+}
+
+/**
+ * The phone's mobile calls as the line: what the phone allows (the
+ * call's sound only for a privileged app: root makes one), the calls'
+ * permissions, whether calls ringing here go to the modem.
+ */
+@Composable
+fun CellLineFields(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
+    val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var refresh by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    val audioWhy = remember(refresh) { com.neodesktop.dmodem.cell.AndroidCallAudio(context).unavailable() }
+    val missing = remember(refresh) {
+        com.neodesktop.dmodem.cell.AndroidCellPhone.PERMISSIONS.filter {
+            context.checkSelfPermission(it) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        }
+    }
+    var root by remember { mutableStateOf<Boolean?>(null) }
+    var module by remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf<String?>(null) }
+    androidx.compose.runtime.LaunchedEffect(refresh) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            root = com.neodesktop.dmodem.cell.Privileged.canInstall()
+            module = root == true && com.neodesktop.dmodem.cell.Privileged.installed()
+        }
+    }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { refresh++ }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            "The modem calls (ATD with a phone number) and answers on the phone's own mobile line. Mobile calls carry " +
+                "speech through codecs (AMR) that wreck modem signals: 300 bit/s gets through, 1200 and 2400 connect " +
+                "but lose data, faster modems don't connect at all, and 2G calls carry nothing. Android gives a " +
+                "call's sound only to a privileged app.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Text(
+            if (audioWhy == null) "This phone lets D-Modem have the calls' sound" else "Not available: $audioWhy",
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (audioWhy == null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+        )
+        if (missing.isNotEmpty()) {
+            OutlinedButton(onClick = { ask.launch(missing.toTypedArray()) }) { Text("Allow phone calls and their sound") }
+        }
+        if (audioWhy != null && root == true) {
+            Text(
+                if (module) "D-Modem's Magisk module is installed: restart the phone to make it a privileged app."
+                else "This phone is rooted: D-Modem can install itself as a privileged app (a Magisk module, from the next restart).",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = {
+                    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                        result = com.neodesktop.dmodem.cell.Privileged.install(context)?.let { "Couldn't install: $it" }
+                            ?: "Installed: restart the phone"
+                        refresh++
+                    }
+                }) { Text(if (module) "Install again" else "Make D-Modem privileged") }
+                if (module) {
+                    TextButton(onClick = {
+                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                            result = com.neodesktop.dmodem.cell.Privileged.remove()?.let { "Couldn't remove: $it" } ?: "Removed: restart the phone"
+                            refresh++
+                        }
+                    }) { Text("Remove") }
+                }
+            }
+        }
+        result?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+        Text("Speed", style = MaterialTheme.typography.bodyMedium)
+        for ((ms, label) in listOf(
+            "V21" to "300 bit/s (V.21): what mobile calls carry",
+            "V22" to "1200 bit/s (V.22): a good signal, may lose data",
+            "V22B" to "2400 bit/s (V.22bis): a good signal, may lose data",
+        )) {
+            LineRadio(label, s.cellSpeed == ms) { onChange(s.copy(cellSpeed = ms)) }
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Calls ringing here go to the modem")
+                Text(
+                    "RING in the terminal; the modem answers with ATA or S0. Off: the phone rings as usual.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            androidx.compose.material3.Switch(checked = s.listen, onCheckedChange = { onChange(s.copy(listen = it)) })
+        }
+    }
 }

@@ -65,4 +65,13 @@ class PeerShotsTest {
         Peers.show(PeerLine.State.Off)
         ModemState.setRun(ModemState.Run.STOPPED)
     }
+
+    @Test
+    fun theMobileCallLine() {
+        save(ModemSettings(line = ModemSettings.LINE_CELL, listen = true))
+        compose.onNodeWithText("Settings").performClick()
+        compose.onNodeWithText("Calls ringing here go to the modem").performScrollTo()
+        shot("peer-3-cell-settings")
+        compose.onNodeWithText("300 bit/s (V.21): what mobile calls carry").assertExists()
+    }
 }

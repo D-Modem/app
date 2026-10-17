@@ -33,3 +33,23 @@ target_link_libraries(fax_line PRIVATE dmodem_front dmodem_core dmodem_dsp
 add_executable(peer_host peer_host.cpp)
 target_link_libraries(peer_host PRIVATE dmodem_engine Threads::Threads)
 target_compile_options(peer_host PRIVATE -Wall -Wextra)
+
+# codec_line: two modems back to back through a cellular call's speech
+# codec (GSM full rate, AMR-NB) each way: what a cellular line carries
+# (CellLineTest); the codecs as the host has them (libgsm1-dev,
+# libopencore-amrnb-dev)
+find_library(GSM_LIB gsm)
+find_library(AMRNB_LIB opencore-amrnb)
+add_executable(codec_line codec_line.cpp)
+target_include_directories(codec_line PRIVATE ${DMODEM_RE_DIR}/dmodemd)
+target_compile_options(codec_line PRIVATE -Wall -Wextra -O2)
+target_link_libraries(codec_line PRIVATE dmodem_front dmodem_core dmodem_dsp
+	dmodem_link m Threads::Threads)
+if(GSM_LIB)
+	target_compile_definitions(codec_line PRIVATE HAVE_GSM)
+	target_link_libraries(codec_line PRIVATE ${GSM_LIB})
+endif()
+if(AMRNB_LIB)
+	target_compile_definitions(codec_line PRIVATE HAVE_AMRNB)
+	target_link_libraries(codec_line PRIVATE ${AMRNB_LIB})
+endif()

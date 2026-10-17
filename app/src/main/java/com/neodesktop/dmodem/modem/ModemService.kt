@@ -127,7 +127,7 @@ class ModemService : Service() {
                 ServiceCompat.startForeground(
                     this, NOTIFICATION_ID,
                     notification(ModemState.Run.STARTING, ModemState.IDLE),
-                    if (Build.VERSION.SDK_INT >= 34) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0,
+                    if (Build.VERSION.SDK_INT >= 34) serviceType() else 0,
                 )
                 scope.launch { startModem() }
             }
@@ -142,6 +142,14 @@ class ModemService : Service() {
         super.onDestroy()
     }
 
+    /** the foreground service's type: a mobile call's sound (the cellular line) is a recording's */
+    @androidx.annotation.RequiresApi(34)
+    private fun serviceType(): Int {
+        val cell = runBlocking { store.current() }.line == ModemSettings.LINE_CELL
+        val mic = cell && checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        return ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or (if (mic) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0)
+    }
+
     /** the modem started with the settings, if it isn't running; the service ends if it can't */
     private suspend fun startModem() {
         if (ModemState.run.value == ModemState.Run.RUNNING) return
@@ -149,6 +157,16 @@ class ModemService : Service() {
         if (!settings.complete) {
             fail("no SIP account: set one in the settings")
             return
+        }
+        if (settings.line == ModemSettings.LINE_CELL) {
+            com.neodesktop.dmodem.cell.AndroidCallAudio(this).unavailable()?.let {
+                fail("the line is the phone's mobile calls, but $it")
+                return
+            }
+            if (com.neodesktop.dmodem.cell.AndroidCellPhone.PERMISSIONS.any { checkSelfPermission(it) != android.content.pm.PackageManager.PERMISSION_GRANTED }) {
+                fail("the line is the phone's mobile calls, which aren't allowed: allow them in the settings")
+                return
+            }
         }
         if (settings.line == ModemSettings.LINE_BLUETOOTH && !com.neodesktop.dmodem.bridge.BluetoothBridge.hasPermission(this)) {
             fail("the line is Bluetooth, which isn't allowed: allow it in the settings")
@@ -193,7 +211,12 @@ class ModemService : Service() {
             sipLogLevel = settings.sipLogLevel,
             peer = settings.peer,
             // (Bluetooth's way is slower: more room for the samples on it)
-            peerLeadMs = if (settings.line == ModemSettings.LINE_BLUETOOTH) 200 else 100,
+            peerLeadMs = when (settings.line) {
+                ModemSettings.LINE_BLUETOOTH -> 200
+                // (the call's sound is the phone's audio's: its clock, its buffers)
+                ModemSettings.LINE_CELL -> 60
+                else -> 100
+            },
         )
         val pfd = NativeModem.start(config)
         if (pfd == null) {
@@ -209,9 +232,8 @@ class ModemService : Service() {
             ModemState.speaker.start(java.io.FileInputStream(s.fileDescriptor))
         }
         if (settings.peer) com.neodesktop.dmodem.peer.Peers.start(this, settings, ::log)
-        if (settings.initCommands.isNotBlank()) {
-            ModemState.dte.write(settings.initCommands.trim() + "\r")
-        }
+        val start = settings.startCommands()
+        if (start.isNotBlank()) ModemState.dte.write(start + "\r")
         return true
     }
 
@@ -369,6 +391,7 @@ class ModemService : Service() {
             else -> "Ready" + (if (settings.listen) ", taking calls" else "") + when (settings.line) {
                 ModemSettings.LINE_WIFI -> " (line: another phone on Wi-Fi)"
                 ModemSettings.LINE_BLUETOOTH -> " (line: another phone on Bluetooth)"
+                ModemSettings.LINE_CELL -> " (line: mobile calls)"
                 else -> ""
             }
         }

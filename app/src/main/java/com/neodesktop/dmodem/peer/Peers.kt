@@ -54,11 +54,27 @@ object Peers {
         this.context = app
         _error.value = null
         val wifi = s.line == ModemSettings.LINE_WIFI
-        val transport: PeerTransport = if (wifi) TcpPeerTransport(s.peerPort) else BluetoothPeerTransport(app)
+        val cell = s.line == ModemSettings.LINE_CELL
+        val transport: PeerTransport = when {
+            wifi -> TcpPeerTransport(s.peerPort)
+            cell -> com.neodesktop.dmodem.cell.CellTransport(
+                com.neodesktop.dmodem.cell.AndroidCellPhone(app),
+                com.neodesktop.dmodem.cell.AndroidCallAudio(app),
+                log = { log("mobile call: $it") },
+            )
+            else -> BluetoothPeerTransport(app)
+        }
         val l = PeerLine(
             transport,
             events = { NativeModem.peerEvent(it) },
-            target = { dial -> if (wifi) PeerLine.wifiTarget(dial, s.peerAddress) else s.peerAddress.ifBlank { null } },
+            target = { dial ->
+                when {
+                    wifi -> PeerLine.wifiTarget(dial, s.peerAddress)
+                    // (the number dialled, as a phone's: digits, + * #)
+                    cell -> dial.filter { it.isDigit() || it in "+*#" }.ifEmpty { null }
+                    else -> s.peerAddress.ifBlank { null }
+                }
+            },
             log = { log("line: $it") },
             _state = _state,
             _lastError = _error,
