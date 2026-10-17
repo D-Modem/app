@@ -153,6 +153,9 @@ fun DashboardScreen(
             }
         }
 
+        SectionTitle("Fax")
+        FaxSection()
+
         SectionTitle("Open")
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Shortcut(">_", "Terminal", "VT100 / ANSI-BBS", Modifier.weight(1f), onOpenTerminal)

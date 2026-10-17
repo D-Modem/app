@@ -22,6 +22,27 @@ import java.util.concurrent.CopyOnWriteArrayList
 class DteHub : TerminalLink {
 
     private val listeners = CopyOnWriteArrayList<TerminalLink.Listener>()
+
+    /** who has the modem to itself now (a fax call): only it hears the modem, only it may write */
+    @Volatile private var owner: TerminalLink.Listener? = null
+
+    /** the modem to [l] alone until [release] (false: someone else has it) */
+    @Synchronized
+    fun claim(l: TerminalLink.Listener): Boolean {
+        if (owner != null) return false
+        owner = l
+        return true
+    }
+
+    fun release(l: TerminalLink.Listener) {
+        synchronized(this) { if (owner === l) owner = null }
+    }
+
+    val claimed: Boolean get() = owner != null
+
+    /** octets to the modem from its owner ([claim]) */
+    fun writeAs(l: TerminalLink.Listener, data: ByteArray): Boolean =
+        if (owner === l) writeRaw(data, 0, data.size) else false
     private val _state = MutableStateFlow<TerminalLink.State>(TerminalLink.State.Closed(null))
     /** open while a modem is attached */
     override val state: StateFlow<TerminalLink.State> = _state.asStateFlow()
@@ -82,8 +103,11 @@ class DteHub : TerminalLink {
 
     val attached: Boolean get() = synchronized(outLock) { output != null }
 
-    /** Octets to the modem: false if there is no modem, or it has gone. */
+    /** Octets to the modem: false if there is no modem, or it has gone (or a fax call has it). */
     override fun write(data: ByteArray, offset: Int, length: Int): Boolean =
+        if (owner != null) false else writeRaw(data, offset, length)
+
+    private fun writeRaw(data: ByteArray, offset: Int, length: Int): Boolean =
         synchronized(outLock) {
             val o = output ?: return false
             try {
@@ -107,7 +131,8 @@ class DteHub : TerminalLink {
             }
             if (n < 0) break
             if (n == 0) continue
-            for (l in listeners) l.onData(buf, n)
+            val o = owner
+            if (o != null) o.onData(buf, n) else for (l in listeners) l.onData(buf, n)
         }
     }
 }

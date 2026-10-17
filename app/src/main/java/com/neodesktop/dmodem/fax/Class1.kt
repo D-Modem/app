@@ -44,6 +44,12 @@ class Class1(private val io: TransferIo, private val log: (String) -> Unit = {})
         return result(ms)
     }
 
+    /** a command out (without its AT), its result left for [result] */
+    fun send(cmd: String) {
+        log("-> AT$cmd")
+        io.write("AT$cmd\r".toByteArray())
+    }
+
     /** the next result line (the command's echo, and anything else that isn't one, passed over) */
     fun result(ms: Long): String? {
         val end = System.currentTimeMillis() + ms
