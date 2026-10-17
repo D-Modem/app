@@ -42,7 +42,7 @@ jobs:
       - name: OpenSSH, PuTTY, mksh (the interop tests), gawk (proot's build)
         run: sudo apt-get install -y -q openssh-client openssh-server putty-tools gawk mksh && sudo mkdir -p /run/sshd
       - name: Build, unit tests, lint
-        run: ./gradlew assembleDebug assembleDebugAndroidTest testDebugUnitTest lintDebug
+        run: ./gradlew assembleDebug assembleDebugAndroidTest testDebugUnitTest lintDebug :shared:jvmTest :shared:linuxX64Test
 
       - uses: actions/upload-artifact@v4
         with:

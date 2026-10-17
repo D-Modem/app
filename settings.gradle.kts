@@ -19,3 +19,5 @@ dependencyResolutionManagement {
 }
 rootProject.name = "dmodem-android"
 include(":app")
+// what the Android app and the iOS app share: Kotlin Multiplatform (JVM, iOS)
+include(":shared")

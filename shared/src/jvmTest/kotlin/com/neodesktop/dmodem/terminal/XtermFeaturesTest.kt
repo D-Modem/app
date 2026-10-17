@@ -193,7 +193,8 @@ class XtermFeaturesTest {
     // sixel ------------------------------------------------------------
 
     private fun resource(name: String): File =
-        listOf(File("src/test/resources/$name"), File("app/src/test/resources/$name")).first { it.exists() }
+        // (the app's test images: from this module, or the project's root)
+        listOf(File("../app/src/test/resources/$name"), File("app/src/test/resources/$name")).first { it.exists() }
 
     /** img2sixel's image (libsixel) decoded: every pixel the picture's, within libsixel's rounding of colours to percent */
     @Test

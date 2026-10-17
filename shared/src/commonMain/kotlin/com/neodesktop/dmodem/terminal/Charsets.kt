@@ -15,15 +15,15 @@ enum class TermCharset(val label: String) {
 
     /** text to the remote: its octets in this set (what it can't have as '?') */
     fun encode(s: String): ByteArray = when (this) {
-        UTF8 -> s.toByteArray(Charsets.UTF_8)
+        UTF8 -> s.encodeToByteArray()
         LATIN1 -> ByteArray(s.length) { i -> s[i].code.let { if (it < 256) it.toByte() else '?'.code.toByte() } }
         CP437 -> {
-            val out = java.io.ByteArrayOutputStream(s.length)
+            val out = ArrayList<Byte>(s.length)
             var i = 0
             while (i < s.length) {
-                val cp = s.codePointAt(i)
-                i += Character.charCount(cp)
-                out.write(Cp437.encode(cp))
+                val cp = s.codePointAtIndex(i)
+                i += charCountOf(cp)
+                out.add(Cp437.encode(cp).toByte())
             }
             out.toByteArray()
         }

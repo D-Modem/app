@@ -125,6 +125,10 @@ Android's JNI), with D-Modem-RE, libre and Mbed TLS as one XCFramework:
     ios/build-native.sh        # macOS with Xcode, CMake, Ninja
     swift test --package-path ios/DModemSmoke
 
+The Kotlin the two apps share is `shared/` (Kotlin Multiplatform: the
+JVM for Android, iOS's framework `DModemShared`; Linux native for its
+tests): so far the terminal's emulator. `./gradlew :shared:allTests`.
+
 D-Modem-RE's `portable.h` has Apple's ways where Linux has its own
 (close-on-exec sockets, SIGPIPE, a monotonic sleep, a peer's hang-up);
 the Linux build tests them too with `-DDMODEM_PORTABLE_FALLBACKS`. CI

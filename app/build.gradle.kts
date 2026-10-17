@@ -94,6 +94,8 @@ kotlin {
 }
 
 dependencies {
+    // the terminal and the rest the iOS app shares (Kotlin Multiplatform: its JVM side)
+    implementation(project(":shared"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     // USB serial adapters (FTDI, CP210x, CH34x, PL2303, CDC-ACM): the modem as a serial port on one

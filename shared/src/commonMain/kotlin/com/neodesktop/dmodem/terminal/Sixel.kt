@@ -124,7 +124,7 @@ class Sixel(
         val nh = maxOf(bufH, minOf(maxHeight + 6, maxOf(h, bufH * 2, 64)))
         // (0: not drawn; the background's colour put in when the image is finished)
         val nb = IntArray(nw * nh)
-        for (r in 0 until bufH) System.arraycopy(buf, r * bufW, nb, r * nw, bufW)
+        for (r in 0 until bufH) buf.copyInto(nb, r * nw, r * bufW, r * bufW + bufW)
         buf = nb
         bufW = nw
         bufH = nh
@@ -136,7 +136,7 @@ class Sixel(
         val h = height.coerceAtMost(maxHeight)
         if (width <= 0 || h <= 0) return null
         val px = IntArray(width * h)
-        for (r in 0 until h) System.arraycopy(buf, r * bufW, px, r * width, width)
+        for (r in 0 until h) buf.copyInto(px, r * width, r * bufW, r * bufW + width)
         if (!transparent) {
             // the background: register 0 as the image left it
             val bg = palette[0]

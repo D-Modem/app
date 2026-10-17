@@ -2,20 +2,20 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.terminal
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.Test
 
 class TerminalEmulatorTest {
 
     private val replies = StringBuilder()
     private fun term(cols: Int = 10, rows: Int = 4, history: Int = 100) =
-        TerminalEmulator(cols, rows, history) { replies.append(String(it, Charsets.ISO_8859_1)) }
+        TerminalEmulator(cols, rows, history) { b -> b.forEach { replies.append((it.toInt() and 0xff).toChar()) } }
 
     private fun TerminalEmulator.row(r: Int) = line(r).text()
-    private fun TerminalEmulator.send(s: String) = append(s.toByteArray(Charsets.ISO_8859_1))
+    private fun TerminalEmulator.send(s: String) = append(s.latin1())
 
     @Test
     fun textWrapsAndScrollsIntoTheHistory() {
@@ -146,7 +146,7 @@ class TerminalEmulatorTest {
         assertEquals("╔═╗░█ü", t.row(0))
         t.decoder.charset = TermCharset.UTF8
         t.send("\r\n")
-        val euro = "€é".toByteArray(Charsets.UTF_8)
+        val euro = "€é".encodeToByteArray()
         // split in the middle of the euro sign: two reads
         t.append(euro.copyOfRange(0, 2))
         t.append(euro.copyOfRange(2, euro.size))

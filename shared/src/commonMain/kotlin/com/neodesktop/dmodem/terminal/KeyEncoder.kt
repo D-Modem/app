@@ -92,7 +92,7 @@ class KeyEncoder {
                 else -> c
             }
         }
-        val s = String(Character.toChars(c))
+        val s = codePointString(c)
         return if (alt) "\u001b" + s else s
     }
 }

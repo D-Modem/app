@@ -172,9 +172,9 @@ class TerminalEmulator(
     fun appendText(s: String) {
         var i = 0
         while (i < s.length) {
-            val cp = s.codePointAt(i)
+            val cp = s.codePointAtIndex(i)
             process(cp)
-            i += Character.charCount(cp)
+            i += charCountOf(cp)
         }
         revision++
     }
@@ -196,7 +196,7 @@ class TerminalEmulator(
                 0x07 -> { oscBel = true; osc(); state = State.GROUND }
                 0x1b -> state = State.OSC_ESC
                 0x18, 0x1a -> state = State.GROUND
-                else -> if (osc.length < 4096) osc.appendCodePoint(cp)
+                else -> if (osc.length < 4096) osc.appendCp(cp)
             }
             State.OSC_ESC -> {
                 // ST (ESC \) ends it; anything else too, then goes on as ESC
@@ -539,18 +539,18 @@ class TerminalEmulator(
                 if (!press) code = 3 + (if (motion) 32 else 0) + mods
                 if (!mouseUtf8 && (x > 223 || y > 223)) return null
                 val sb = StringBuilder("\u001b[M")
-                sb.appendCodePoint(32 + code)
-                sb.appendCodePoint(32 + x)
-                sb.appendCodePoint(32 + y)
-                return if (mouseUtf8) sb.toString().toByteArray(Charsets.UTF_8) else sb.toString().toByteArray(Charsets.ISO_8859_1)
+                sb.appendCp(32 + code)
+                sb.appendCp(32 + x)
+                sb.appendCp(32 + y)
+                return if (mouseUtf8) sb.toString().encodeToByteArray() else sb.toString().latin1()
             }
         }
-        return s.toByteArray(Charsets.ISO_8859_1)
+        return s.latin1()
     }
 
     /** the focus's change, when the remote asked to be told (1004) */
     fun focusReport(focused: Boolean): ByteArray? =
-        if (focusEvents) (if (focused) "\u001b[I" else "\u001b[O").toByteArray() else null
+        if (focusEvents) (if (focused) "\u001b[I" else "\u001b[O").encodeToByteArray() else null
 
     private fun ansiMode(m: Int, on: Boolean) {
         when (m) {
@@ -678,8 +678,9 @@ class TerminalEmulator(
                 // the clipboard set (never read: the remote isn't told what's on it)
                 val data = arg.substringAfter(';', "")
                 if (data != "?" && data.isNotEmpty()) {
-                    runCatching { java.util.Base64.getMimeDecoder().decode(data) }.getOrNull()
-                        ?.let { listener?.onClipboard(String(it, Charsets.UTF_8)) }
+                    @OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
+                    runCatching { kotlin.io.encoding.Base64.Mime.decode(data) }.getOrNull()
+                        ?.let { listener?.onClipboard(it.decodeToString()) }
                 }
             }
             8 -> {
@@ -694,7 +695,7 @@ class TerminalEmulator(
     private fun colorSpec(i: Int, spec: String, prefix: String) {
         if (spec == "?") {
             val c = colorOverrides[i].takeIf { it != -1 } ?: defaultColor(i)
-            fun h(v: Int) = "%04x".format(v * 0x101)
+            fun h(v: Int) = (v * 0x101).toString(16).padStart(4, '0')
             val end = if (oscBel) "\u0007" else "\u001b\\"
             reply("\u001b]$prefix" + "rgb:${h((c shr 16) and 0xff)}/${h((c shr 8) and 0xff)}/${h(c and 0xff)}$end")
             return
@@ -703,7 +704,7 @@ class TerminalEmulator(
     }
 
     private fun reply(s: String) {
-        output(s.toByteArray(Charsets.ISO_8859_1))
+        output(s.latin1())
     }
 
     // ------------------------------------------------------------------
@@ -750,7 +751,7 @@ class TerminalEmulator(
 
     private fun dcsPut(cp: Int) {
         sixel?.let { it.feed(cp); return }
-        dcsText?.let { if (it.length < 1024) it.appendCodePoint(cp) }
+        dcsText?.let { if (it.length < 1024) it.appendCp(cp) }
     }
 
     private fun dcsAbort() {

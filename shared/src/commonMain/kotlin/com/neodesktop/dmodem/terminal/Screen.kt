@@ -118,9 +118,9 @@ class Line(cols: Int, style: Long = Style.NORMAL) {
     fun insertCells(at: Int, n: Int, style: Long) {
         if (at >= cols || n <= 0) return
         val k = minOf(n, cols - at)
-        System.arraycopy(chars, at, chars, at + k, cols - at - k)
-        System.arraycopy(styles, at, styles, at + k, cols - at - k)
-        extras?.let { System.arraycopy(it, at, it, at + k, cols - at - k) }
+        chars.copyInto(chars, at + k, at, cols - k)
+        styles.copyInto(styles, at + k, at, cols - k)
+        extras?.let { it.copyInto(it, at + k, at, cols - k) }
         clear(at, at + k, style)
     }
 
@@ -128,9 +128,9 @@ class Line(cols: Int, style: Long = Style.NORMAL) {
     fun deleteCells(at: Int, n: Int, style: Long) {
         if (at >= cols || n <= 0) return
         val k = minOf(n, cols - at)
-        System.arraycopy(chars, at + k, chars, at, cols - at - k)
-        System.arraycopy(styles, at + k, styles, at, cols - at - k)
-        extras?.let { System.arraycopy(it, at + k, it, at, cols - at - k) }
+        chars.copyInto(chars, at, at + k, cols)
+        styles.copyInto(styles, at, at + k, cols)
+        extras?.let { it.copyInto(it, at, at + k, cols) }
         clear(cols - k, cols, style)
     }
 
@@ -138,9 +138,9 @@ class Line(cols: Int, style: Long = Style.NORMAL) {
         if (n == cols) return
         val c = IntArray(n)
         val s = LongArray(n) { Style.NORMAL }
-        System.arraycopy(chars, 0, c, 0, minOf(n, cols))
-        System.arraycopy(styles, 0, s, 0, minOf(n, cols))
-        extras = extras?.let { e -> arrayOfNulls<CellExtra>(n).also { System.arraycopy(e, 0, it, 0, minOf(n, cols)) } }
+        chars.copyInto(c, 0, 0, minOf(n, cols))
+        styles.copyInto(s, 0, 0, minOf(n, cols))
+        extras = extras?.let { e -> arrayOfNulls<CellExtra>(n).also { e.copyInto(it, 0, 0, minOf(n, cols)) } }
         chars = c
         styles = s
         // (a wide character cut in half at the new edge: gone)
@@ -149,8 +149,8 @@ class Line(cols: Int, style: Long = Style.NORMAL) {
 
     fun copyFrom(o: Line) {
         val n = minOf(cols, o.cols)
-        System.arraycopy(o.chars, 0, chars, 0, n)
-        System.arraycopy(o.styles, 0, styles, 0, n)
+        o.chars.copyInto(chars, 0, 0, n)
+        o.styles.copyInto(styles, 0, 0, n)
         val oe = o.extras
         if (oe == null) {
             extras = null
@@ -170,8 +170,8 @@ class Line(cols: Int, style: Long = Style.NORMAL) {
         for (i in from until end) {
             val cp = chars[i]
             if (cp == WIDE_TAIL) continue
-            sb.appendCodePoint(if (cp == 0) ' '.code else cp)
-            extra(i)?.combining?.forEach { sb.appendCodePoint(it) }
+            sb.appendCp(if (cp == 0) ' '.code else cp)
+            extra(i)?.combining?.forEach { sb.appendCp(it) }
         }
         return sb.toString()
     }
