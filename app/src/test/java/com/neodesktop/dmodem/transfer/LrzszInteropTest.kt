@@ -46,7 +46,8 @@ class LrzszInteropTest {
     fun tearDown() = links.forEach { it.close() }
 
     /** [cmd] on a pty in [dir], and a TransferIo on it; [damageIn] / [damageOut] spoil a byte every so many */
-    private fun line(dir: File, cmd: List<String>, damageIn: Int = 0, damageOut: Int = 0): Pair<LocalLink, TransferIo> {
+    /** [readDelayMs]: a pause before each read of the line, the sender held back as a slow line holds it */
+    private fun line(dir: File, cmd: List<String>, damageIn: Int = 0, damageOut: Int = 0, readDelayMs: Long = 0): Pair<LocalLink, TransferIo> {
         val l = LocalLink(cmd, mapOf("PATH" to "/usr/bin:/bin", "HOME" to dir.path), dir.path, 80, 24)
         links.add(l)
         val outCount = AtomicInteger()
@@ -58,6 +59,7 @@ class LrzszInteropTest {
         }
         val inCount = AtomicInteger()
         l.addListener { data, n ->
+            if (readDelayMs > 0) Thread.sleep(readDelayMs)
             val b = data.copyOf(n)
             if (damageIn > 0) {
                 for (i in 0 until n) if (inCount.incrementAndGet() % damageIn == 0) b[i] = (b[i].toInt() xor 0x55).toByte()
@@ -136,23 +138,16 @@ class LrzszInteropTest {
     @Test
     fun aCancelFromTheOtherSideStopsIt() {
         val src = File(tmp.newFolder("src"), "big").apply { writeBytes(Random(1).nextBytes(2_000_000)) }
-        val (l, io) = line(src.parentFile!!, listOf("/usr/bin/sz", "-b", src.path))
+        // (the line read slowly, so sz is held back mid-file: else it has all 2 MB
+        // queued here before the cancel reaches it, and the whole file comes)
+        val (l, io) = line(src.parentFile!!, listOf("/usr/bin/sz", "-b", src.path), readDelayMs = 5)
         val into = FolderIncoming(tmp.newFolder("into"))
         val t = Thread { Thread.sleep(300); l.write(ZModem.CANCEL) }
         t.start()
-        val e = runCatching { ZModem(io).receive(object : Incoming by into {
-            // (slowly: the cancel comes in the middle)
-            override fun create(name: String, size: Long): Pair<com.neodesktop.dmodem.io.Sink, String> =
-                into.create(name, size).let { (o, n) ->
-                    object : com.neodesktop.dmodem.io.Sink {
-                        override fun write(b: ByteArray, off: Int, len: Int) { Thread.sleep(5); o.write(b, off, len) }
-                        override fun close() = o.close()
-                    } to n
-                }
-        }) }.exceptionOrNull()
+        val e = runCatching { ZModem(io).receive(into) }.exceptionOrNull()
         // the sender's own cancel echoed back, or the line going quiet
         assertTrue("$e", e != null)
-        assertTrue("half a file not kept", into.received.isEmpty())
+        assertTrue("half a file not kept: ${into.received.map { it.length() }}", into.received.isEmpty())
     }
 
     // YMODEM and XMODEM ---------------------------------------------------

@@ -148,9 +148,11 @@ class ZModem(
 
     /**
      * the next header: skipping what isn't one ("**" or ZPAD, ZDLE, then
-     * A, B or C); null when one came damaged (its check failed)
+     * A, B or C); null when one came damaged (its check failed), or when
+     * [garbageMax] octets came without one and [nullOnGarbage] (else that
+     * throws)
      */
-    private fun readHeader(): Header? {
+    private fun readHeader(garbageMax: Int = 64 * 1024, nullOnGarbage: Boolean = false): Header? {
         var garbage = 0
         var cans = 0
         while (true) {
@@ -161,7 +163,10 @@ class ZModem(
                 cans = 0
             }
             if (c != ZDLE && c != ZDLE or 0x80) {
-                if (++garbage > 64 * 1024) throw IOException("no ZMODEM header")
+                if (++garbage > garbageMax) {
+                    if (nullOnGarbage) return null
+                    throw IOException("no ZMODEM header")
+                }
                 continue
             }
             val kind = readByte() and 0x7f
@@ -333,21 +338,34 @@ class ZModem(
         var pos = 0L
         var errors = 0
         var ok = false
+        // (when we last asked for [pos]: until the sender has had time to hear it, what still
+        // comes of its stream from before, broken headers in its data, isn't an error and
+        // isn't asked for again: each ZRPOS a restart of its own, its leftovers more of them)
+        var rposAt = 0L
+        fun rpos() {
+            sendHex(Header.pos(ZRPOS, pos))
+            rposAt = monotonicMs()
+        }
+        fun waiting() = monotonicMs() - rposAt < RPOS_GRACE_MS
         try {
             out.use { o ->
-                sendHex(Header.pos(ZRPOS, pos))
+                rpos()
                 loop@ while (true) {
-                    val h = readHeader()
+                    // (8 KB of a stream with no header in it: ours, at pos, lost; asked for again)
+                    val h = readHeader(garbageMax = 8 * 1024, nullOnGarbage = true)
                     if (h == null) {
+                        if (waiting()) continue
                         if (++errors > MAX_ERRORS) throw IOException("too many errors on the line")
-                        sendHex(Header.pos(ZRPOS, pos))
+                        rpos()
                         continue
                     }
                     when (h.type) {
                         ZDATA -> {
                             if (h.pos != pos) {
-                                // not where we are: back to it (the data in between let go by)
-                                sendHex(Header.pos(ZRPOS, pos))
+                                // not where we are: back to it (the data in between let go by;
+                                // not an error). Always: a sender that waits for our ACK of its
+                                // data now and then would otherwise wait for us as we wait for it
+                                rpos()
                                 continue@loop
                             }
                             while (true) {
@@ -356,7 +374,7 @@ class ZModem(
                                     if (++errors > MAX_ERRORS) throw IOException("too many errors on the line")
                                     report { it.copy(errors = it.errors + 1) }
                                     io.purge()
-                                    sendHex(Header.pos(ZRPOS, pos))
+                                    rpos()
                                     continue@loop
                                 }
                                 o.write(d.first)
@@ -372,14 +390,18 @@ class ZModem(
                             }
                         }
                         ZEOF -> {
-                            if (h.pos != pos) continue@loop
+                            if (h.pos != pos) {
+                                // (the end of a stream from before our ZRPOS, or our ZRPOS lost)
+                                if (!waiting()) rpos()
+                                continue@loop
+                            }
                             ok = true
                             break@loop
                         }
                         ZFILE -> {
                             // our ZRPOS lost: the same file offered again
                             readData(4096)
-                            sendHex(Header.pos(ZRPOS, pos))
+                            rpos()
                         }
                         ZSKIP -> break@loop
                         ZCAN, ZABORT -> throw TransferCancelled("cancelled by the sender")
@@ -672,6 +694,8 @@ class ZModem(
         /** bytes between the sender's ZCRCQs (its window) */
         const val WINDOW = 16 * 1024
         const val MAX_ERRORS = 10
+        /** after a ZRPOS, the time the sender's stream from before it may still take to stop coming */
+        const val RPOS_GRACE_MS = 1000L
 
         /** a remote sz starting (ZRQINIT) */
         val SZ_START = byteArrayOf(ZPAD.toByte(), ZPAD.toByte(), ZDLE.toByte(), 'B'.code.toByte(), '0'.code.toByte(), '0'.code.toByte())
