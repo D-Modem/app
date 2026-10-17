@@ -196,7 +196,7 @@ private fun Led(lit: Boolean, height: Dp) {
             // (the glow: square-edged bands fading out)
             for (k in 3 downTo 1) {
                 val g = p * k / 3
-                drawRect(Color(0xff2a1f).copy(alpha = 0.16f), Offset(p - g, p - g), Size(bw + g * 2, bh + g * 2))
+                drawRect(Color(0xffff2a1f).copy(alpha = 0.16f), Offset(p - g, p - g), Size(bw + g * 2, bh + g * 2))
             }
             drawRect(Brush.verticalGradient(listOf(Color(0xffffd2c8), Color(0xffff4b33), Color(0xffc4120c)), p, p + bh), at, bar)
         } else {

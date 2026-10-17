@@ -284,6 +284,10 @@ private fun LineCard(s: ModemSettings, run: ModemState.Run, network: String?, on
     Card(Modifier.fillMaxWidth().clickable(onClick = onSettings)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Line", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            if (s.peer) {
+                PeerLineRows(s, run, network)
+                return@Column
+            }
             InfoRow("SIP", if (s.complete) "${s.user}@${s.domain}" else "not set up")
             InfoRow("Calls in", if (s.listen) "answered (registered)" else "off")
             InfoRow("Network", network ?: "none")
@@ -293,6 +297,20 @@ private fun LineCard(s: ModemSettings, run: ModemState.Run, network: String?, on
             }
         }
     }
+}
+
+/** the line another phone: which, how, what it's doing */
+@Composable
+private fun PeerLineRows(s: ModemSettings, run: ModemState.Run, network: String?) {
+    val st by com.neodesktop.dmodem.peer.Peers.state.collectAsStateWithLifecycle()
+    val error by com.neodesktop.dmodem.peer.Peers.error.collectAsStateWithLifecycle()
+    val wifi = s.line == ModemSettings.LINE_WIFI
+    InfoRow("Via", if (wifi) "another phone on Wi-Fi" else "another phone on Bluetooth")
+    InfoRow("Calls", s.peerName.ifBlank { s.peerAddress }.ifBlank { if (wifi) "the address dialled" else "no phone chosen" })
+    InfoRow("Calls in", if (s.listen) "answered" else "off")
+    if (wifi) InfoRow("Network", network ?: "none")
+    if (run == ModemState.Run.RUNNING) InfoRow("Now", peerText(st, s))
+    error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
 }
 
 @Composable

@@ -27,3 +27,9 @@ target_include_directories(fax_line PRIVATE ${DMODEM_RE_DIR}/dmodemd)
 target_compile_options(fax_line PRIVATE -Wall -Wextra -O2)
 target_link_libraries(fax_line PRIVATE dmodem_front dmodem_core dmodem_dsp
 	dmodem_link m Threads::Threads)
+
+# peer_host: the engine on a peer line (two phones' modems through the
+# app), for the app's PeerLineTest
+add_executable(peer_host peer_host.cpp)
+target_link_libraries(peer_host PRIVATE dmodem_engine Threads::Threads)
+target_compile_options(peer_host PRIVATE -Wall -Wextra)

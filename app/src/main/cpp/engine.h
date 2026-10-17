@@ -25,6 +25,8 @@ namespace dmd { class SipModem; }
 
 namespace dmodem_android {
 
+class PeerModem;
+
 struct Config {
 	/* the SIP account: user, password, the registrar's or proxy's
 	   host[:port]; the local SIP port (0: 5060) */
@@ -46,6 +48,10 @@ struct Config {
 	   the SIP messages, 0 none) */
 	int log_level = 0;
 	int sip_log_level = 1;
+	/* the line another phone's modem through the app (peer_modem.h),
+	   not SIP: the account above unused; its lead silence (ms) */
+	bool peer = false;
+	int peer_lead_ms = 100;
 };
 
 /* what the modem's call is doing (dmd::SipModem::Status) */
@@ -62,6 +68,10 @@ public:
 	using StatusFn = std::function<void(const Status &)>;
 	/* the thread's end: 0 stopped (or the DTE gone), -1 an error */
 	using ExitFn = std::function<void(int result)>;
+	/* a peer line's call (cfg.peer): off hook, caller or not, the dial
+	   string, the app's end of the line's socket (the app's to close) */
+	using LineFn = std::function<void(bool caller, const char *dial,
+					  int fd)>;
 
 	/* the process's one */
 	static Engine &instance();
@@ -74,7 +84,12 @@ public:
 	   DTE's socket pair (the caller's to close), or -1 if it is
 	   running already or can't be started.  status and done are
 	   called on the modem's thread */
-	int start(const Config &cfg, StatusFn status, ExitFn done);
+	int start(const Config &cfg, StatusFn status, ExitFn done,
+		  LineFn line = nullptr);
+	/* a peer line's event to the modem (PeerModem::event()): RING,
+	   CANCEL, ANSWERED, FAILED <code>, DROPPED; nothing if it isn't on
+	   a peer line */
+	void peer_event(const char *line);
 	/* the modem stopped (its call hung up, SIP gone), its thread
 	   joined; nothing if it isn't running */
 	void stop();
@@ -82,11 +97,13 @@ public:
 
 private:
 	Engine() = default;
-	void run(Config cfg, int dte, StatusFn status, ExitFn done);
+	void run(Config cfg, int dte, StatusFn status, ExitFn done,
+		 LineFn line);
 
 	std::mutex mu_;
 	std::thread thread_;
 	dmd::SipModem *modem_ = nullptr;        /* while run() has one */
+	PeerModem *peer_ = nullptr;             /* or this one */
 	bool active_ = false;                   /* run() hasn't ended */
 	bool stopping_ = false;
 };

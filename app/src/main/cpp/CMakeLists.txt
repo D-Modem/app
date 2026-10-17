@@ -27,7 +27,7 @@ set(DMODEM_ARI OFF CACHE BOOL "" FORCE)
 add_subdirectory(${DMODEM_RE_DIR} d-modem-re)
 
 # the engine on its own (the host's tests build it too)
-add_library(dmodem_engine STATIC engine.cpp)
+add_library(dmodem_engine STATIC engine.cpp peer_modem.cpp)
 target_include_directories(dmodem_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(dmodem_engine PUBLIC dmodem_sip)
 target_compile_options(dmodem_engine PRIVATE -Wall -Wextra)

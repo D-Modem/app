@@ -214,7 +214,7 @@ private fun btText(st: BluetoothBridge.State): String = when (st) {
 }
 
 /** the phone's IPv4 addresses (not the loopback) */
-private fun addresses(): List<String> = runCatching {
+internal fun addresses(): List<String> = runCatching {
     NetworkInterface.getNetworkInterfaces().toList().filter { it.isUp && !it.isLoopback }
         .flatMap { it.inetAddresses.toList() }.filterIsInstance<Inet4Address>().mapNotNull { it.hostAddress }
 }.getOrDefault(emptyList())

@@ -55,39 +55,44 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
         modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text("SIP account (saved with the button below)", style = MaterialTheme.typography.titleMedium)
-        OutlinedTextField(
-            value = login,
-            onValueChange = { v ->
-                login = v
-                ModemSettings.parseLogin(v.trim())?.let { (u, p, d) ->
-                    s = s.copy(user = u, password = p, domain = d)
-                }
-            },
-            label = { Text("Paste user:password@host (optional)") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Field("User", s.user) { s = s.copy(user = it) }
-        OutlinedTextField(
-            value = s.password,
-            onValueChange = { s = s.copy(password = it) },
-            label = { Text("Password") },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Field("Server (host[:port])", s.domain) { s = s.copy(domain = it) }
-        NumberField("Local SIP port", s.sipPort) { s = s.copy(sipPort = it) }
-        Toggle("Take incoming calls (register)", s.listen) { s = s.copy(listen = it) }
-        Toggle("Fax over T.38", s.t38) { s = s.copy(t38 = it) }
+        LineChoice(s) { s = it }
+        if (s.peer) {
+            PeerLineFields(s) { s = it }
+        } else {
+            Text("SIP account (saved with the button below)", style = MaterialTheme.typography.titleSmall)
+            OutlinedTextField(
+                value = login,
+                onValueChange = { v ->
+                    login = v
+                    ModemSettings.parseLogin(v.trim())?.let { (u, p, d) ->
+                        s = s.copy(user = u, password = p, domain = d)
+                    }
+                },
+                label = { Text("Paste user:password@host (optional)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Field("User", s.user) { s = s.copy(user = it) }
+            OutlinedTextField(
+                value = s.password,
+                onValueChange = { s = s.copy(password = it) },
+                label = { Text("Password") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Field("Server (host[:port])", s.domain) { s = s.copy(domain = it) }
+            NumberField("Local SIP port", s.sipPort) { s = s.copy(sipPort = it) }
+            Toggle("Take incoming calls (register)", s.listen) { s = s.copy(listen = it) }
+            Toggle("Fax over T.38", s.t38) { s = s.copy(t38 = it) }
+        }
 
         Text("Modem", style = MaterialTheme.typography.titleMedium)
         Field("Init commands (sent at start)", s.initCommands) { s = s.copy(initCommands = it) }
         Field("Country (empty: USA)", s.country) { s = s.copy(country = it) }
         NumberField("Modem log level (0-5)", s.logLevel) { s = s.copy(logLevel = it.coerceIn(0, 5)) }
-        NumberField("SIP log level (0-4)", s.sipLogLevel) { s = s.copy(sipLogLevel = it.coerceIn(0, 4)) }
+        if (!s.peer) NumberField("SIP log level (0-4)", s.sipLogLevel) { s = s.copy(sipLogLevel = it.coerceIn(0, 4)) }
 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(onClick = {

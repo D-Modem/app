@@ -11,6 +11,7 @@
  */
 
 #include <jni.h>
+#include <unistd.h>
 
 #include <string>
 
@@ -26,7 +27,7 @@ const char CLASS[] = "com/neodesktop/dmodem/NativeModem";
 
 JavaVM *vm;
 jclass cls;
-jmethodID on_log, on_status, on_exit;
+jmethodID on_log, on_status, on_exit, on_line;
 
 /* this thread's JNIEnv, the thread attached if it wasn't (detached
    again when it ends) */
@@ -115,6 +116,25 @@ void exited(int result)
 	clear(env);
 }
 
+/* a peer line's call: its socket to Kotlin (closed here if that fails) */
+void line_started(bool caller, const char *dial, int fd)
+{
+	JNIEnv *env = env_now();
+	if (!env) {
+		close(fd);
+		return;
+	}
+	jstring d = env->NewStringUTF(printable(dial).c_str());
+	if (!d) {
+		clear(env);
+		close(fd);
+		return;
+	}
+	env->CallStaticVoidMethod(cls, on_line, (jboolean)caller, d, (jint)fd);
+	clear(env);
+	env->DeleteLocalRef(d);
+}
+
 std::string str(JNIEnv *env, jstring s)
 {
 	if (!s)
@@ -130,7 +150,8 @@ std::string str(JNIEnv *env, jstring s)
 jint native_start(JNIEnv *env, jclass, jstring user, jstring password,
 		  jstring domain, jint sip_port, jboolean listen, jboolean t38,
 		  jstring dns, jstring country, jstring data_file,
-		  jint log_level, jint sip_log_level)
+		  jint log_level, jint sip_log_level, jboolean peer,
+		  jint peer_lead_ms)
 {
 	Config cfg;
 
@@ -145,12 +166,20 @@ jint native_start(JNIEnv *env, jclass, jstring user, jstring password,
 	cfg.data_file = str(env, data_file);
 	cfg.log_level = log_level;
 	cfg.sip_log_level = sip_log_level;
-	return Engine::instance().start(cfg, status_changed, exited);
+	cfg.peer = peer;
+	cfg.peer_lead_ms = peer_lead_ms;
+	return Engine::instance().start(cfg, status_changed, exited,
+					line_started);
 }
 
 void native_stop(JNIEnv *, jclass)
 {
 	Engine::instance().stop();
+}
+
+void native_peer_event(JNIEnv *env, jclass, jstring line)
+{
+	Engine::instance().peer_event(str(env, line).c_str());
 }
 
 jboolean native_running(JNIEnv *, jclass)
@@ -161,10 +190,12 @@ jboolean native_running(JNIEnv *, jclass)
 const JNINativeMethod methods[] = {
 	{ "nativeStart", "(Ljava/lang/String;Ljava/lang/String;"
 	  "Ljava/lang/String;IZZLjava/lang/String;Ljava/lang/String;"
-	  "Ljava/lang/String;II)I",
+	  "Ljava/lang/String;IIZI)I",
 	  reinterpret_cast<void *>(native_start) },
 	{ "nativeStop", "()V", reinterpret_cast<void *>(native_stop) },
 	{ "nativeRunning", "()Z", reinterpret_cast<void *>(native_running) },
+	{ "nativePeerEvent", "(Ljava/lang/String;)V",
+	  reinterpret_cast<void *>(native_peer_event) },
 };
 
 } // namespace
@@ -186,7 +217,9 @@ extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *jvm, void *)
 	on_log = env->GetStaticMethodID(cls, "onLog", "(Ljava/lang/String;)V");
 	on_status = env->GetStaticMethodID(cls, "onStatus", "(IZII)V");
 	on_exit = env->GetStaticMethodID(cls, "onExit", "(I)V");
-	if (!on_log || !on_status || !on_exit)
+	on_line = env->GetStaticMethodID(cls, "onLine",
+					 "(ZLjava/lang/String;I)V");
+	if (!on_log || !on_status || !on_exit || !on_line)
 		return JNI_ERR;
 	if (env->RegisterNatives(cls, methods,
 				 sizeof(methods) / sizeof(methods[0])) < 0)

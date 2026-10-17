@@ -14,6 +14,10 @@ import android.os.ParcelFileDescriptor
  * received data come from it. Closing it ends the call and stops the
  * modem.
  *
+ * Or on a line to another phone ([Config.peer]): off hook, the modem
+ * hands its line to the listener ([Listener.onLine]), whose events go
+ * back with [peerEvent].
+ *
  * The listener's calls come on the modem's and SIP's own threads.
  */
 object NativeModem {
@@ -50,6 +54,10 @@ object NativeModem {
         val logLevel: Int = 0,
         /** SIP's log level (0 none, 1 errors .. 4 the SIP messages) */
         val sipLogLevel: Int = 1,
+        /** the line another phone's modem through the app (the SIP account unused) */
+        val peer: Boolean = false,
+        /** a peer line's silence ahead of our samples (ms): their room on the way */
+        val peerLeadMs: Int = 100,
     )
 
     interface Listener {
@@ -57,6 +65,8 @@ object NativeModem {
         fun onStatus(status: Status) {}
         /** The modem stopped: 0 by [stop] or the DTE closed, -1 on an error. */
         fun onExit(result: Int) {}
+        /** A peer line's modem off hook: dialling (caller) [dial], or answering; [line] its samples (ours to close). */
+        fun onLine(caller: Boolean, dial: String, line: ParcelFileDescriptor) { line.close() }
     }
 
     @Volatile
@@ -72,6 +82,7 @@ object NativeModem {
             config.user, config.password, config.domain, config.sipPort,
             config.listen, config.t38, config.dns.joinToString(","),
             config.country, config.dataFile, config.logLevel, config.sipLogLevel,
+            config.peer, config.peerLeadMs,
         )
         return if (fd >= 0) ParcelFileDescriptor.adoptFd(fd) else null
     }
@@ -81,12 +92,19 @@ object NativeModem {
 
     val running: Boolean get() = nativeRunning()
 
+    /** A peer line's event to the modem: RING, CANCEL, ANSWERED, FAILED <SIP status>, DROPPED. */
+    fun peerEvent(line: String) = nativePeerEvent(line)
+
     @JvmStatic
     private external fun nativeStart(
         user: String, password: String, domain: String, sipPort: Int,
         listen: Boolean, t38: Boolean, dns: String, country: String,
         dataFile: String, logLevel: Int, sipLogLevel: Int,
+        peer: Boolean, peerLeadMs: Int,
     ): Int
+
+    @JvmStatic
+    private external fun nativePeerEvent(line: String)
 
     @JvmStatic
     private external fun nativeStop()
@@ -105,6 +123,13 @@ object NativeModem {
     private fun onStatus(link: Int, offhook: Boolean, txRate: Int, rxRate: Int) {
         val l = Link.entries.getOrElse(link) { Link.IDLE }
         listener?.onStatus(Status(l, offhook, txRate, rxRate))
+    }
+
+    @JvmStatic
+    private fun onLine(caller: Boolean, dial: String, fd: Int) {
+        val pfd = ParcelFileDescriptor.adoptFd(fd)
+        val l = listener
+        if (l == null) pfd.close() else l.onLine(caller, dial, pfd)
     }
 
     @JvmStatic

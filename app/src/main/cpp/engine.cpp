@@ -21,6 +21,7 @@
 #include <sip_modem.h>
 
 #include "engine.h"
+#include "peer_modem.h"
 
 namespace dmodem_android {
 
@@ -72,7 +73,8 @@ void Engine::set_log(LogFn fn)
 }
 
 /* see engine.h: a socket pair, ours to the modem's thread */
-int Engine::start(const Config &cfg, StatusFn status, ExitFn done)
+int Engine::start(const Config &cfg, StatusFn status, ExitFn done,
+		  LineFn line)
 {
 	std::lock_guard<std::mutex> lk(mu_);
 	int sv[2];
@@ -89,7 +91,8 @@ int Engine::start(const Config &cfg, StatusFn status, ExitFn done)
 	stopping_ = false;
 	try {
 		thread_ = std::thread(&Engine::run, this, cfg, sv[0],
-				      std::move(status), std::move(done));
+				      std::move(status), std::move(done),
+				      std::move(line));
 	} catch (...) {
 		active_ = false;
 		close(sv[0]);
@@ -109,9 +112,19 @@ void Engine::stop()
 	stopping_ = true;
 	if (modem_)
 		modem_->stop();
+	if (peer_)
+		peer_->stop();
 	std::thread t = std::move(thread_);
 	lk.unlock();
 	t.join();
+}
+
+/* see engine.h */
+void Engine::peer_event(const char *line)
+{
+	std::lock_guard<std::mutex> lk(mu_);
+	if (peer_)
+		peer_->event(line);
 }
 
 /* see engine.h */
@@ -124,7 +137,8 @@ bool Engine::running()
 /* the modem's thread: the modem on dte (ours, closed at the end) with
    its data file, the SIP user agent started with cfg, until stop() or
    the app's end of dte closed */
-void Engine::run(Config cfg, int dte_fd, StatusFn status, ExitFn done)
+void Engine::run(Config cfg, int dte_fd, StatusFn status, ExitFn done,
+		 LineFn line_fn)
 {
 	dcore::Options mo;
 	sip::Config sc;
@@ -150,40 +164,61 @@ void Engine::run(Config cfg, int dte_fd, StatusFn status, ExitFn done)
 	sc.dns = cfg.dns.empty() ? nullptr : cfg.dns.c_str();
 	sc.log_level = cfg.sip_log_level;
 
+	/* the status, as the engine's */
+	auto report = [&status](const dmd::SipModem::Status &s) {
+		Status st;
+		st.link = link_of(s.link);
+		st.offhook = s.offhook;
+		st.tx_rate = s.tx_rate;
+		st.rx_rate = s.rx_rate;
+		status(st);
+	};
+	/* the modem's data file loaded, the modem run, the file saved */
+	auto serve = [&](dcore::Modem &m, auto &&run_it) {
+		std::unique_ptr<dmd::DataFile> data;
+		if (!cfg.data_file.empty()) {
+			data.reset(new dmd::DataFile(cfg.data_file.c_str()));
+			data->load(&m.dsp_info());
+		}
+		ret = run_it();
+		if (data)
+			data->save(&m.dsp_info());
+	};
+
 	{
 		dmd::FdDte dte(dte_fd);
-		dmd::SipModem sm(dte, mo);
-		std::unique_ptr<dmd::DataFile> data;
 
-		if (sm.ok()) {
-			if (!cfg.data_file.empty()) {
-				data.reset(new dmd::DataFile(
-					cfg.data_file.c_str()));
-				data->load(&sm.modem().dsp_info());
-			}
-			if (status)
-				sm.on_status([&status](const dmd::SipModem::
-						       Status &s) {
-					Status st;
-					st.link = link_of(s.link);
-					st.offhook = s.offhook;
-					st.tx_rate = s.tx_rate;
-					st.rx_rate = s.rx_rate;
-					status(st);
-				});
-			{
+		if (cfg.peer) {
+			PeerModem pm(dte, mo, cfg.peer_lead_ms);
+			if (pm.ok()) {
+				if (status)
+					pm.on_status(report);
+				pm.on_line(std::move(line_fn));
+				{
+					std::lock_guard<std::mutex> lk(mu_);
+					peer_ = &pm;
+					if (stopping_)
+						pm.stop();
+				}
+				serve(pm.modem(), [&pm] { return pm.run(); });
 				std::lock_guard<std::mutex> lk(mu_);
-				modem_ = &sm;
-				if (stopping_)
-					sm.stop();
+				peer_ = nullptr;
 			}
-			ret = sm.run(sc);
-			{
+		} else {
+			dmd::SipModem sm(dte, mo);
+			if (sm.ok()) {
+				if (status)
+					sm.on_status(report);
+				{
+					std::lock_guard<std::mutex> lk(mu_);
+					modem_ = &sm;
+					if (stopping_)
+						sm.stop();
+				}
+				serve(sm.modem(), [&sm, &sc] { return sm.run(sc); });
 				std::lock_guard<std::mutex> lk(mu_);
 				modem_ = nullptr;
 			}
-			if (data)
-				data->save(&sm.modem().dsp_info());
 		}
 	}
 	prop_dp_exit();

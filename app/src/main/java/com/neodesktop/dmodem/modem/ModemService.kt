@@ -148,6 +148,10 @@ class ModemService : Service() {
             fail("no SIP account: set one in the settings")
             return
         }
+        if (settings.line == ModemSettings.LINE_BLUETOOTH && !com.neodesktop.dmodem.bridge.BluetoothBridge.hasPermission(this)) {
+            fail("the line is Bluetooth, which isn't allowed: allow it in the settings")
+            return
+        }
         ModemState.setError(null)
         ModemState.setRun(ModemState.Run.STARTING)
         if (!startNative()) {
@@ -155,7 +159,8 @@ class ModemService : Service() {
             return
         }
         acquireLocks()
-        watchNetwork()
+        // (a line to another phone doesn't care which network: nothing to start again for)
+        if (!settings.peer) watchNetwork()
         ModemState.setRun(ModemState.Run.RUNNING)
     }
 
@@ -164,11 +169,11 @@ class ModemService : Service() {
         val cm = getSystemService(ConnectivityManager::class.java)
         val net = cm.activeNetwork
         val lp = net?.let { cm.getLinkProperties(it) }
-        if (lp == null) {
+        if (lp == null && !settings.peer) {
             ModemState.setError("no network")
             return false
         }
-        netKey = keyOf(net, lp)
+        netKey = if (net != null && lp != null) keyOf(net, lp) else null
         NativeModem.listener = nativeListener
         stopping = false
         val config = NativeModem.Config(
@@ -178,12 +183,15 @@ class ModemService : Service() {
             sipPort = settings.sipPort,
             listen = settings.listen,
             t38 = settings.t38,
-            dns = lp.dnsServers.filter { !(it is Inet6Address && it.isLinkLocalAddress) }
+            dns = lp?.dnsServers.orEmpty().filter { !(it is Inet6Address && it.isLinkLocalAddress) }
                 .mapNotNull { it.hostAddress },
             country = settings.country,
             dataFile = File(filesDir, DATA_FILE).path,
             logLevel = settings.logLevel,
             sipLogLevel = settings.sipLogLevel,
+            peer = settings.peer,
+            // (Bluetooth's way is slower: more room for the samples on it)
+            peerLeadMs = if (settings.line == ModemSettings.LINE_BLUETOOTH) 200 else 100,
         )
         val pfd = NativeModem.start(config)
         if (pfd == null) {
@@ -192,6 +200,7 @@ class ModemService : Service() {
         }
         ModemState.dte.attach(pfd)
         ModemState.setStatus(ModemState.IDLE)
+        if (settings.peer) com.neodesktop.dmodem.peer.Peers.start(this, settings, ::log)
         if (settings.initCommands.isNotBlank()) {
             ModemState.dte.write(settings.initCommands.trim() + "\r")
         }
@@ -201,6 +210,7 @@ class ModemService : Service() {
     /** the native modem stopped: the call hung up, SIP gone, the DTE's socket closed */
     private fun stopNative() {
         stopping = true
+        com.neodesktop.dmodem.peer.Peers.stop()
         NativeModem.stop()
         ModemState.dte.detach()
         ModemState.setStatus(ModemState.IDLE)
@@ -246,6 +256,10 @@ class ModemService : Service() {
 
         override fun onStatus(status: NativeModem.Status) {
             ModemState.setStatus(status)
+        }
+
+        override fun onLine(caller: Boolean, dial: String, line: android.os.ParcelFileDescriptor) {
+            com.neodesktop.dmodem.peer.Peers.lineStarted(caller, dial, line)
         }
 
         override fun onExit(result: Int) {
@@ -339,7 +353,11 @@ class ModemService : Service() {
             s.link == NativeModem.Link.CONNECTING -> "Connecting…"
             s.link == NativeModem.Link.HANGING_UP -> "Hanging up…"
             s.offhook -> "Off hook"
-            else -> "Ready" + if (settings.listen) ", taking calls" else ""
+            else -> "Ready" + (if (settings.listen) ", taking calls" else "") + when (settings.line) {
+                ModemSettings.LINE_WIFI -> " (line: another phone on Wi-Fi)"
+                ModemSettings.LINE_BLUETOOTH -> " (line: another phone on Bluetooth)"
+                else -> ""
+            }
         }
         val open = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java),

@@ -33,11 +33,26 @@ data class ModemSettings(
     /** the modem's log level (0 errors .. 5), SIP's (0 none .. 4 the SIP messages) */
     val logLevel: Int = 0,
     val sipLogLevel: Int = 1,
+    /** the modem's line: a SIP account, or another phone with the app over Wi-Fi or Bluetooth */
+    val line: String = LINE_SIP,
+    /** the other phone to call: host[:port] on Wi-Fi, a paired phone's address on Bluetooth */
+    val peerAddress: String = "",
+    /** the paired phone's name, to show */
+    val peerName: String = "",
+    /** the TCP port phones call each other on */
+    val peerPort: Int = 5070,
 ) {
-    /** Enough to start: an account. */
-    val complete: Boolean get() = user.isNotBlank() && domain.isNotBlank()
+    /** the line is another phone, not SIP */
+    val peer: Boolean get() = line != LINE_SIP
+
+    /** Enough to start: an account (or the line another phone's). */
+    val complete: Boolean get() = peer || (user.isNotBlank() && domain.isNotBlank())
 
     companion object {
+        const val LINE_SIP = "sip"
+        const val LINE_WIFI = "wifi"
+        const val LINE_BLUETOOTH = "bluetooth"
+
         /**
          * An account as `user:password@host[:port]` (dmodemd's SIP_LOGIN): null if it isn't one.
          * The password may have an @: the domain is after the last.
@@ -70,6 +85,10 @@ class SettingsStore(private val context: Context) {
         val initCommands = stringPreferencesKey("init_commands")
         val logLevel = intPreferencesKey("log_level")
         val sipLogLevel = intPreferencesKey("sip_log_level")
+        val line = stringPreferencesKey("line")
+        val peerAddress = stringPreferencesKey("peer_address")
+        val peerName = stringPreferencesKey("peer_name")
+        val peerPort = intPreferencesKey("peer_port")
     }
 
     val settings: Flow<ModemSettings> = context.dataStore.data.map { p ->
@@ -85,6 +104,10 @@ class SettingsStore(private val context: Context) {
             initCommands = p[Keys.initCommands] ?: d.initCommands,
             logLevel = p[Keys.logLevel] ?: d.logLevel,
             sipLogLevel = p[Keys.sipLogLevel] ?: d.sipLogLevel,
+            line = p[Keys.line] ?: d.line,
+            peerAddress = p[Keys.peerAddress] ?: d.peerAddress,
+            peerName = p[Keys.peerName] ?: d.peerName,
+            peerPort = p[Keys.peerPort] ?: d.peerPort,
         )
     }
 
@@ -102,6 +125,10 @@ class SettingsStore(private val context: Context) {
             p[Keys.initCommands] = s.initCommands.trim()
             p[Keys.logLevel] = s.logLevel
             p[Keys.sipLogLevel] = s.sipLogLevel
+            p[Keys.line] = s.line
+            p[Keys.peerAddress] = s.peerAddress.trim()
+            p[Keys.peerName] = s.peerName
+            p[Keys.peerPort] = s.peerPort
         }
     }
 }
