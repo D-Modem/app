@@ -52,7 +52,8 @@ class PeerLineTest {
         init {
             val bin = peerHost()
             assumeTrue("peer_host isn't built (native-test)", bin != null)
-            proc = ProcessBuilder(bin!!.path, leadMs.toString()).redirectError(File("/tmp/peer_host_$name.log")).start()
+            proc = ProcessBuilder(bin!!.path, leadMs.toString()).redirectError(File("/tmp/peer_host_$name.log"))
+                .apply { environment()["PEER_SPEAKER"] = "/tmp/peer_speaker_$name.raw" }.start()
             closers.add { proc.destroyForcibly() }
             Thread {
                 proc.inputStream.bufferedReader().forEachLine { l -> out.add(l) }
@@ -155,6 +156,11 @@ class PeerLineTest {
         assertTrue(a.line.state.value is PeerLine.State.Connected)
         assertTrue(b.line.state.value is PeerLine.State.Connected)
         assertTrue(a.events.contains("ANSWERED"))
+        // the caller's speaker (ATM1): on from the dial to CONNECT, the dial tone, ringback and training heard
+        val spk = a.statuses.filter { it.startsWith("SPEAKER") }
+        assertTrue(spk.toString(), spk.first().startsWith("SPEAKER 3"))
+        assertTrue(spk.toString(), spk.last().startsWith("SPEAKER 0"))
+        assertTrue(spk.toString(), spk.last().split(' ')[2].toLong() > 3 * 8000)
         // data both ways
         a.send("hello from A\r\n")
         b.expect("hello from A")

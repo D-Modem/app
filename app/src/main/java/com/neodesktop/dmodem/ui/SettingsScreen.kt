@@ -89,6 +89,12 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
         }
 
         Text("Modem", style = MaterialTheme.typography.titleMedium)
+        Toggle("Speaker: hear the dialling and the handshake", s.speaker) { s = s.copy(speaker = it) }
+        Text(
+            "As a modem's speaker: on from off hook until CONNECT (ATM1). ATM0 keeps it quiet, ATM2 on all the call; " +
+                "ATL1-3 its volume, on top of the phone's media volume.",
+            style = MaterialTheme.typography.bodySmall,
+        )
         Field("Init commands (sent at start)", s.initCommands) { s = s.copy(initCommands = it) }
         Field("Country (empty: USA)", s.country) { s = s.copy(country = it) }
         NumberField("Modem log level (0-5)", s.logLevel) { s = s.copy(logLevel = it.coerceIn(0, 5)) }

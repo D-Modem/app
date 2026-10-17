@@ -11,6 +11,7 @@
  */
 
 #include <jni.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 #include <string>
@@ -27,7 +28,9 @@ const char CLASS[] = "com/neodesktop/dmodem/NativeModem";
 
 JavaVM *vm;
 jclass cls;
-jmethodID on_log, on_status, on_exit, on_line;
+jmethodID on_log, on_status, on_exit, on_line, on_speaker;
+/* the speaker's sound: written to [0] (dropped when full), Kotlin reads [1] */
+int speaker_fd[2] = { -1, -1 };
 
 /* this thread's JNIEnv, the thread attached if it wasn't (detached
    again when it ends) */
@@ -135,6 +138,25 @@ void line_started(bool caller, const char *dial, int fd)
 	env->DeleteLocalRef(d);
 }
 
+void speaker_level(int level)
+{
+	JNIEnv *env = env_now();
+	if (!env)
+		return;
+	env->CallStaticVoidMethod(cls, on_speaker, (jint)level);
+	clear(env);
+}
+
+/* the sound to Kotlin's player, never waiting (the modem's thread) */
+void speaker_sound(const int16_t *pcm, int n)
+{
+	if (speaker_fd[0] >= 0 &&
+	    send(speaker_fd[0], pcm, 2 * (size_t)n,
+		 MSG_DONTWAIT | MSG_NOSIGNAL) < 0) {
+		/* (the player behind: this block dropped) */
+	}
+}
+
 std::string str(JNIEnv *env, jstring s)
 {
 	if (!s)
@@ -182,6 +204,15 @@ void native_peer_event(JNIEnv *env, jclass, jstring line)
 	Engine::instance().peer_event(str(env, line).c_str());
 }
 
+/* NativeModem.nativeSpeakerFd(): the speaker sound's end for Kotlin
+   (one for the process: -1 after the first) */
+jint native_speaker_fd(JNIEnv *, jclass)
+{
+	int fd = speaker_fd[1];
+	speaker_fd[1] = -1;
+	return fd;
+}
+
 jboolean native_running(JNIEnv *, jclass)
 {
 	return Engine::instance().running();
@@ -194,6 +225,7 @@ const JNINativeMethod methods[] = {
 	  reinterpret_cast<void *>(native_start) },
 	{ "nativeStop", "()V", reinterpret_cast<void *>(native_stop) },
 	{ "nativeRunning", "()Z", reinterpret_cast<void *>(native_running) },
+	{ "nativeSpeakerFd", "()I", reinterpret_cast<void *>(native_speaker_fd) },
 	{ "nativePeerEvent", "(Ljava/lang/String;)V",
 	  reinterpret_cast<void *>(native_peer_event) },
 };
@@ -219,11 +251,19 @@ extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *jvm, void *)
 	on_exit = env->GetStaticMethodID(cls, "onExit", "(I)V");
 	on_line = env->GetStaticMethodID(cls, "onLine",
 					 "(ZLjava/lang/String;I)V");
-	if (!on_log || !on_status || !on_exit || !on_line)
+	on_speaker = env->GetStaticMethodID(cls, "onSpeaker", "(I)V");
+	if (!on_log || !on_status || !on_exit || !on_line || !on_speaker)
 		return JNI_ERR;
 	if (env->RegisterNatives(cls, methods,
 				 sizeof(methods) / sizeof(methods[0])) < 0)
 		return JNI_ERR;
 	Engine::instance().set_log(log_line);
+	if (socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, speaker_fd) == 0) {
+		/* (a second's room: the player keeps up, or blocks go) */
+		int size = 32 * 1024;
+		setsockopt(speaker_fd[0], SOL_SOCKET, SO_SNDBUF, &size,
+			   sizeof(size));
+	}
+	Engine::instance().set_speaker(speaker_level, speaker_sound);
 	return JNI_VERSION_1_6;
 }

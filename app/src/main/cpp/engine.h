@@ -16,6 +16,8 @@
 #ifndef DMODEM_ANDROID_ENGINE_H
 #define DMODEM_ANDROID_ENGINE_H
 
+#include <stdint.h>
+
 #include <functional>
 #include <mutex>
 #include <string>
@@ -80,6 +82,14 @@ public:
 	   fn; NULL: stderr.  Before start() */
 	void set_log(LogFn fn);
 
+	/* the modem's speaker (ATM, ATL), from its thread: level(0 off,
+	   1..3) as it changes, and while it is on the line's sound in
+	   blocks (what came, with the modem's own at half its level, as a
+	   modem's speaker has the line).  Before start() */
+	using SpeakerFn = std::function<void(int level)>;
+	using SoundFn = std::function<void(const int16_t *pcm, int n)>;
+	void set_speaker(SpeakerFn level, SoundFn sound);
+
 	/* the modem started in its thread with cfg: the app's end of the
 	   DTE's socket pair (the caller's to close), or -1 if it is
 	   running already or can't be started.  status and done are
@@ -104,6 +114,8 @@ private:
 	std::thread thread_;
 	dmd::SipModem *modem_ = nullptr;        /* while run() has one */
 	PeerModem *peer_ = nullptr;             /* or this one */
+	SpeakerFn speaker_;
+	SoundFn sound_;
 	bool active_ = false;                   /* run() hasn't ended */
 	bool stopping_ = false;
 };

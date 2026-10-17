@@ -15,6 +15,7 @@
  *                              answering): the line's samples on a
  *                              connection to 127.0.0.1:<port>
  *      STATUS <link> <offhook> <tx> <rx>
+ *      SPEAKER <level> <samples heard so far>
  *      EXIT <result>
  *    On stdin, the app's lines to the modem (RING, CANCEL, ANSWERED,
  *    FAILED <code>, DROPPED).  The log on stderr.
@@ -137,6 +138,22 @@ int main(int argc, char *argv[])
 	cfg.peer = true;
 	cfg.peer_lead_ms = argc > 1 ? atoi(argv[1]) : 100;
 	cfg.log_level = getenv("PEER_LOG") ? atoi(getenv("PEER_LOG")) : 1;
+	/* the speaker: its level, the samples heard; PEER_SPEAKER=<file>:
+	   the sound too, raw */
+	static FILE *sound = getenv("PEER_SPEAKER") ?
+		fopen(getenv("PEER_SPEAKER"), "wb") : nullptr;
+	static long heard;
+	e.set_speaker(
+		[](int level) {
+			say("SPEAKER %d %ld\n", level, heard);
+		},
+		[](const int16_t *pcm, int n) {
+			heard += n;
+			if (sound) {
+				fwrite(pcm, 2, n, sound);
+				fflush(sound);
+			}
+		});
 	int dte = e.start(cfg,
 		[](const Status &s) {
 			say("STATUS %d %d %u %u\n", (int)s.link, s.offhook,

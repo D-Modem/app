@@ -67,6 +67,8 @@ object NativeModem {
         fun onExit(result: Int) {}
         /** A peer line's modem off hook: dialling (caller) [dial], or answering; [line] its samples (ours to close). */
         fun onLine(caller: Boolean, dial: String, line: ParcelFileDescriptor) { line.close() }
+        /** The modem's speaker (ATM, ATL): 0 off, 1..3 its volume. */
+        fun onSpeaker(level: Int) {}
     }
 
     @Volatile
@@ -92,6 +94,13 @@ object NativeModem {
 
     val running: Boolean get() = nativeRunning()
 
+    /**
+     * The modem speaker's sound while it is on (the line, 8000 Hz 16 bit
+     * mono, in blocks): its socket, for the process's one reader (null
+     * after the first call).
+     */
+    fun speakerSound(): ParcelFileDescriptor? = nativeSpeakerFd().takeIf { it >= 0 }?.let { ParcelFileDescriptor.adoptFd(it) }
+
     /** A peer line's event to the modem: RING, CANCEL, ANSWERED, FAILED <SIP status>, DROPPED. */
     fun peerEvent(line: String) = nativePeerEvent(line)
 
@@ -105,6 +114,9 @@ object NativeModem {
 
     @JvmStatic
     private external fun nativePeerEvent(line: String)
+
+    @JvmStatic
+    private external fun nativeSpeakerFd(): Int
 
     @JvmStatic
     private external fun nativeStop()
@@ -130,6 +142,11 @@ object NativeModem {
         val pfd = ParcelFileDescriptor.adoptFd(fd)
         val l = listener
         if (l == null) pfd.close() else l.onLine(caller, dial, pfd)
+    }
+
+    @JvmStatic
+    private fun onSpeaker(level: Int) {
+        listener?.onSpeaker(level)
     }
 
     @JvmStatic

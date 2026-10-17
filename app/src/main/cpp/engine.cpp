@@ -120,6 +120,14 @@ void Engine::stop()
 }
 
 /* see engine.h */
+void Engine::set_speaker(SpeakerFn level, SoundFn sound)
+{
+	std::lock_guard<std::mutex> lk(mu_);
+	speaker_ = std::move(level);
+	sound_ = std::move(sound);
+}
+
+/* see engine.h */
 void Engine::peer_event(const char *line)
 {
 	std::lock_guard<std::mutex> lk(mu_);
@@ -173,6 +181,32 @@ void Engine::run(Config cfg, int dte_fd, StatusFn status, ExitFn done,
 		st.rx_rate = s.rx_rate;
 		status(st);
 	};
+	/* the speaker: the line as the modem's speaker has it */
+	dmd::SipModem::Speaker spk;
+	{
+		std::lock_guard<std::mutex> lk(mu_);
+		spk.volume = speaker_;
+		if (sound_) {
+			SoundFn sound = sound_;
+			spk.audio = [sound](const int16_t *rx, const int16_t *tx,
+					    int n) {
+				int16_t mix[2048];
+				while (n > 0) {
+					int k = n < 2048 ? n : 2048;
+					for (int i = 0; i < k; i++) {
+						int v = rx[i] + tx[i] / 2;
+						mix[i] = (int16_t)(v > 32767 ? 32767 :
+							v < -32768 ? -32768 : v);
+					}
+					sound(mix, k);
+					rx += k;
+					tx += k;
+					n -= k;
+				}
+			};
+		}
+	}
+
 	/* the modem's data file loaded, the modem run, the file saved */
 	auto serve = [&](dcore::Modem &m, auto &&run_it) {
 		std::unique_ptr<dmd::DataFile> data;
@@ -194,6 +228,7 @@ void Engine::run(Config cfg, int dte_fd, StatusFn status, ExitFn done,
 				if (status)
 					pm.on_status(report);
 				pm.on_line(std::move(line_fn));
+				pm.on_speaker(spk);
 				{
 					std::lock_guard<std::mutex> lk(mu_);
 					peer_ = &pm;
@@ -209,6 +244,7 @@ void Engine::run(Config cfg, int dte_fd, StatusFn status, ExitFn done,
 			if (sm.ok()) {
 				if (status)
 					sm.on_status(report);
+				sm.on_speaker(spk);
 				{
 					std::lock_guard<std::mutex> lk(mu_);
 					modem_ = &sm;

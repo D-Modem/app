@@ -60,6 +60,10 @@ Status last;
 bool was_online;
 unsigned online_tx, online_rx;
 int exits, exit_result;
+/* the speaker: its level now, whether it came on, its samples */
+int spk_level;
+bool spk_was_on;
+long spk_samples;
 std::string logs;
 
 void on_engine_status(const Status &s)
@@ -194,20 +198,38 @@ Config config(bool listen)
 
 /* a call from the engine to dmodemd and back: CONNECT, data both ways,
    the status online, a hangup from the engine's side */
-void call_out(int app, int pty, const char *what)
+void call_out(int app, int pty, const char *what, bool speaker)
 {
 	std::string got;
+	long heard;
 
 	{
 		std::lock_guard<std::mutex> lk(mu);
 		was_online = false;
 	}
-	put(app, "ATX3\r");
+	{
+		std::lock_guard<std::mutex> lk(mu);
+		spk_was_on = false;
+		spk_samples = 0;
+	}
+	/* (ATM1, the modem's own: the speaker on until CONNECT; ATM0 off) */
+	put(app, speaker ? "ATX3M1\r" : "ATX3M0\r");
 	CHECK(expect(app, "OK", 5), "%s: ATX3 OK", what);
 	put(app, "ATD1234\r");
 	CHECK(expect(app, "CONNECT[^\r]*", 90, &got), "%s: the engine: %s",
 	      what, got.substr(got.find("CONNECT") == std::string::npos ? 0 :
 				got.find("CONNECT")).c_str());
+	{
+		std::lock_guard<std::mutex> lk(mu);
+		heard = spk_samples;
+		if (speaker)
+			CHECK(spk_was_on && spk_level == 0 && heard > 8000,
+			      "%s: the speaker on until CONNECT (%.1f s of the "
+			      "line heard), off then", what, heard / 8000.0);
+		else
+			CHECK(!spk_was_on && heard == 0,
+			      "%s: ATM0: the speaker stayed off", what);
+	}
 	CHECK(expect(pty, "CONNECT", 30), "%s: dmodemd: CONNECT", what);
 	std::this_thread::sleep_for(std::chrono::seconds(1));
 	std::string msg;
@@ -220,6 +242,11 @@ void call_out(int app, int pty, const char *what)
 	put(pty, "an answer from dmodemd");
 	CHECK(expect(app, "an answer from dmodemd", 20),
 	      "%s: dmodemd's data reached the app", what);
+	{
+		std::lock_guard<std::mutex> lk(mu);
+		CHECK(spk_samples == heard,
+		      "%s: nothing to the speaker in data mode", what);
+	}
 	{
 		std::lock_guard<std::mutex> lk(mu);
 		CHECK(was_online && online_tx && online_rx,
@@ -261,6 +288,18 @@ int main(int argc, char *argv[])
 			printf("   | %s", line);
 	});
 
+	e.set_speaker(
+		[](int level) {
+			std::lock_guard<std::mutex> lk(mu);
+			spk_level = level;
+			if (level > 0)
+				spk_was_on = true;
+		},
+		[](const int16_t *, int n) {
+			std::lock_guard<std::mutex> lk(mu);
+			spk_samples += n;
+		});
+
 	dm = start_dmodemd(argv[1], &pty);
 	CHECK(dm > 0 && pty >= 0, "dmodemd started");
 	if (dm <= 0)
@@ -274,7 +313,7 @@ int main(int argc, char *argv[])
 	CHECK(app >= 0 && e.running(), "the engine started");
 	CHECK(e.start(config(false), on_engine_status, on_engine_exit) < 0,
 	      "a second start() refused while it runs");
-	call_out(app, pty, "call 1");
+	call_out(app, pty, "call 1", true);
 	e.stop();
 	CHECK(wait_exits(1, 5) && exit_result == 0 && !e.running(),
 	      "stop(): the engine ended (%d)", exit_result);
@@ -283,7 +322,7 @@ int main(int argc, char *argv[])
 	/* 2: started again, out again */
 	app = e.start(config(false), on_engine_status, on_engine_exit);
 	CHECK(app >= 0, "the engine started again");
-	call_out(app, pty, "call 2");
+	call_out(app, pty, "call 2", false);
 	e.stop();
 	CHECK(wait_exits(2, 5) && exit_result == 0, "stop() again");
 	close(app);

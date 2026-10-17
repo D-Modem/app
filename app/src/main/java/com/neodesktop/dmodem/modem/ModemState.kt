@@ -32,6 +32,9 @@ object ModemState {
     /** The modem's DTE, shared by the console, the terminal and the bridges. */
     val dte = DteHub()
 
+    /** the modem's speaker on the phone's (ATM, ATL) */
+    val speaker = ModemSpeaker()
+
     /** The log's last lines (the modem's and SIP's). */
     val log = LineBuffer(MAX_LOG)
 

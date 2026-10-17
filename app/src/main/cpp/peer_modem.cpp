@@ -89,8 +89,15 @@ public:
 		return dte_.write(buf, n);
 	}
 	unsigned long now_ms() override { return dcore::monotonic_ms(); }
+	/* ATM, ATL */
+	void speaker(dcore::Modem &, int volume) override {
+		speaker_level_ = volume;
+		if (speaker_to.volume)
+			speaker_to.volume(volume);
+	}
 
 	PeerModem::LineFn line_fn;
+	dmd::SipModem::Speaker speaker_to;
 
 	int fd() const { return fd_; }
 	/* the ms until the line may take samples again (0: now) */
@@ -110,6 +117,7 @@ private:
 	dmd::Dte &dte_;
 	int lead_ms_;
 	int fd_ = -1;
+	int speaker_level_ = 0;
 	/* an odd octet of the line's, the next sample's first */
 	bool have_half_ = false;
 	unsigned char half_ = 0;
@@ -210,6 +218,8 @@ int PeerLine::audio(dcore::Modem &m)
 	}
 	samples_ += count;
 	m.process(in, out, count);
+	if (speaker_level_ > 0 && speaker_to.audio)
+		speaker_to.audio(in, out, count);
 	if (fd_ < 0)
 		return 0;       /* (it hung up on these) */
 	if (!send_all(fd_, out, 2 * (size_t)count)) {
@@ -254,6 +264,11 @@ bool PeerModem::ok() const
 void PeerModem::on_line(LineFn fn)
 {
 	line_->line_fn = std::move(fn);
+}
+
+void PeerModem::on_speaker(dmd::SipModem::Speaker s)
+{
+	line_->speaker_to = std::move(s);
 }
 
 /* see peer_modem.h */

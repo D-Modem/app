@@ -60,6 +60,8 @@ public:
 		status_fn_ = std::move(fn);
 	}
 	void on_line(LineFn fn);
+	/* the speaker, as SipModem's (sip_modem.h) */
+	void on_speaker(dmd::SipModem::Speaker s);
 
 	/* served until stop() or the DTE has gone: 0; -1 on an error */
 	int run();

@@ -41,6 +41,8 @@ data class ModemSettings(
     val peerName: String = "",
     /** the TCP port phones call each other on */
     val peerPort: Int = 5070,
+    /** the modem's speaker on the phone's: the dialling and the handshake heard (as ATM and ATL have it) */
+    val speaker: Boolean = true,
 ) {
     /** the line is another phone, not SIP */
     val peer: Boolean get() = line != LINE_SIP
@@ -89,6 +91,7 @@ class SettingsStore(private val context: Context) {
         val peerAddress = stringPreferencesKey("peer_address")
         val peerName = stringPreferencesKey("peer_name")
         val peerPort = intPreferencesKey("peer_port")
+        val speaker = booleanPreferencesKey("speaker")
     }
 
     val settings: Flow<ModemSettings> = context.dataStore.data.map { p ->
@@ -108,6 +111,7 @@ class SettingsStore(private val context: Context) {
             peerAddress = p[Keys.peerAddress] ?: d.peerAddress,
             peerName = p[Keys.peerName] ?: d.peerName,
             peerPort = p[Keys.peerPort] ?: d.peerPort,
+            speaker = p[Keys.speaker] ?: d.speaker,
         )
     }
 
@@ -129,6 +133,7 @@ class SettingsStore(private val context: Context) {
             p[Keys.peerAddress] = s.peerAddress.trim()
             p[Keys.peerName] = s.peerName
             p[Keys.peerPort] = s.peerPort
+            p[Keys.speaker] = s.speaker
         }
     }
 }

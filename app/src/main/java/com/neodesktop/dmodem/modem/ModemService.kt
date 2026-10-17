@@ -55,6 +55,8 @@ class ModemService : Service() {
         private const val ACTION_STOP = "com.neodesktop.dmodem.STOP"
         private const val NOTIFICATION_ID = 1
         private const val DATA_FILE = "dsp_data"
+        /** the speaker's sound socket, kept open for the process's life */
+        @Volatile private var speakerSocket: android.os.ParcelFileDescriptor? = null
 
         fun start(context: Context) {
             context.startForegroundService(
@@ -200,6 +202,12 @@ class ModemService : Service() {
         }
         ModemState.dte.attach(pfd)
         ModemState.setStatus(ModemState.IDLE)
+        ModemState.speaker.enabled = settings.speaker
+        // (the speaker's sound: one socket for the process, read for good once started)
+        NativeModem.speakerSound()?.let { s ->
+            speakerSocket = s
+            ModemState.speaker.start(java.io.FileInputStream(s.fileDescriptor))
+        }
         if (settings.peer) com.neodesktop.dmodem.peer.Peers.start(this, settings, ::log)
         if (settings.initCommands.isNotBlank()) {
             ModemState.dte.write(settings.initCommands.trim() + "\r")
@@ -210,6 +218,7 @@ class ModemService : Service() {
     /** the native modem stopped: the call hung up, SIP gone, the DTE's socket closed */
     private fun stopNative() {
         stopping = true
+        ModemState.speaker.setLevel(0)
         com.neodesktop.dmodem.peer.Peers.stop()
         NativeModem.stop()
         ModemState.dte.detach()
@@ -256,6 +265,10 @@ class ModemService : Service() {
 
         override fun onStatus(status: NativeModem.Status) {
             ModemState.setStatus(status)
+        }
+
+        override fun onSpeaker(level: Int) {
+            ModemState.speaker.setLevel(level)
         }
 
         override fun onLine(caller: Boolean, dial: String, line: android.os.ParcelFileDescriptor) {
