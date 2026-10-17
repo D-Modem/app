@@ -2,7 +2,8 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.ppp
 
-import java.io.ByteArrayOutputStream
+import com.neodesktop.dmodem.io.*
+
 
 /**
  * PPP in HDLC-like framing on an asynchronous line (RFC 1662): frames
@@ -31,7 +32,7 @@ object Hdlc {
     /** [frame] (address, control, protocol, information) framed: escaped as [accm] has it, its FCS after */
     fun encode(frame: ByteArray, accm: Int): ByteArray {
         val f = fcs(frame) xor 0xffff
-        val o = ByteArrayOutputStream(frame.size + frame.size / 4 + 8)
+        val o = Bytes(frame.size + frame.size / 4 + 8)
         o.write(FLAG)
         fun put(b: Int) {
             if (b == FLAG || b == ESC || (b < 0x20 && (accm ushr b) and 1 != 0)) {
@@ -50,7 +51,7 @@ object Hdlc {
 
     /** octets from the line into frames: each good one (its FCS checked and off) to [onFrame], bad ones counted */
     class Decoder(private val onFrame: (ByteArray) -> Unit) {
-        private val buf = ByteArrayOutputStream(1600)
+        private val buf = Bytes(1600)
         private var esc = false
         var bad = 0
             private set
@@ -60,10 +61,10 @@ object Hdlc {
                 val c = data[i].toInt() and 0xff
                 when {
                     c == FLAG -> {
-                        if (buf.size() >= 4 && !esc) {
+                        if (buf.size >= 4 && !esc) {
                             val f = buf.toByteArray()
                             if (fcs(f) == GOOD_FCS) onFrame(f.copyOf(f.size - 2)) else bad++
-                        } else if (buf.size() > 0) {
+                        } else if (buf.size > 0) {
                             bad++
                         }
                         buf.reset()
@@ -73,7 +74,7 @@ object Hdlc {
                     else -> {
                         buf.write(if (esc) c xor 0x20 else c)
                         esc = false
-                        if (buf.size() > 4000) { buf.reset(); bad++ }
+                        if (buf.size > 4000) { buf.reset(); bad++ }
                     }
                 }
             }

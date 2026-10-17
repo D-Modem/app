@@ -2,6 +2,8 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.ppp
 
+import com.neodesktop.dmodem.io.*
+
 /** IPv4 and UDP packets, as far as the link's checks need them. */
 object Ip {
     fun checksum(b: ByteArray, off: Int, len: Int, start: Long = 0): Int {
@@ -22,8 +24,8 @@ object Ip {
         p[4] = (id ushr 8).toByte(); p[5] = id.toByte()
         p[8] = 64
         p[9] = 17
-        System.arraycopy(src, 0, p, 12, 4)
-        System.arraycopy(dst, 0, p, 16, 4)
+        src.copyInto(p, 12, 0, 4)
+        dst.copyInto(p, 16, 0, 4)
         val h = checksum(p, 0, 20)
         p[10] = (h ushr 8).toByte(); p[11] = h.toByte()
         val u = 20
@@ -31,7 +33,7 @@ object Ip {
         p[u + 2] = (dport ushr 8).toByte(); p[u + 3] = dport.toByte()
         val ul = 8 + payload.size
         p[u + 4] = (ul ushr 8).toByte(); p[u + 5] = ul.toByte()
-        System.arraycopy(payload, 0, p, u + 8, payload.size)
+        payload.copyInto(p, u + 8, 0, payload.size)
         // (the pseudo header's sum: the addresses, the protocol, the length)
         var pseudo = 17L + ul
         for (k in 0 until 4 step 2) {
@@ -79,11 +81,11 @@ object Ip {
         p[6] = 0x40 // don't fragment
         p[8] = ttl.toByte()
         p[9] = proto.toByte()
-        System.arraycopy(src, 0, p, 12, 4)
-        System.arraycopy(dst, 0, p, 16, 4)
+        src.copyInto(p, 12, 0, 4)
+        dst.copyInto(p, 16, 0, 4)
         val h = checksum(p, 0, 20)
         p[10] = (h ushr 8).toByte(); p[11] = h.toByte()
-        System.arraycopy(body, 0, p, 20, body.size)
+        body.copyInto(p, 20, 0, body.size)
         return p
     }
 
@@ -102,8 +104,8 @@ object Ip {
         t[12] = ((hl / 4) shl 4).toByte()
         t[13] = flags.toByte()
         t[14] = (window ushr 8).toByte(); t[15] = window.toByte()
-        System.arraycopy(opt, 0, t, 20, opt.size)
-        System.arraycopy(payload, 0, t, hl, payload.size)
+        opt.copyInto(t, 20, 0, opt.size)
+        payload.copyInto(t, hl, 0, payload.size)
         val c = checksum(t, 0, t.size, pseudo(src, dst, TCP, t.size))
         t[16] = (c ushr 8).toByte(); t[17] = c.toByte()
         return ipv4(src, dst, TCP, t)
@@ -113,7 +115,7 @@ object Ip {
     fun icmp(src: ByteArray, dst: ByteArray, type: Int, code: Int, rest: ByteArray): ByteArray {
         val m = ByteArray(4 + rest.size)
         m[0] = type.toByte(); m[1] = code.toByte()
-        System.arraycopy(rest, 0, m, 4, rest.size)
+        rest.copyInto(m, 4, 0, rest.size)
         val c = checksum(m, 0, m.size)
         m[2] = (c ushr 8).toByte(); m[3] = c.toByte()
         return ipv4(src, dst, ICMP, m)

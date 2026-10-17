@@ -2,8 +2,9 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.ppp
 
+import com.neodesktop.dmodem.io.*
+
 import com.neodesktop.dmodem.transfer.TransferIo
-import java.io.IOException
 
 /**
  * A dial-up login script, as chat(8) has them, run on the call before
@@ -129,13 +130,13 @@ class ChatScript(private val script: String, private val user: String, private v
         log("send \"" + (if (tok.contains("\\P")) "(the password)" else text.replace("\r", "\\r")) + "\"")
         val sb = StringBuilder()
         fun flush() {
-            if (sb.isNotEmpty()) io.write(sb.toString().toByteArray(Charsets.ISO_8859_1))
+            if (sb.isNotEmpty()) io.write(sb.toString().let { t -> ByteArray(t.length) { t[it].code.toByte() } })
             sb.setLength(0)
         }
         for (c in text) {
             when (c) {
-                WAIT_SECOND -> { flush(); Thread.sleep(1000) }
-                WAIT_QUARTER -> { flush(); Thread.sleep(250) }
+                WAIT_SECOND -> { flush(); sleepMs(1000) }
+                WAIT_QUARTER -> { flush(); sleepMs(250) }
                 else -> sb.append(c)
             }
         }
@@ -145,17 +146,17 @@ class ChatScript(private val script: String, private val user: String, private v
 
     /** octets read until [want] comes (true), an ABORT string (an exception), or the time is up (false) */
     private fun expect(io: TransferIo, want: String, aborts: List<String>, timeoutMs: Long): Boolean {
-        val end = System.currentTimeMillis() + timeoutMs
+        val end = monotonicMs() + timeoutMs
         val seen = StringBuilder()
         while (true) {
-            val left = end - System.currentTimeMillis()
+            val left = end - monotonicMs()
             if (left <= 0) return false
             val c = io.read(left)
             if (c < 0) return false
             seen.append(c.toChar())
             if (seen.endsWith(want)) return true
             aborts.firstOrNull { seen.endsWith(it) }?.let { throw IOException("the login script stopped at \"${it.trim()}\"") }
-            if (seen.length > 4096) seen.delete(0, 2048)
+            if (seen.length > 4096) seen.deleteRange(0, 2048)
         }
     }
 

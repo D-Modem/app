@@ -2,14 +2,12 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.ppp
 
-import java.io.ByteArrayOutputStream
-import java.net.Inet4Address
-import java.net.InetAddress
-import java.security.MessageDigest
-import java.util.concurrent.Executors
-import java.util.concurrent.ScheduledFuture
-import java.util.concurrent.TimeUnit
+import com.neodesktop.dmodem.io.*
+
 import kotlin.random.Random
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
+import kotlinx.coroutines.Job
 
 /**
  * A PPP client (RFC 1661) on a dial-up line, as a PC's dialer was: LCP
@@ -31,10 +29,10 @@ class Ppp(
     private val server: Server? = null,
 ) {
     /** what a server gives the peer */
-    data class Server(val local: Inet4Address, val peer: Inet4Address, val dns: Inet4Address)
+    data class Server(val local: Inet4, val peer: Inet4, val dns: Inet4)
 
     /** the link's address and DNS servers, once IPCP has them */
-    data class IpConfig(val address: Inet4Address, val peer: Inet4Address?, val dns: List<Inet4Address>, val mtu: Int)
+    data class IpConfig(val address: Inet4, val peer: Inet4?, val dns: List<Inet4>, val mtu: Int)
 
     interface Events {
         fun up(config: IpConfig)
@@ -45,11 +43,11 @@ class Ppp(
 
     enum class Phase { DEAD, ESTABLISH, AUTHENTICATE, NETWORK, OPEN, TERMINATE }
 
-    @Volatile var phase = Phase.DEAD
+    @kotlin.concurrent.Volatile var phase = Phase.DEAD
         private set
 
-    private val timer = Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "ppp-timer").apply { isDaemon = true } }
-    private val lock = Any()
+    private val timer = Timer()
+    private val lock = SynchronizedObject()
     private val decoder = Hdlc.Decoder { f -> synchronized(lock) { frame(f) } }
 
     // what each side asked
@@ -66,11 +64,11 @@ class Ppp(
     private var lcpMru = 1500
     private var lcpAskAccm = true
     private var lcpAskMagic = true
-    private var lcpTimer: ScheduledFuture<*>? = null
+    private var lcpTimer: Job? = null
 
     // authentication
     private var authId = 0
-    private var authTimer: ScheduledFuture<*>? = null
+    private var authTimer: Job? = null
     private var authRetries = 0
 
     // IPCP
@@ -78,7 +76,7 @@ class Ppp(
     private var ipcpOurAcked = false
     private var ipcpTheirAcked = false
     private var ipcpRetries = 0
-    private var ipcpTimer: ScheduledFuture<*>? = null
+    private var ipcpTimer: Job? = null
     private var ourAddr = ByteArray(4)
     private var dns1 = ByteArray(4)
     private var dns2 = ByteArray(4)
@@ -88,16 +86,16 @@ class Ppp(
 
     init {
         if (server != null) {
-            ourAddr = server.local.address
+            ourAddr = server.local.octets
             askDns1 = false
             askDns2 = false
         }
     }
 
     // counts
-    @Volatile var bytesIn = 0L
+    @kotlin.concurrent.Volatile var bytesIn = 0L
         private set
-    @Volatile var bytesOut = 0L
+    @kotlin.concurrent.Volatile var bytesOut = 0L
         private set
 
     private fun log(s: String) = events.log(s)
@@ -131,16 +129,16 @@ class Ppp(
             }
         }
         // (a moment for the Terminate-Ack)
-        timer.schedule({ down(reason) }, if (phase == Phase.TERMINATE) 500 else 0, TimeUnit.MILLISECONDS)
+        timer.schedule(if (phase == Phase.TERMINATE) 500 else 0) { down(reason) }
     }
 
     private fun down(reason: String) {
         synchronized(lock) {
             if (phase == Phase.DEAD) return
             phase = Phase.DEAD
-            lcpTimer?.cancel(false)
-            authTimer?.cancel(false)
-            ipcpTimer?.cancel(false)
+            lcpTimer?.cancel()
+            authTimer?.cancel()
+            ipcpTimer?.cancel()
         }
         log("down: $reason")
         events.down(reason)
@@ -156,7 +154,7 @@ class Ppp(
         f[1] = 0x03
         f[2] = (proto ushr 8).toByte()
         f[3] = proto.toByte()
-        System.arraycopy(info, 0, f, 4, info.size)
+        info.copyInto(f, 4, 0, info.size)
         // (LCP always with every control character escaped: RFC 1662 7.1)
         send(Hdlc.encode(f, if (proto == PROTO_LCP) -1 else sendAccm))
     }
@@ -167,7 +165,7 @@ class Ppp(
         p[1] = id.toByte()
         p[2] = (p.size ushr 8).toByte()
         p[3] = p.size.toByte()
-        System.arraycopy(data, 0, p, 4, data.size)
+        data.copyInto(p, 4, 0, data.size)
         return p
     }
 
@@ -194,7 +192,7 @@ class Ppp(
             PROTO_IP -> if (phase == Phase.OPEN) { bytesIn += info.size; events.ip(info) }
             else -> if (phase.ordinal >= Phase.AUTHENTICATE.ordinal && phase != Phase.TERMINATE) {
                 // not ours: rejected (IPv6CP, CCP, …)
-                log("protocol %04x rejected".format(proto))
+                log("protocol ${hex(proto, 4)} rejected")
                 out(PROTO_LCP, packet(PROT_REJ, ++lcpId, byteArrayOf((proto ushr 8).toByte(), proto.toByte()) + info))
             }
         }
@@ -218,7 +216,7 @@ class Ppp(
     private fun len(p: ByteArray) = if (p.size >= 4) ((p[2].toInt() and 0xff) shl 8) or (p[3].toInt() and 0xff) else 0
 
     private fun opts(list: List<Pair<Int, ByteArray>>): ByteArray {
-        val o = ByteArrayOutputStream()
+        val o = Bytes()
         for ((t, d) in list) { o.write(t); o.write(d.size + 2); o.write(d) }
         return o.toByteArray()
     }
@@ -238,14 +236,14 @@ class Ppp(
         if (lcpAskAccm) o.add(2 to int32(0))
         if (lcpAskMagic) o.add(5 to int32(magic))
         out(PROTO_LCP, packet(CONF_REQ, ++lcpId, opts(o)))
-        lcpTimer?.cancel(false)
-        lcpTimer = timer.schedule({
+        lcpTimer?.cancel()
+        lcpTimer = timer.schedule(retryMs) {
             synchronized(lock) {
                 if (phase != Phase.ESTABLISH || lcpOurAcked) return@synchronized
                 if (++lcpRetries > maxRetries) { down("the other end doesn't talk PPP"); return@synchronized }
                 sendLcpConfReq()
             }
-        }, retryMs, TimeUnit.MILLISECONDS)
+        }
     }
 
     private fun lcp(p: ByteArray) {
@@ -295,7 +293,7 @@ class Ppp(
                     }
                 }
             }
-            CONF_ACK -> if (id == lcpId) { lcpOurAcked = true; lcpTimer?.cancel(false); lcpMaybeUp() }
+            CONF_ACK -> if (id == lcpId) { lcpOurAcked = true; lcpTimer?.cancel(); lcpMaybeUp() }
             CONF_NAK -> if (id == lcpId) {
                 for ((t, d) in options(p) ?: return) {
                     when (t) {
@@ -314,13 +312,13 @@ class Ppp(
             }
             TERM_REQ -> {
                 out(PROTO_LCP, packet(TERM_ACK, id, ByteArray(0)))
-                timer.schedule({ down("the other end hung up the link") }, 100, TimeUnit.MILLISECONDS)
+                timer.schedule(100) { down("the other end hung up the link") }
             }
             TERM_ACK -> if (phase == Phase.TERMINATE) timer.execute { down("disconnected") }
             ECHO_REQ -> if (phase.ordinal >= Phase.AUTHENTICATE.ordinal && p.size >= 8) {
                 out(PROTO_LCP, packet(ECHO_REP, id, int32(if (lcpAskMagic) magic else 0) + p.copyOfRange(8, len(p).coerceAtMost(p.size))))
             }
-            PROT_REJ -> log("the other end rejected protocol %04x".format(if (p.size >= 6) int16(p.copyOfRange(4, 6)) else 0))
+            PROT_REJ -> log("the other end rejected protocol ${hex(if (p.size >= 6) int16(p.copyOfRange(4, 6)) else 0, 4)}")
             CODE_REJ -> log("the other end rejected an LCP code")
             ECHO_REP, DISCARD_REQ -> {}
             else -> out(PROTO_LCP, packet(CODE_REJ, ++lcpId, p.copyOf(len(p).coerceAtMost(p.size))))
@@ -341,7 +339,7 @@ class Ppp(
 
     private fun lcpMaybeUp() {
         if (!(lcpOurAcked && lcpTheirAcked) || phase != Phase.ESTABLISH) return
-        log("LCP up (mru $peerMru, accm %08x, auth %04x)".format(sendAccm, authProto))
+        log("LCP up (mru $peerMru, accm ${hex(sendAccm, 8)}, auth ${hex(authProto, 4)})")
         when (authProto) {
             PROTO_PAP -> { phase = Phase.AUTHENTICATE; sendPap() }
             // (CHAP: the server's challenge comes)
@@ -354,17 +352,17 @@ class Ppp(
     // authentication
 
     private fun sendPap() {
-        val u = user.toByteArray()
-        val pw = password.toByteArray()
+        val u = user.encodeToByteArray()
+        val pw = password.encodeToByteArray()
         out(PROTO_PAP, packet(1, ++authId, byteArrayOf(u.size.toByte()) + u + byteArrayOf(pw.size.toByte()) + pw))
-        authTimer?.cancel(false)
-        authTimer = timer.schedule({
+        authTimer?.cancel()
+        authTimer = timer.schedule(retryMs) {
             synchronized(lock) {
                 if (phase != Phase.AUTHENTICATE) return@synchronized
                 if (++authRetries > maxRetries) { stopLocked("no answer to the login"); return@synchronized }
                 sendPap()
             }
-        }, retryMs, TimeUnit.MILLISECONDS)
+        }
     }
 
     private fun stopLocked(why: String) {
@@ -374,10 +372,10 @@ class Ppp(
     private fun pap(p: ByteArray) {
         if (p.size < 4 || phase != Phase.AUTHENTICATE) return
         when (p[0].toInt()) {
-            2 -> { authTimer?.cancel(false); log("PAP: logged in"); startIpcp() }
+            2 -> { authTimer?.cancel(); log("PAP: logged in"); startIpcp() }
             3 -> {
-                authTimer?.cancel(false)
-                val msg = if (p.size > 5) String(p, 5, minOf(p[4].toInt() and 0xff, p.size - 5)) else ""
+                authTimer?.cancel()
+                val msg = if (p.size > 5) p.decodeToString(5, 5 + minOf(p[4].toInt() and 0xff, p.size - 5)) else ""
                 stopLocked("the login was refused" + if (msg.isNotBlank()) ": $msg" else "")
             }
         }
@@ -392,15 +390,11 @@ class Ppp(
                 val n = p[4].toInt() and 0xff
                 if (p.size < 5 + n) return
                 val challenge = p.copyOfRange(5, 5 + n)
-                val md = MessageDigest.getInstance("MD5")
-                md.update(id.toByte())
-                md.update(password.toByteArray())
-                md.update(challenge)
-                val r = md.digest()
-                out(PROTO_CHAP, packet(2, id, byteArrayOf(r.size.toByte()) + r + user.toByteArray()))
+                val r = Md5.digest(byteArrayOf(id.toByte()) + password.encodeToByteArray() + challenge)
+                out(PROTO_CHAP, packet(2, id, byteArrayOf(r.size.toByte()) + r + user.encodeToByteArray()))
             }
             3 -> if (phase == Phase.AUTHENTICATE) { log("CHAP: logged in"); startIpcp() }
-            4 -> stopLocked("the login was refused" + if (p.size > 4) ": " + String(p, 4, len(p).coerceAtMost(p.size) - 4) else "")
+            4 -> stopLocked("the login was refused" + if (p.size > 4) ": " + p.decodeToString(4, len(p).coerceAtMost(p.size)) else "")
         }
     }
 
@@ -419,14 +413,14 @@ class Ppp(
         if (askDns1) o.add(129 to dns1)
         if (askDns2) o.add(131 to dns2)
         out(PROTO_IPCP, packet(CONF_REQ, ++ipcpId, opts(o)))
-        ipcpTimer?.cancel(false)
-        ipcpTimer = timer.schedule({
+        ipcpTimer?.cancel()
+        ipcpTimer = timer.schedule(retryMs) {
             synchronized(lock) {
                 if (phase != Phase.NETWORK || ipcpOurAcked) return@synchronized
                 if (++ipcpRetries > maxRetries) { stopLocked("no address came"); return@synchronized }
                 sendIpcpConfReq()
             }
-        }, retryMs, TimeUnit.MILLISECONDS)
+        }
     }
 
     private fun ipcp(p: ByteArray) {
@@ -463,7 +457,7 @@ class Ppp(
                 }
                 sendIpcpConfReq()
             }
-            CONF_ACK -> if (id == ipcpId) { ipcpOurAcked = true; ipcpTimer?.cancel(false); ipcpMaybeUp() }
+            CONF_ACK -> if (id == ipcpId) { ipcpOurAcked = true; ipcpTimer?.cancel(); ipcpMaybeUp() }
             TERM_REQ -> out(PROTO_IPCP, packet(TERM_ACK, id, ByteArray(0)))
         }
     }
@@ -481,14 +475,14 @@ class Ppp(
             out(PROTO_IPCP, packet(CONF_REJ, id, opts(reject)))
             return
         }
-        val want = mapOf(3 to s.peer.address, 129 to s.dns.address, 131 to s.dns.address)
+        val want = mapOf(3 to s.peer.octets, 129 to s.dns.octets, 131 to s.dns.octets)
         val nak = o.filter { (t, d) -> !d.contentEquals(want.getValue(t)) }.map { (t, _) -> t to want.getValue(t) }
         if (nak.isNotEmpty()) {
             out(PROTO_IPCP, packet(CONF_NAK, id, opts(nak)))
             return
         }
-        peerAddr = s.peer.address
-        dns1 = s.dns.address
+        peerAddr = s.peer.octets
+        dns1 = s.dns.octets
         out(PROTO_IPCP, packet(CONF_ACK, id, p.copyOfRange(4, len(p).coerceAtMost(p.size))))
         ipcpTheirAcked = true
         ipcpMaybeUp()
@@ -499,14 +493,14 @@ class Ppp(
         if (ourAddr.all { it.toInt() == 0 }) { stopLocked("no address came"); return }
         phase = Phase.OPEN
         val dns = listOf(dns1, dns2).filter { d -> d.any { it.toInt() != 0 } }
-            .map { InetAddress.getByAddress(it) as Inet4Address }.distinct()
+            .map { inet4(it) }.distinct()
         val cfg = IpConfig(
-            InetAddress.getByAddress(ourAddr) as Inet4Address,
-            peerAddr?.let { InetAddress.getByAddress(it) as Inet4Address },
+            inet4(ourAddr),
+            peerAddr?.let { inet4(it) },
             dns,
             minOf(peerMru, 1500),
         )
-        log("IPCP up: ${cfg.address.hostAddress}, dns ${dns.joinToString { it.hostAddress ?: "" }}")
+        log("IPCP up: ${cfg.address.dotted}, dns ${dns.joinToString { it.dotted }}")
         timer.execute { events.up(cfg) }
     }
 
@@ -530,3 +524,6 @@ class Ppp(
         const val DISCARD_REQ = 11
     }
 }
+
+/** [v] in hex, [digits] of it at least (%0Nx) */
+private fun hex(v: Number, digits: Int): String = v.toLong().let { if (it < 0) it and 0xffffffffL else it }.toString(16).padStart(digits, '0')
