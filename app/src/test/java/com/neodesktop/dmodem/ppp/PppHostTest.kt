@@ -106,6 +106,9 @@ class PppHostTest {
         val cfg = c.startPpp()
         assertEquals("10.64.64.2", cfg.address.hostAddress)
         assertEquals(listOf("10.64.64.1"), cfg.dns.map { it.hostAddress })
+        // (the host's side of the link up too: a moment after the computer's, perhaps)
+        val end = System.currentTimeMillis() + 3000
+        while (!c.host.online.value && System.currentTimeMillis() < end) Thread.sleep(10)
         assertTrue(c.host.online.value)
         // the computer hangs up (DTR): NO CARRIER, and commands again
         c.pppOn = false
