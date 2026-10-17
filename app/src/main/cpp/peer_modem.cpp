@@ -16,6 +16,7 @@
 #include <unistd.h>
 
 #include <log.h>
+#include <portable.h>
 #include <run_loop.h>
 
 #include "peer_modem.h"
@@ -57,7 +58,7 @@ bool send_all(int fd, const void *buf, size_t n)
 {
 	const char *p = static_cast<const char *>(buf);
 	while (n > 0) {
-		ssize_t w = send(fd, p, n, MSG_NOSIGNAL);
+		ssize_t w = send(fd, p, n, dmd::SEND_NOSIGNAL);
 		if (w < 0 && errno == EINTR)
 			continue;
 		if (w <= 0)
@@ -138,7 +139,7 @@ int PeerLine::start(dcore::Modem &m)
 		ERR("peer: no line\n");
 		return -1;
 	}
-	if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sv) < 0) {
+	if (dmd::socketpair_cloexec(AF_UNIX, SOCK_STREAM, 0, sv) < 0) {
 		ERR("socketpair: %s\n", strerror(errno));
 		return -1;
 	}

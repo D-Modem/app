@@ -78,6 +78,14 @@ jobs:
       - name: Engine test
         run: ctest --test-dir build-host --output-on-failure
 
+      # (Apple's ways on Linux: the portable fallbacks the iOS build has)
+      - name: Engine test, Apple's fallbacks
+        run: |
+          cmake -S native-test -B build-fallback -G Ninja \
+            -DCMAKE_CXX_FLAGS=-DDMODEM_PORTABLE_FALLBACKS -DCMAKE_C_FLAGS=-DDMODEM_PORTABLE_FALLBACKS
+          cmake --build build-fallback
+          ctest --test-dir build-fallback --output-on-failure
+
   device:
     runs-on: ubuntu-24.04
     steps:

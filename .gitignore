@@ -10,3 +10,5 @@ captures/
 # host builds of native-test
 /build-host*/
 .kotlin/
+/build-apple/
+/build-fallback/

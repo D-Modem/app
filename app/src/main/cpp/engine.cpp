@@ -17,6 +17,7 @@
 #include <dcore.h>
 #include <dsplibs.h>
 #include <log.h>
+#include <portable.h>
 #include <sip.h>
 #include <sip_modem.h>
 
@@ -85,7 +86,7 @@ int Engine::start(const Config &cfg, StatusFn status, ExitFn done,
 		/* (it ended by itself) */
 		thread_.join();
 	}
-	if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sv) < 0)
+	if (dmd::socketpair_cloexec(AF_UNIX, SOCK_STREAM, 0, sv) < 0)
 		return -1;
 	active_ = true;
 	stopping_ = false;

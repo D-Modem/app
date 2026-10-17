@@ -53,3 +53,12 @@ if(AMRNB_LIB)
 	target_compile_definitions(codec_line PRIVATE HAVE_AMRNB)
 	target_link_libraries(codec_line PRIVATE ${AMRNB_LIB})
 endif()
+
+# c_api_test: the engine through its C API (dmodem_engine.h), as iOS's
+# Swift has it
+add_executable(c_api_test c_api_test.c)
+target_link_libraries(c_api_test PRIVATE dmodem_engine Threads::Threads)
+target_compile_options(c_api_test PRIVATE -Wall -Wextra)
+set_target_properties(c_api_test PROPERTIES LINKER_LANGUAGE CXX)
+add_test(NAME c_api COMMAND c_api_test)
+set_tests_properties(c_api PROPERTIES TIMEOUT 120)

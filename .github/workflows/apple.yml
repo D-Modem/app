@@ -1,0 +1,41 @@
+# The modem for Apple's systems: the engine with D-Modem-RE, libre and
+# Mbed TLS built for iOS (devices and simulator) and macOS as an
+# XCFramework (ios/build-native.sh), and its Swift tests run on macOS
+# (ios/DModemSmoke): the modem through its C API, as the iOS app has it.
+#
+# D-Modem-RE is a private submodule: the DMODEM_RE_TOKEN secret (as
+# android.yml's).
+name: Apple
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  engine:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.DMODEM_RE_TOKEN || github.token }}
+
+      - name: Ninja
+        run: brew install ninja
+
+      - name: Build the XCFramework
+        run: ios/build-native.sh
+
+      - name: Swift tests (macOS)
+        run: swift test --package-path ios/DModemSmoke
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DModemEngine.xcframework
+          path: build-apple/DModemEngine.xcframework
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: build-logs
+          path: build-apple/**/_deps/*.log

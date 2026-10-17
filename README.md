@@ -116,6 +116,21 @@ The host test needs OpenSSL's headers (libssl-dev):
 CI (`.github/workflows/android.yml`) runs all three; it needs a
 `DMODEM_RE_TOKEN` secret that can read the private D-Modem-RE submodule.
 
+## Apple's systems (the iOS app to come)
+
+The native modem builds for iOS and macOS too: the engine's C API,
+`app/src/main/cpp/dmodem_engine.h` (what Swift calls in place of
+Android's JNI), with D-Modem-RE, libre and Mbed TLS as one XCFramework:
+
+    ios/build-native.sh        # macOS with Xcode, CMake, Ninja
+    swift test --package-path ios/DModemSmoke
+
+D-Modem-RE's `portable.h` has Apple's ways where Linux has its own
+(close-on-exec sockets, SIGPIPE, a monotonic sleep, a peer's hang-up);
+the Linux build tests them too with `-DDMODEM_PORTABLE_FALLBACKS`. CI
+(`.github/workflows/apple.yml`) builds the XCFramework and runs the Swift
+tests on macOS.
+
 ## License
 
 GNU Affero General Public License version 3 only ([COPYING](COPYING)), as
