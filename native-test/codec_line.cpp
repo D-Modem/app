@@ -34,6 +34,7 @@
 #include <log.h>
 
 #include "options.h"
+#include "line_speed.h"
 #include "pipe_modem.h"
 
 #ifdef HAVE_GSM
@@ -185,10 +186,8 @@ int main(int argc, char *argv[])
 	std::thread(channel, b_out[0], a_in[1], codec).detach();
 	dmd::PipeModem a("modemA", 8000, opt.country, a_in[0], a_out[1]);
 	dmd::PipeModem b("modemB", 8000, opt.country, b_in[0], b_out[1]);
-	bool realtime = !getenv("MODEM_REALTIME") ||
-		atoi(getenv("MODEM_REALTIME"));
-	a.set_realtime(realtime);
-	b.set_realtime(realtime);
+	line_speed(a);
+	line_speed(b);
 	fprintf(stderr, "codec: %s\ncreated modemA: %s\ncreated modemB: %s\n",
 		codec.c_str(), a.pty().name(), b.pty().name());
 	dmd::PipeModem *modems[] = { &a, &b };

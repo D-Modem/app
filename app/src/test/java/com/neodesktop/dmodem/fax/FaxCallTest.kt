@@ -49,7 +49,7 @@ class FaxCallTest {
     fun setUp() {
         val mt = modemTest()
         assumeTrue("fax_line isn't built (native-test)", mt != null)
-        val p = ProcessBuilder(mt!!.path).redirectErrorStream(true).start()
+        val p = ProcessBuilder(mt!!.path).redirectErrorStream(true).apply { environment()["LINE_SPEED"] = LINE_SPEED }.start()
         modems = p
         Thread {
             p.inputStream.bufferedReader().forEachLine { l -> log.add(l) }

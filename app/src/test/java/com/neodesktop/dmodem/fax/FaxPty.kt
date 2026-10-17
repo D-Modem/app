@@ -17,13 +17,23 @@ fun nativeTool(env: String, name: String): File? = listOfNotNull(
 ).map { File(it) }.firstOrNull { it.canExecute() }
 
 /**
+ * How fast the test lines run beside the sample clock (native-test's
+ * line_speed.h): twice a phone line's pace, the calls half as long. Not
+ * faster: class 1 gives the DTE a second or so of the line's time to
+ * answer (its frames after +FTH's CONNECT, say), which at 4x is a
+ * quarter of a second, and a busy test machine misses it now and then.
+ * DMODEM_LINE_SPEED=1: a real phone line's pace.
+ */
+val LINE_SPEED: String = System.getenv("DMODEM_LINE_SPEED") ?: "2"
+
+/**
  * A line program running (its stderr and stdout into [log]), its
  * modems' ptys as it names them ("created modemA: <pty>"), each a
  * [Class1] from here.
  */
 class FaxLineProcess(cmd: List<String>) : AutoCloseable {
     val log = CopyOnWriteArrayList<String>()
-    private val proc: Process = ProcessBuilder(cmd).start()
+    private val proc: Process = ProcessBuilder(cmd).apply { environment()["LINE_SPEED"] = LINE_SPEED }.start()
     private val closers = ArrayList<() -> Unit>()
 
     init {

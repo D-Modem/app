@@ -19,6 +19,7 @@
 #include <log.h>
 
 #include "options.h"
+#include "line_speed.h"
 #include "pipe_modem.h"
 
 int main(int argc, char *argv[])
@@ -37,9 +38,8 @@ int main(int argc, char *argv[])
 	dmd::PipeModem a("modemA", 9600, opt.country, pipe1[0], pipe2[1]);
 	dmd::PipeModem b("modemB", 9600, opt.country, pipe2[0], pipe1[1]);
 	/* (unpaced only when asked: MODEM_REALTIME=0) */
-	bool realtime = !getenv("MODEM_REALTIME") || atoi(getenv("MODEM_REALTIME"));
-	a.set_realtime(realtime);
-	b.set_realtime(realtime);
+	line_speed(a);
+	line_speed(b);
 	fprintf(stderr, "created modemA: %s\ncreated modemB: %s\n",
 		a.pty().name(), b.pty().name());
 	dmd::PipeModem *modems[] = { &a, &b };

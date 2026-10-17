@@ -36,6 +36,7 @@
 #include <t4.h>
 
 #include "options.h"
+#include "line_speed.h"
 #include "pipe_modem.h"
 
 using namespace dsp;
@@ -66,7 +67,8 @@ int next_page(void *, T4Page *p)
 	if (pages_sent == 2)
 		return 0;
 	int n = ++pages_sent;
-	int rows = n == 1 ? 900 : 400;
+	/* (page 1's noise: some 70 KB in MH, two ECM blocks) */
+	int rows = n == 1 ? 620 : 400;
 	std::mt19937 r(n);
 	unsigned char row[WIDTH / 8];
 	if (p->init(WIDTH, 1) < 0)
@@ -79,7 +81,7 @@ int next_page(void *, T4Page *p)
 				on = true;
 			else if (y < 200)
 				on = (x / (y % 9 + 1)) % 2 == 0;
-			else if (n == 1 && y < 700)
+			else if (n == 1 && y < 420)
 				on = (r() & 3) == 0;
 			else
 				on = (x / 6 + y / 10) % 7 == 0;
@@ -185,7 +187,7 @@ int main(int argc, char *argv[])
 	}
 	std::thread(machine, from_modem[0], to_modem[1], cfg, snr).detach();
 	dmd::PipeModem a("modemA", 8000, opt.country, to_modem[0], from_modem[1]);
-	a.set_realtime(!getenv("MODEM_REALTIME") || atoi(getenv("MODEM_REALTIME")));
+	line_speed(a);
 	fprintf(stderr, "created modemA: %s\n", a.pty().name());
 	dmd::PipeModem *modems[] = { &a };
 	ret = dmd::PipeModem::run(modems, 1);

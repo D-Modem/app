@@ -63,14 +63,16 @@ class LrzszInteropTest {
             }
             io.feed(b)
         }
-        // (the bytes each way, for a failing run: build/transfer-trace.txt)
-        val trace = File("build/transfer-trace.txt").apply { delete() }
-        io.trace = { inbound, b ->
-            synchronized(trace) {
-                trace.appendText((if (inbound) "<< " else ">> ") + b.joinToString("") { c ->
-                    val v = c.toInt() and 0xff
-                    if (v in 0x20..0x7e) v.toChar().toString() else "\\x%02x".format(v)
-                } + "\n")
+        // (TRANSFER_TRACE=1: the bytes each way, for a failing run: build/transfer-trace.txt)
+        if (System.getenv("TRANSFER_TRACE") != null) {
+            val trace = File("build/transfer-trace.txt").apply { delete() }
+            io.trace = { inbound, b ->
+                synchronized(trace) {
+                    trace.appendText((if (inbound) "<< " else ">> ") + b.joinToString("") { c ->
+                        val v = c.toInt() and 0xff
+                        if (v in 0x20..0x7e) v.toChar().toString() else "\\x%02x".format(v)
+                    } + "\n")
+                }
             }
         }
         assertTrue(l.start())

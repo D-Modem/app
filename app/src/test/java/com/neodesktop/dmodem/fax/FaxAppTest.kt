@@ -51,7 +51,7 @@ class FaxAppTest {
     fun setUp() {
         val fl = faxLine()
         assumeTrue("fax_line isn't built (native-test)", fl != null)
-        val p = ProcessBuilder(fl!!.path).redirectErrorStream(true).start()
+        val p = ProcessBuilder(fl!!.path).redirectErrorStream(true).apply { environment()["LINE_SPEED"] = LINE_SPEED }.start()
         line = p
         Thread { p.inputStream.bufferedReader().forEachLine { log.add(it) } }.apply { isDaemon = true; start() }
         val end = System.currentTimeMillis() + 10_000

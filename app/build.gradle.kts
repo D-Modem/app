@@ -66,6 +66,9 @@ android {
             // UTF-8 file names, as Android has them (the JVM takes its file name encoding from the locale)
             it.environment("LC_ALL", "C.UTF-8")
             it.environment("LANG", "C.UTF-8")
+            // two test JVMs at once: the line tests (fax, the peer line, SIP) mostly wait on their
+            // lines' pace, not the CPU; their ports are the system's, but for SipFaxTest's (one class)
+            it.maxParallelForks = 2
         }
     }
 

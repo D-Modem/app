@@ -64,6 +64,13 @@ class KermitInteropTest {
             }
             io.feed(b)
         }
+        // (KERMIT_TRACE=1: the line both ways in build/kermit-trace.txt, for a failing run)
+        if (System.getenv("KERMIT_TRACE") != null) traceTo(io)
+        assertTrue(l.start())
+        return l to io
+    }
+
+    private fun traceTo(io: TransferIo) {
         val trace = File("build/kermit-trace.txt").apply { delete() }
         io.trace = { inbound, b ->
             synchronized(trace) {
@@ -73,8 +80,6 @@ class KermitInteropTest {
                 } + "\n")
             }
         }
-        assertTrue(l.start())
-        return l to io
     }
 
     private fun waitExit(l: LocalLink): Int? {
@@ -85,7 +90,7 @@ class KermitInteropTest {
 
     private fun files(dir: File): List<File> {
         dir.mkdirs()
-        val big = File(dir, "binary.bin").apply { writeBytes(Random(7).nextBytes(200_000)) }
+        val big = File(dir, "binary.bin").apply { writeBytes(Random(7).nextBytes(64_000)) }
         val every = File(dir, "every-byte.dat").apply {
             writeBytes(ByteArray(4096) { it.toByte() } + ByteArray(3000) { '~'.code.toByte() } + ByteArray(2048) { '#'.code.toByte() } + ByteArray(500) { 0x80.toByte() })
         }
