@@ -127,6 +127,8 @@ fun DashboardScreen(
             onSetUp = onOpenSettings,
         )
 
+        ModemLights()
+
         LineCard(settings, run, network, onOpenSettings)
 
         SectionTitle("Quick dial", action = "Directory", onAction = onOpenDirectory)

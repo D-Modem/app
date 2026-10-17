@@ -40,6 +40,12 @@ class DteHub : TerminalLink {
 
     val claimed: Boolean get() = owner != null
 
+    /** octets from the modem (its RD) and to it (its SD), for the lights */
+    @Volatile var bytesIn = 0L
+        private set
+    @Volatile var bytesOut = 0L
+        private set
+
     /** octets to the modem from its owner ([claim]) */
     fun writeAs(l: TerminalLink.Listener, data: ByteArray): Boolean =
         if (owner === l) writeRaw(data, 0, data.size) else false
@@ -109,6 +115,7 @@ class DteHub : TerminalLink {
 
     private fun writeRaw(data: ByteArray, offset: Int, length: Int): Boolean =
         synchronized(outLock) {
+            bytesOut += length
             val o = output ?: return false
             try {
                 o.write(data, offset, length)
@@ -131,6 +138,7 @@ class DteHub : TerminalLink {
             }
             if (n < 0) break
             if (n == 0) continue
+            bytesIn += n
             val o = owner
             if (o != null) o.onData(buf, n) else for (l in listeners) l.onData(buf, n)
         }

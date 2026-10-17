@@ -221,6 +221,8 @@ fun TerminalScreen(
                 onCharset = { cs -> scope.launch { store.save(s.copy(charset = cs)) } },
             )
         }
+        // the modem's lights, as its front panel has them
+        if (!fullscreen && isModem) ModemLights(Modifier.padding(horizontal = 6.dp, vertical = 3.dp), compact = true)
         Box(Modifier.weight(1f).fillMaxWidth()) {
         AndroidView(
             factory = { ctx ->
