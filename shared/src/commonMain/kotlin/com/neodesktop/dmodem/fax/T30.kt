@@ -15,6 +15,8 @@ data class FaxProgress(
     val fine: Boolean = false,
     /** the other machine's identity (its CSI or TSI) */
     val remote: String = "",
+    /** in error correction mode (T.30 Annex A) */
+    val ecm: Boolean = false,
 )
 
 /** a fax call that didn't work: why */
@@ -23,8 +25,11 @@ class FaxException(msg: String) : IOException(msg)
 /**
  * The T.30 procedure for group 3 fax on a class 1 modem ([Class1]): the
  * calling machine sends (no polling), the answering one receives, in
- * MH coding, without error correction mode. The frames' octets as the
- * class 1 modem has them (the first bit on the line at the bottom).
+ * MH coding, with error correction mode when both have it (T.30 Annex
+ * A: the page in blocks of numbered HDLC frames on the fast modulation,
+ * [EcmHdlc], those that didn't come asked for again) or without. The
+ * frames' octets as the class 1 modem has them (the first bit on the
+ * line at the bottom).
  */
 object T30 {
     // the FCFs: the calling machine's (after a DIS) have X, the bottom bit, set
@@ -43,7 +48,25 @@ object T30 {
     const val RTN = 0x4c
     const val DCN = 0xfa
     const val CRP = 0x1a
+    // error correction mode's
+    const val PPS = 0xbe
+    const val PPR = 0xbc
+    const val RR = 0x6e
+    const val RNR = 0xec
+    const val CTC = 0x12
+    const val CTR = 0xc4
+    const val EOR = 0xce
+    const val ERR = 0x1c
+    const val FCD = 0x06
+    const val RCP = 0x86
     const val X = 0x01
+
+    /** an ECM frame's page data (256 octets: DCS bit 28 clear) and a block's frames at most */
+    const val ECM_SIZE = 256
+    const val ECM_FRAMES = 256
+    /** PPRs for a block before CTC, CTCs before EOR */
+    private const val ECM_PPRS = 4
+    private const val ECM_CTCS = 3
 
     /** a rate: its DCS code (bits 11-14), its modulation's class 1 codes (long training, and for the pages) */
     data class Rate(val bps: Int, val code: Int, val family: Int, val trainMod: Int, val pageMod: Int)
@@ -81,9 +104,9 @@ object T30 {
         return ms[c]
     }
 
-    /** our DIS: a receiver of MH, the [rates], fine, A4, 5 ms minimum scan time */
-    fun dis(rates: List<Rate>): ByteArray {
-        val f = ByteArray(3)
+    /** our DIS: a receiver of MH, the [rates], fine, A4, 5 ms minimum scan time; error correction mode if [ecm] */
+    fun dis(rates: List<Rate>, ecm: Boolean = false): ByteArray {
+        val f = ByteArray(if (ecm) 4 else 3)
         setBit(f, 10)
         // (V.17 in a DIS is V.17 up to 14400: offered only when that is)
         val v17 = rates.any { it.family == 2 && it.bps == 14400 }
@@ -96,12 +119,13 @@ object T30 {
         setBit(f, 15)
         // minimum scan time 5 ms (none would do for us; efax divides by it, crashing on 0)
         setBit(f, 21)
+        if (ecm) { setBit(f, 24); setBit(f, 27) }
         return f
     }
 
-    /** a DCS: the rate, fine or not, the minimum scan time agreed */
-    fun dcs(r: Rate, fine: Boolean, minMs: Int): ByteArray {
-        val f = ByteArray(3)
+    /** a DCS: the rate, fine or not, the minimum scan time agreed; error correction mode (256 octet frames) if [ecm] */
+    fun dcs(r: Rate, fine: Boolean, minMs: Int, ecm: Boolean = false): ByteArray {
+        val f = ByteArray(if (ecm) 4 else 3)
         setBit(f, 10)
         if (r.code and 1 != 0) setBit(f, 11)
         if (r.code and 2 != 0) setBit(f, 12)
@@ -114,8 +138,12 @@ object T30 {
             5 -> setBit(f, 21)
             0 -> { setBit(f, 21); setBit(f, 22); setBit(f, 23) }
         }
+        if (ecm) { setBit(f, 24); setBit(f, 27) }
         return f
     }
+
+    /** a DIS or DCS with error correction mode */
+    fun ecm(fif: ByteArray) = bit(fif, 24) && bit(fif, 27)
 
     /** the rate a DCS says, among [RATES] */
     fun dcsRate(fif: ByteArray): Rate? {
@@ -176,6 +204,8 @@ object T30 {
         ident: String,
         /** the modem's rates ([modemRates], asked before the call: not during it) */
         have: List<Rate>,
+        /** error correction mode when the receiver has it */
+        ecm: Boolean = true,
         progress: (FaxProgress) -> Unit = {},
     ): FaxProgress {
         if (pages.isEmpty()) throw FaxException("no pages")
@@ -201,8 +231,10 @@ object T30 {
         val rates = have.filter { disOffers(d, it) }
         if (rates.isEmpty()) throw FaxException("no rate in common with the fax machine")
         val fine = pages.first().fine && bit(d, 15)
-        val minMs = disMinMs(d)
-        p = p.copy(remote = remote, fine = fine)
+        val useEcm = ecm && ecm(d)
+        // (ECM has no minimum row time)
+        val minMs = if (useEcm) 0 else disMinMs(d)
+        p = p.copy(remote = remote, fine = fine, ecm = useEcm)
 
         // training: down the rates until one takes
         var ri = 0
@@ -213,7 +245,7 @@ object T30 {
                 p = p.copy(phase = "Training at ${r.bps} bit/s", bps = r.bps)
                 progress(p)
                 c.command("+FTS=8")
-                if (!c.transmitFrames(listOf(Class1.frame(TSI or X, ident(ident)), Class1.frame(DCS or X, dcs(r, fine, minMs))))) {
+                if (!c.transmitFrames(listOf(Class1.frame(TSI or X, ident(ident)), Class1.frame(DCS or X, dcs(r, fine, minMs, useEcm))))) {
                     throw FaxException("the modem didn't send the DCS")
                 }
                 c.command("+FTS=8")
@@ -233,12 +265,122 @@ object T30 {
         }
         var rate = train()
 
+        /** a command (a control frame) until a good answer: up to three times, RNR asked again with RR (60 s) */
+        fun ask(cmd: ByteArray): Class1.Frame? {
+            var frame = cmd
+            var rnrs = 0
+            var attempt = 0
+            while (attempt < 3) {
+                c.command("+FTS=8")
+                if (!c.transmitFrames(listOf(frame))) throw FaxException("the modem didn't send a command")
+                val f = c.receiveFrame(4_000)
+                if (f == null || !f.ok || f.fcf and X.inv() == CRP) { attempt++; continue }
+                if (f.fcf and X.inv() == RNR) {
+                    if (++rnrs > 60) throw FaxException("the fax machine wasn't ready")
+                    sleepMs(1000)
+                    frame = Class1.frame(RR or X)
+                    attempt = 0
+                    continue
+                }
+                return f
+            }
+            return null
+        }
+
+        /** frames on the page's modulation (after CTC, with the long training), RCP three times after */
+        fun burst(frames: List<ByteArray>, long: Boolean) {
+            val rcp = Class1.frame(RCP)
+            val bits = EcmHdlc.encode(frames + listOf(rcp, rcp, rcp), EcmHdlc.flagsFor(rate.bps, 200))
+            if (c.command("+FTM=${if (long) rate.trainMod else rate.pageMod}", 10_000) != "CONNECT") {
+                throw FaxException("the modem didn't send the page")
+            }
+            c.sendData(bits)
+            if (c.result(120_000) != "OK") throw FaxException("the page didn't go out")
+        }
+
+        /** a page in error correction mode ([pageNo] of the call), its blocks each until all came; its end with [post] */
+        fun sendEcm(data: ByteArray, post: Int, pageNo: Int) {
+            val perBlock = ECM_SIZE * ECM_FRAMES
+            val blocks = maxOf(1, (data.size + perBlock - 1) / perBlock)
+            for (blk in 0 until blocks) {
+                val start = blk * perBlock
+                val len = minOf(perBlock, data.size - start).coerceAtLeast(0)
+                val n = maxOf(1, (len + ECM_SIZE - 1) / ECM_SIZE)
+                // FCD: the frame's number, its 256 octets (the last padded)
+                val frames = List(n) { k ->
+                    val f = Class1.frame(FCD, ByteArray(1 + ECM_SIZE))
+                    f[3] = k.toByte()
+                    val from = start + k * ECM_SIZE
+                    val m = minOf(ECM_SIZE, data.size - from).coerceAtLeast(0)
+                    data.copyInto(f, 4, from, from + m)
+                    f
+                }
+                val last = blk == blocks - 1
+                val pps = Class1.frame(PPS or X, byteArrayOf(if (last) (post or X).toByte() else 0, pageNo.toByte(), blk.toByte(), (n - 1).toByte()))
+                val send = BooleanArray(n) { true }
+                var pprs = 0
+                var ctcs = 0
+                var long = false
+                block@ while (true) {
+                    burst(frames.filterIndexed { k, _ -> send[k] }, long)
+                    long = false
+                    var f = ask(pps) ?: throw FaxException("no answer to page ${pageNo + 1}'s block ${blk + 1}")
+                    while (true) {
+                        when (f.fcf and X.inv()) {
+                            MCF -> break@block
+                            PPR -> {
+                                val map = f.fif
+                                var any = false
+                                for (k in 0 until n) {
+                                    send[k] = k / 8 < map.size && (map[k / 8].toInt() shr (k % 8)) and 1 == 1
+                                    any = any || send[k]
+                                }
+                                if (!any) {
+                                    // (nothing missing after all: ask again)
+                                    f = ask(pps) ?: throw FaxException("no answer to page ${pageNo + 1}'s block ${blk + 1}")
+                                    continue
+                                }
+                                if (++pprs < ECM_PPRS) continue@block
+                                pprs = 0
+                                if (++ctcs <= ECM_CTCS) {
+                                    // continue to correct: a rate lower if there is one, the long training
+                                    if (ri + 1 < rates.size) ri++
+                                    rate = rates[ri]
+                                    p = p.copy(phase = "Sending page ${pageNo + 1} at ${rate.bps} bit/s", bps = rate.bps)
+                                    progress(p)
+                                    val ctc = Class1.frame(CTC or X, byteArrayOf(0, (rate.code shl 2).toByte()))
+                                    val r = ask(ctc)
+                                    if (r?.fcf?.and(X.inv()) != CTR) throw FaxException("the fax machine didn't take CTC")
+                                    long = true
+                                    continue@block
+                                }
+                                // given up on the block: what came of it stays
+                                val eor = Class1.frame(EOR or X, byteArrayOf(if (last) (post or X).toByte() else 0))
+                                val r = ask(eor)
+                                if (r?.fcf?.and(X.inv()) != ERR) throw FaxException("page ${pageNo + 1} didn't go through")
+                                break@block
+                            }
+                            DCN -> throw FaxException("the fax machine hung up during page ${pageNo + 1}")
+                            else -> throw FaxException("the fax machine answered page ${pageNo + 1}'s block with ${hex2(f.fcf)}")
+                        }
+                    }
+                }
+            }
+        }
+
         var i = 0
         var resent = 0
         while (i < pages.size) {
             val page = pages[i]
             p = p.copy(phase = "Sending page ${i + 1} of ${pages.size}", bps = rate.bps)
             progress(p)
+            if (useEcm) {
+                sendEcm(T4.encode(page, 0), if (i == pages.lastIndex) EOP else MPS, i)
+                i++
+                p = p.copy(pages = i)
+                progress(p)
+                continue
+            }
             val data = T4.encode(page, rate.bps * minMs / 1000)
             if (c.command("+FTM=${rate.pageMod}", 10_000) != "CONNECT") throw FaxException("the modem didn't send the page")
             c.sendData(data)
@@ -295,13 +437,118 @@ object T30 {
         /** the modem's rates ([modemRates], asked before the call) */
         have: List<Rate>,
         progress: (FaxProgress) -> Unit = {},
+        /** error correction mode offered */
+        ecm: Boolean = true,
         page: (FaxPage, Int) -> Unit,
     ): FaxProgress {
         var p = FaxProgress("Answering")
         progress(p)
-        val ours = listOf(Class1.frame(CSI, ident(ident)), Class1.frame(DIS, dis(have)))
+        val ours = listOf(Class1.frame(CSI, ident(ident)), Class1.frame(DIS, dis(have, ecm)))
         var pages = 0
         var firstDis = true
+        // (ECM: the page and block of our last MCF, for a PPS again that missed it)
+        var lastMcf: Pair<Int, Int>? = null
+        // (ECM: the rate a CTC changed to, until the next DCS)
+        var ecmRate: Rate? = null
+
+        /** what ended an ECM page: its post command (MPS, EOP, EOM), a DCS (training again), the sender's DCN */
+        class EcmEnd(val post: Int = -1, val dcs: ByteArray? = null, val dcn: Boolean = false)
+
+        /** a page in error correction mode at [r0]: its blocks, our PPR for frames missing, MCF; the page to [page] */
+        fun receiveEcm(r0: Rate, fine: Boolean): EcmEnd {
+            var rate = r0
+            val doc = Bytes()
+            val got = arrayOfNulls<ByteArray>(ECM_FRAMES)
+            var count = 0
+            var long = false
+            var last: ByteArray? = null
+            fun respond(fr: ByteArray) {
+                last = fr
+                c.command("+FTS=8")
+                c.transmitFrames(listOf(fr))
+            }
+            fun pageDone(post: Int): EcmEnd {
+                val dec = T4.decode(doc.toByteArray(), FaxPage.WIDTH, fine)
+                if (dec.page.rows > 0 && dec.badRows * 20 < dec.page.rows) {
+                    pages++
+                    page(dec.page, pages)
+                    p = p.copy(pages = pages)
+                    progress(p)
+                }
+                return EcmEnd(post = post)
+            }
+            while (true) {
+                p = p.copy(phase = "Receiving page ${pages + 1}", bps = rate.bps)
+                progress(p)
+                val m = c.command("+FRM=${if (long) rate.trainMod else rate.pageMod}", 15_000)
+                long = false
+                var ctl: Class1.Frame? = null
+                when (m) {
+                    "CONNECT" -> {
+                        val data = c.readData(120_000) ?: throw FaxException("the page stopped coming")
+                        c.result(3000)
+                        for (f in EcmHdlc.decode(data)) {
+                            if (f.size < 4 || f[0] != 0xff.toByte() || (f[2].toInt() and 0xfe) != FCD) continue
+                            got[f[3].toInt() and 0xff] = f.copyOfRange(4, f.size)
+                        }
+                        for (attempt in 0 until 3) {
+                            val f = c.receiveFrame() ?: continue
+                            if (f.ok) { ctl = f; break }
+                        }
+                    }
+                    // (V.21 instead: a command again, or the DCS)
+                    "+FCERROR" -> ctl = c.receiveFrame()?.takeIf { it.ok }
+                    else -> throw FaxException("the page didn't come ($m)")
+                }
+                val f = ctl ?: throw FaxException("no end to a block of page ${pages + 1}")
+                val fif = f.fif
+                when (f.fcf and X.inv()) {
+                    PPS -> {
+                        if (fif.size < 4) continue
+                        val post = fif[0].toInt() and 0xfe
+                        val at = (fif[1].toInt() and 0xff) to (fif[2].toInt() and 0xff)
+                        if (at == lastMcf && got.all { it == null }) {
+                            // our MCF didn't get there
+                            respond(Class1.frame(MCF))
+                            if (post != 0) return EcmEnd(post = post)
+                            continue
+                        }
+                        count = maxOf(count, (fif[3].toInt() and 0xff) + 1)
+                        val map = ByteArray(32)
+                        var missing = 0
+                        for (k in 0 until count) if (got[k] == null) { map[k / 8] = (map[k / 8].toInt() or (1 shl (k % 8))).toByte(); missing++ }
+                        if (missing > 0) {
+                            respond(Class1.frame(PPR, map))
+                            continue
+                        }
+                        for (k in 0 until count) doc.write(got[k]!!)
+                        got.fill(null)
+                        count = 0
+                        lastMcf = at
+                        respond(Class1.frame(MCF))
+                        if (post != 0) return pageDone(post)
+                    }
+                    CTC -> {
+                        // continue to correct, maybe at another rate: the long training next
+                        dcsRate(fif)?.let { rate = it; ecmRate = it }
+                        long = true
+                        respond(Class1.frame(CTR))
+                    }
+                    EOR -> {
+                        // the sender gave up on the block: what came of it lost
+                        got.fill(null)
+                        count = 0
+                        respond(Class1.frame(ERR))
+                        val post = if (fif.isNotEmpty()) fif[0].toInt() and 0xfe else 0
+                        if (post != 0) return pageDone(post)
+                    }
+                    RR -> last?.let { respond(it) }
+                    DCS -> return EcmEnd(dcs = fif)
+                    DCN -> return EcmEnd(dcn = true)
+                    else -> throw FaxException("the sender sent ${hex2(f.fcf)} during page ${pages + 1}")
+                }
+            }
+        }
 
         // phase B (again after an EOM): DIS until a DCS and a good training
         outer@ while (true) {
@@ -329,7 +576,9 @@ object T30 {
             while (true) {
                 val rate = dcsRate(d) ?: throw FaxException("the sender asked for an unknown rate")
                 val fine = bit(d, 15)
-                p = p.copy(phase = "Training at ${rate.bps} bit/s", bps = rate.bps, fine = fine)
+                val inEcm = ecm && ecm(d)
+                ecmRate = null
+                p = p.copy(phase = "Training at ${rate.bps} bit/s", bps = rate.bps, fine = fine, ecm = inEcm)
                 progress(p)
                 val r = c.command("+FRM=${rate.trainMod}", 10_000)
                 val good = if (r == "CONNECT") {
@@ -351,6 +600,24 @@ object T30 {
                     continue@outer
                 }
                 c.transmitFrames(listOf(Class1.frame(CFR)))
+                if (inEcm) {
+                    // the pages in error correction mode
+                    var e: EcmEnd
+                    while (true) {
+                        e = receiveEcm(ecmRate ?: rate, fine)
+                        if (e.post != MPS) break
+                    }
+                    when {
+                        e.dcs != null -> { d = e.dcs!!; continue }
+                        e.dcn -> if (pages > 0) return p.copy(phase = "Received") else throw FaxException("the sender hung up")
+                        e.post == EOM -> continue@outer
+                        e.post == EOP -> {
+                            c.receiveFrame()
+                            return p.copy(phase = "Received")
+                        }
+                        else -> throw FaxException("the sender ended page $pages with ${hex2(e.post)}")
+                    }
+                }
                 // the pages at this rate
                 while (true) {
                     p = p.copy(phase = "Receiving page ${pages + 1}")

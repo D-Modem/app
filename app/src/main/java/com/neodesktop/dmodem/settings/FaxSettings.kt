@@ -25,6 +25,8 @@ data class FaxSettings(
     val maxBps: Int = 14400,
     /** pages sent at 196 lines to the inch (else 98) */
     val fine: Boolean = true,
+    /** error correction mode (T.30 Annex A) when the other machine has it: what a noisy line spoils, sent again */
+    val ecm: Boolean = true,
 )
 
 private val Context.faxStore: DataStore<Preferences> by preferencesDataStore("fax")
@@ -35,19 +37,21 @@ class FaxSettingsStore(private val context: Context) {
         val answer = booleanPreferencesKey("answer")
         val maxBps = intPreferencesKey("max_bps")
         val fine = booleanPreferencesKey("fine")
+        val ecm = booleanPreferencesKey("ecm")
     }
 
-    val settings: Flow<FaxSettings> = context.faxStore.data.map { p ->
+    private fun read(p: Preferences): FaxSettings {
         val d = FaxSettings()
-        FaxSettings(p[K.ident] ?: d.ident, p[K.answer] ?: d.answer, p[K.maxBps] ?: d.maxBps, p[K.fine] ?: d.fine)
+        return FaxSettings(p[K.ident] ?: d.ident, p[K.answer] ?: d.answer, p[K.maxBps] ?: d.maxBps, p[K.fine] ?: d.fine, p[K.ecm] ?: d.ecm)
     }
+
+    val settings: Flow<FaxSettings> = context.faxStore.data.map { p -> read(p) }
 
     suspend fun current(): FaxSettings = settings.first()
 
     suspend fun update(change: (FaxSettings) -> FaxSettings) {
         context.faxStore.edit { p ->
-            val d = FaxSettings()
-            val s = change(FaxSettings(p[K.ident] ?: d.ident, p[K.answer] ?: d.answer, p[K.maxBps] ?: d.maxBps, p[K.fine] ?: d.fine))
+            val s = change(read(p))
             write(p, s)
         }
     }
@@ -57,5 +61,6 @@ class FaxSettingsStore(private val context: Context) {
         p[K.answer] = s.answer
         p[K.maxBps] = s.maxBps
         p[K.fine] = s.fine
+        p[K.ecm] = s.ecm
     }
 }

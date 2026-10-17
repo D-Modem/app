@@ -117,7 +117,12 @@ class FaxCallTest {
     private fun dump() = log.takeLast(80).joinToString("\n")
 
     @Test
-    fun ourSenderToOurReceiver() {
+    fun ourSenderToOurReceiver() = ourCall(ecm = true)
+
+    @Test
+    fun ourSenderToOurReceiverWithoutEcm() = ourCall(ecm = false)
+
+    private fun ourCall(ecm: Boolean) {
         val pages = listOf(FaxTestPage.of(true, rows = 600, seed = 1), FaxTestPage.of(true, rows = 300, seed = 2))
         val tx = PtyEnd(a).apply { setUp(caller = true) }
         val rx = PtyEnd(b).apply { setUp(caller = false) }
@@ -130,19 +135,21 @@ class FaxCallTest {
         val receiver = Thread {
             try {
                 assertEquals("CONNECT", rx.c1.result(10_000))
-                rxDone = T30.receive(rx.c1, "+1 555 0199", rx.rates) { pg, _ -> got.add(pg) }
+                rxDone = T30.receive(rx.c1, "+1 555 0199", rx.rates, ecm = ecm) { pg, _ -> got.add(pg) }
             } catch (e: Throwable) { rxError = e }
         }
         receiver.start()
         assertEquals(dump(), "CONNECT", tx.c1.result(10_000))
         val sent = try {
-            T30.send(tx.c1, pages, "+1 555 0100", tx.rates)
+            T30.send(tx.c1, pages, "+1 555 0100", tx.rates, ecm = ecm)
         } catch (e: Exception) {
             throw AssertionError("$e\n${dump()}")
         }
         receiver.join(60_000)
         assertEquals(null, rxError)
         assertEquals(2, sent.pages)
+        assertEquals(ecm, sent.ecm)
+        assertEquals(ecm, rxDone?.ecm)
         assertEquals("+1 555 0199", sent.remote)
         assertEquals("+1 555 0100", rxDone?.remote)
         assertTrue("a fast rate: ${sent.bps}", sent.bps >= 9600)
@@ -250,6 +257,8 @@ class FaxCallTest {
         val efaxLog = File(dir, "efax.log").readText()
         assertEquals(efaxLog, 0, efax.exitValue())
         assertEquals(2, sent.pages)
+        // (efax has no ECM: without it, though we'd have it)
+        assertTrue(!sent.ecm)
         assertEquals("+1 555 0199", sent.remote)
         for (i in pages.indices) {
             val f = File(dir, "got.%03d".format(i + 1))

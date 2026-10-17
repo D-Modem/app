@@ -208,6 +208,13 @@ fun FaxSettingsSection() {
             Text("Fine resolution (196 lines per inch)", Modifier.weight(1f))
             Switch(checked = s.fine, onCheckedChange = { v -> scope.launch { store.update { it.copy(fine = v) } } })
         }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Error correction (ECM)")
+                Text("What a noisy line spoils is sent again, when the other machine can", style = MaterialTheme.typography.bodySmall)
+            }
+            Switch(checked = s.ecm, onCheckedChange = { v -> scope.launch { store.update { it.copy(ecm = v) } } })
+        }
         Text("Fastest rate", style = MaterialTheme.typography.bodyMedium)
         for ((bps, label) in listOf(14400 to "14400 (V.17)", 9600 to "9600 (V.29)", 4800 to "4800 (V.27ter: poor lines)")) {
             Row(

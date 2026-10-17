@@ -107,7 +107,7 @@ object Fax {
             update(FaxProgress("Dialling $number", total = pages.size))
             val r = c.command("D$number", 120_000)
             if (r != "CONNECT") throw FaxException(dialResult(r))
-            val p = T30.send(c, pages, s.ident, rates) { update(it) }
+            val p = T30.send(c, pages, s.ident, rates, ecm = s.ecm) { update(it) }
             record(app, true, number, p, "", "")
             p to ""
         }
@@ -124,7 +124,7 @@ object Fax {
             if (r != "CONNECT") throw FaxException(if (r == null) "no fax answered" else "no fax: $r")
             val got = ArrayList<FaxPage>()
             val p = try {
-                T30.receive(c, s.ident, rates, { update(it) }) { pg, _ -> got.add(pg) }
+                T30.receive(c, s.ident, rates, { update(it) }, ecm = s.ecm) { pg, _ -> got.add(pg) }
             } catch (e: IOException) {
                 // the pages that came are kept
                 if (got.isEmpty()) throw e
