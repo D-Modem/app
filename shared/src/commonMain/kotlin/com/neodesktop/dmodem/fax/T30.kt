@@ -608,7 +608,7 @@ object T30 {
                         if (e.post != MPS) break
                     }
                     when {
-                        e.dcs != null -> { d = e.dcs!!; continue }
+                        e.dcs != null -> { d = e.dcs; continue }
                         e.dcn -> if (pages > 0) return p.copy(phase = "Received") else throw FaxException("the sender hung up")
                         e.post == EOM -> continue@outer
                         e.post == EOP -> {
