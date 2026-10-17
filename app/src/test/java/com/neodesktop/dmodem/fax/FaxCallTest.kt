@@ -164,34 +164,6 @@ class FaxCallTest {
 
     private fun efaxThere() = File("/usr/bin/efax").canExecute() && File("/usr/bin/efix").canExecute()
 
-    /** [p] as a PBM file */
-    private fun pbm(p: FaxPage, f: File) {
-        f.outputStream().use { o ->
-            o.write("P4\n${p.width} ${p.rows}\n".toByteArray())
-            o.write(p.bits)
-        }
-    }
-
-    /** a PBM file's page */
-    private fun readPbm(f: File, fine: Boolean): FaxPage {
-        val d = f.readBytes()
-        var i = 0
-        val fields = ArrayList<String>()
-        while (fields.size < 3) {
-            while (d[i].toInt().toChar().isWhitespace()) i++
-            if (d[i].toInt().toChar() == '#') { while (d[i].toInt() != '\n'.code) i++; continue }
-            val s = i
-            while (!d[i].toInt().toChar().isWhitespace()) i++
-            fields.add(String(d, s, i - s))
-        }
-        i++
-        val w = fields[1].toInt()
-        val h = fields[2].toInt()
-        val p = FaxPage(w, h, fine)
-        System.arraycopy(d, i, p.bits, 0, minOf(p.bits.size, d.size - i))
-        return p
-    }
-
     private fun run(vararg cmd: String, dir: File): Int =
         ProcessBuilder(*cmd).directory(dir).redirectErrorStream(true).redirectOutput(File(dir, "${File(cmd[0]).name}.out")).start().waitFor()
 
@@ -200,7 +172,7 @@ class FaxCallTest {
         assumeTrue("efax isn't installed", efaxThere())
         val dir = tmp.newFolder("efax-tx")
         val page = FaxTestPage.of(true, rows = 500, seed = 3)
-        pbm(page, File(dir, "page.pbm"))
+        Pbm.write(page, File(dir, "page.pbm"))
         // (a TIFF, as efax reads its documents)
         assertEquals(0, run("efix", "-i", "pbm", "-R", "204x196", "-o", "tiffg3", "-n", "page.tif", "page.pbm", dir = dir))
         val rx = PtyEnd(b).apply { setUp(caller = false, maxBps = 9600) }
@@ -264,7 +236,7 @@ class FaxCallTest {
             val f = File(dir, "got.%03d".format(i + 1))
             assertTrue("$f\n$efaxLog", f.exists())
             assertEquals(0, run("efix", "-i", "fax", "-o", "pbm", "-n", "got-${i + 1}.pbm", f.name, dir = dir))
-            val back = readPbm(File(dir, "got-${i + 1}.pbm"), false)
+            val back = Pbm.read(File(dir, "got-${i + 1}.pbm"), false)
             assertEquals("page ${i + 1}'s rows", pages[i].rows, back.rows)
             assertArrayEquals("page ${i + 1}", pages[i].bits, back.bits)
         }

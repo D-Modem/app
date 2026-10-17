@@ -28,6 +28,22 @@ target_compile_options(fax_line PRIVATE -Wall -Wextra -O2)
 target_link_libraries(fax_line PRIVATE dmodem_front dmodem_core dmodem_dsp
 	dmodem_link m Threads::Threads)
 
+# sip_fax_line: the engine and dmodemd on a loopback SIP call with T.38,
+# each one's DTE a pty: FaxCallTest's fax over T.38
+add_executable(sip_fax_line sip_fax_line.cpp)
+target_compile_options(sip_fax_line PRIVATE -Wall -Wextra)
+target_compile_definitions(sip_fax_line PRIVATE DMODEMD_PATH="$<TARGET_FILE:dmodemd>")
+target_link_libraries(sip_fax_line PRIVATE dmodem_engine Threads::Threads)
+add_dependencies(sip_fax_line dmodemd)
+
+# t30_line: a class 1 modem on a line to D-Modem-RE's own T.30 fax machine
+# (with or without ECM, noise if asked): FaxCallTest's interop with it
+add_executable(t30_line t30_line.cpp)
+target_include_directories(t30_line PRIVATE ${DMODEM_RE_DIR}/dmodemd)
+target_compile_options(t30_line PRIVATE -Wall -Wextra -O2)
+target_link_libraries(t30_line PRIVATE dmodem_front dmodem_core dmodem_dsp
+	dmodem_t30 dmodem_link m Threads::Threads)
+
 # peer_host: the engine on a peer line (two phones' modems through the
 # app), for the app's PeerLineTest
 add_executable(peer_host peer_host.cpp)
