@@ -9,6 +9,7 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
@@ -80,7 +81,7 @@ class LocalShellUiTest {
 
     @Test
     fun aShellFromHome() {
-        compose.onNodeWithText("Shell").performClick()
+        compose.onNodeWithText("Shell").performScrollTo().performClick()
         compose.waitUntil(10_000) { Terminal.active.value?.kind == TerminalSession.Kind.LOCAL }
         val s = Terminal.active.value!!
         waitShell(s, "u0_a187@dmodem:~$")
