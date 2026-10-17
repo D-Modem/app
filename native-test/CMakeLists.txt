@@ -18,3 +18,12 @@ target_compile_options(engine_test PRIVATE -Wall -Wextra)
 
 add_test(NAME engine COMMAND engine_test $<TARGET_FILE:dmodemd>)
 set_tests_properties(engine PROPERTIES TIMEOUT 600)
+
+# fax_line: modem_test's two modems back to back, paced as a phone line
+# (the app's fax tests, FaxCallTest, call over it)
+find_package(Threads REQUIRED)
+add_executable(fax_line fax_line.cpp)
+target_include_directories(fax_line PRIVATE ${DMODEM_RE_DIR}/dmodemd)
+target_compile_options(fax_line PRIVATE -Wall -Wextra -O2)
+target_link_libraries(fax_line PRIVATE dmodem_front dmodem_core dmodem_dsp
+	dmodem_link m Threads::Threads)
