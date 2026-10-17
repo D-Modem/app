@@ -153,6 +153,9 @@ fun DashboardScreen(
             }
         }
 
+        SectionTitle("Internet")
+        InternetCard(onSetUp = onOpenSettings)
+
         SectionTitle("Fax")
         FaxSection()
 

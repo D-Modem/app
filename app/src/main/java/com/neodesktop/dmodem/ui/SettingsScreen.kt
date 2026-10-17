@@ -109,6 +109,8 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
         androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 8.dp))
         FaxSettingsSection()
         androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 8.dp))
+        IspSettingsSection()
+        androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 8.dp))
         AppearanceSection()
         androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 8.dp))
         TerminalSettingsSection()

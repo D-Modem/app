@@ -76,6 +76,15 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="A software dial-up modem: it holds a SIP call's real-time audio (G.711 RTP) and the modem's data connection for as long as the user keeps the modem on, and answers incoming modem calls." />
         </service>
+        <!-- dial-up internet: the PPP link as the phone's network -->
+        <service
+            android:name=".ppp.PppVpnService"
+            android:exported="false"
+            android:permission="android.permission.BIND_VPN_SERVICE">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+        </service>
         <service
             android:name=".terminal.ConnectionService"
             android:exported="false"
