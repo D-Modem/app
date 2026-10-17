@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.peer
 
+import com.neodesktop.dmodem.io.asSource
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -191,7 +192,7 @@ class PeerLineTest {
         assertEquals("fe80::1" to 6000, TcpPeerTransport.parse("[fe80::1]:6000", 5070))
         assertEquals("host" to 6000, TcpPeerTransport.parse("host:6000", 5070))
         // (the handshake's lines)
-        assertEquals("ANSWER", PeerLine.readLine("ANSWER\r\nxx".byteInputStream()))
-        assertNull(PeerLine.readLine("ANS".byteInputStream()))
+        assertEquals("ANSWER", PeerLine.readLine("ANSWER\r\nxx".byteInputStream().asSource()))
+        assertNull(PeerLine.readLine("ANS".byteInputStream().asSource()))
     }
 }

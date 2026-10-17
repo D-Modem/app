@@ -2,26 +2,24 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.peer
 
+import com.neodesktop.dmodem.io.*
+import kotlinx.atomicfu.atomic
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.io.ByteArrayOutputStream
-import java.io.Closeable
-import java.io.IOException
-import java.io.InputStream
-import java.io.OutputStream
-import java.util.concurrent.atomic.AtomicBoolean
 
 /** a byte stream each way, closed from any thread (a read blocked on it ends) */
-interface Duplex : Closeable {
-    val input: InputStream
-    val output: OutputStream
+interface Duplex : AutoCloseable {
+    val input: Source
+    val output: Sink
     /** who is at the other end, to show */
     val name: String
 }
 
 /** how phones reach each other: Wi-Fi (TCP) or Bluetooth (RFCOMM) */
-interface PeerTransport : Closeable {
+interface PeerTransport : AutoCloseable {
     /** what it is, to show ("Wi-Fi", "Bluetooth") */
     val label: String
     /** this phone offered for calls: each connection to [accept], on a thread of its own; throws if it can't */
@@ -70,9 +68,9 @@ class PeerLine(
     /** what went wrong last (a call that failed), for the user */
     val lastError: StateFlow<String?> = _lastError.asStateFlow()
 
-    private val lock = Any()
+    private val lock = SynchronizedObject()
     private var listening = false
-    @Volatile private var running = false
+    @kotlin.concurrent.Volatile private var running = false
     /** the call ringing here, not answered yet */
     private var pending: Call? = null
     /** the call on the line (ours dialled, or answered) */
@@ -97,26 +95,28 @@ class PeerLine(
     }
 
     /** a call's connection, the modem's line once off hook */
-    private inner class Call(val caller: Boolean, @Volatile var conn: Duplex?) {
-        @Volatile var line: Duplex? = null
-        @Volatile var answered = false
-        val ended = AtomicBoolean(false)
+    private inner class Call(val caller: Boolean, @kotlin.concurrent.Volatile var conn: Duplex?) {
+        @kotlin.concurrent.Volatile var line: Duplex? = null
+        @kotlin.concurrent.Volatile var answered = false
+        val ended = atomic(false)
+        /** (the call's own lock: what goes to the connection) */
+        private val callLock = SynchronizedObject()
         val who: String get() = conn?.name ?: "?"
 
         /** the octets the modem's line has given, and those of them before [skip] not for the other phone */
-        @Volatile var outCount = 0L
+        @kotlin.concurrent.Volatile var outCount = 0L
         private var skip = 0L
         /** what the line gave before the answer (from octet [earlyAt] on, the newest kept) */
-        private val early = ByteArrayOutputStream()
+        private val early = Bytes()
         private var earlyAt = 0L
 
         /** the tones we play the modem before the answer (a caller's): octets so far, stopped */
-        private val feedLock = Any()
-        @Volatile var fed = 0L
+        private val feedLock = SynchronizedObject()
+        @kotlin.concurrent.Volatile var fed = 0L
         private var feeding = true
         /** the call placed (the dial tone over), the far phone ringing */
-        val dialled = java.util.concurrent.CountDownLatch(1)
-        @Volatile var ringing = false
+        val dialled = Latch()
+        @kotlin.concurrent.Volatile var ringing = false
 
         fun end(why: String) {
             if (!ended.compareAndSet(false, true)) return
@@ -136,14 +136,14 @@ class PeerLine(
         }
 
         /** the line's samples to the connection (before the answer: kept) until either end goes */
-        fun lineToConn() = Thread({
+        fun lineToConn() = background("peer") {
             val buf = ByteArray(4096)
             try {
                 val input = line!!.input
                 while (true) {
                     val n = input.read(buf)
                     if (n < 0) break
-                    synchronized(this) {
+                    synchronized(callLock) {
                         val at = outCount
                         outCount += n
                         if (answered) {
@@ -152,9 +152,9 @@ class PeerLine(
                         } else {
                             early.write(buf, 0, n)
                             // (only the newest matter: those after the tones' answers)
-                            if (early.size() > EARLY_MAX) {
-                                val keep = early.toByteArray().copyOfRange(early.size() - EARLY_MAX / 2, early.size())
-                                earlyAt += early.size() - keep.size
+                            if (early.size > EARLY_MAX) {
+                                val keep = early.toByteArray().copyOfRange(early.size - EARLY_MAX / 2, early.size)
+                                earlyAt += early.size - keep.size
                                 early.reset()
                                 early.write(keep)
                             }
@@ -165,7 +165,7 @@ class PeerLine(
             } catch (e: IOException) {
                 end("hung up (${e.message})")
             }
-        }, "peer-out").apply { isDaemon = true; start() }
+        }
 
         /** the connection's samples to the line until either end goes (on this thread) */
         fun connToLine() {
@@ -193,7 +193,7 @@ class PeerLine(
          */
         fun answer() {
             val tones = synchronized(feedLock) { feeding = false; fed }
-            synchronized(this) {
+            synchronized(callLock) {
                 skip = tones
                 val e = early.toByteArray()
                 val from = (skip - earlyAt).coerceIn(0, e.size.toLong()).toInt()
@@ -209,15 +209,15 @@ class PeerLine(
          * while it "dials" ([dialled] then), ringback once the far phone
          * rings; until [answer] or the end.
          */
-        fun feedTones() = Thread({
+        fun feedTones() = background("peer") {
             val chunk = ShortArray(FRAME)
             val bytes = ByteArray(FRAME * 2)
             var n = 0L     // samples played
             try {
-                while (!ended.get()) {
+                while (!ended.value) {
                     // (no further ahead of the modem than its lead and two frames)
                     if (fed - outCount >= 4L * FRAME) {
-                        Thread.sleep(5)
+                        sleepMs(5)
                         continue
                     }
                     for (i in 0 until FRAME) chunk[i] = tone(n + i)
@@ -226,7 +226,7 @@ class PeerLine(
                         bytes[2 * i + 1] = (chunk[i].toInt() shr 8).toByte()
                     }
                     synchronized(feedLock) {
-                        if (!feeding) return@Thread
+                        if (!feeding) return@background
                         line!!.output.write(bytes)
                         fed += bytes.size
                     }
@@ -234,9 +234,9 @@ class PeerLine(
                     if (n >= DIALLED_AT) dialled.countDown()
                 }
             } catch (_: IOException) {
-            } catch (_: InterruptedException) {
+            } catch (_: kotlinx.coroutines.CancellationException) {
             }
-        }, "peer-tones").apply { isDaemon = true; start() }
+        }
 
         /** the tone at sample [n]: dial tone (350 + 440 Hz), quiet, ringback (440 + 480 Hz, 2 s in 6) once ringing */
         private var ringFrom = -1L
@@ -254,7 +254,7 @@ class PeerLine(
         }
 
         private fun sin2(f1: Double, f2: Double, t: Double) =
-            TONE * (Math.sin(2 * Math.PI * f1 * t) + Math.sin(2 * Math.PI * f2 * t))
+            TONE * (kotlin.math.sin(2 * kotlin.math.PI * f1 * t) + kotlin.math.sin(2 * kotlin.math.PI * f2 * t))
     }
 
     /** a call coming in: rung until the modem answers or the caller goes; busy if a call is on */
@@ -271,18 +271,18 @@ class PeerLine(
         }
         if (busy) {
             log("call from ${conn.name}: busy")
-            runCatching { conn.output.write("BUSY\n".toByteArray()); conn.output.flush() }
+            runCatching { conn.output.write("BUSY\n".encodeToByteArray()); conn.output.flush() }
             runCatching { conn.close() }
             return
         }
         log("call from ${conn.name}: ringing")
         _state.value = State.Ringing(conn.name)
-        Thread({
-            while (!c.ended.get() && !c.answered && synchronized(lock) { pending === c }) {
+        background("peer") {
+            while (!c.ended.value && !c.answered && synchronized(lock) { pending === c }) {
                 events("RING")
-                try { Thread.sleep(ringMs) } catch (_: InterruptedException) { break }
+                sleepMs(ringMs)
             }
-        }, "peer-ring").apply { isDaemon = true; start() }
+        }
         c.connToLine()
     }
 
@@ -300,7 +300,7 @@ class PeerLine(
             }
             c.line = line
             try {
-                c.conn!!.output.write("ANSWER\n".toByteArray())
+                c.conn!!.output.write("ANSWER\n".encodeToByteArray())
                 c.answer()
             } catch (e: IOException) {
                 c.end("the caller has gone (${e.message})")
@@ -317,21 +317,21 @@ class PeerLine(
         val ringing = synchronized(lock) {
             val p = pending
             pending = null
-            call?.let { other -> Thread { other.end("another call") }.start() }
+            call?.let { other -> background("peer") { other.end("another call") } }
             call = c
             p
         }
         // (a call ringing here as we dial out: it gets no answer)
         ringing?.end("we dialled out")
         c.lineToConn()
-        Thread({ dialOut(c, dial) }, "peer-dial").apply { isDaemon = true; start() }
+        background("peer") { dialOut(c, dial) }
     }
 
     private fun dialOut(c: Call, dial: String) {
         // the dial tone and the dialling first, as an exchange has them
         c.feedTones()
         c.dialled.await()
-        if (c.ended.get()) return
+        if (c.ended.value) return
         val to = target(dial)
         if (to == null) {
             fail(c, 404, "no phone to call: choose one in the settings")
@@ -346,13 +346,13 @@ class PeerLine(
             return
         }
         c.conn = conn
-        if (c.ended.get()) {
+        if (c.ended.value) {
             // (the modem gave up while we connected)
             runCatching { conn.close() }
             return
         }
         val reply = try {
-            conn.output.write("DMODEM/1 RING ${dial.filter { it in ' '..'~' }.take(100)}\n".toByteArray())
+            conn.output.write("DMODEM/1 RING ${dial.filter { it in ' '..'~' }.take(100)}\n".encodeToByteArray())
             conn.output.flush()
             c.ringing = true
             readLine(conn.input)
@@ -373,7 +373,7 @@ class PeerLine(
                 c.connToLine()
             }
             "BUSY" -> fail(c, 486, "${conn.name} is busy")
-            else -> if (!c.ended.get()) fail(c, 503, "${conn.name} didn't answer the call")
+            else -> if (!c.ended.value) fail(c, 503, "${conn.name} didn't answer the call")
         }
     }
 
@@ -399,7 +399,7 @@ class PeerLine(
         private const val EARLY_MAX = 256 * 1024
 
         /** a line of up to [max] octets, without its newline; null at the end */
-        fun readLine(input: InputStream, max: Int = 300): String? {
+        fun readLine(input: Source, max: Int = 300): String? {
             val sb = StringBuilder()
             while (sb.length < max) {
                 val b = input.read()

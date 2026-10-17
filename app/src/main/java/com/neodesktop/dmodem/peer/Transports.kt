@@ -8,8 +8,10 @@ import android.bluetooth.BluetoothServerSocket
 import android.bluetooth.BluetoothSocket
 import android.content.Context
 import java.io.IOException
-import java.io.InputStream
-import java.io.OutputStream
+import com.neodesktop.dmodem.io.Sink
+import com.neodesktop.dmodem.io.Source
+import com.neodesktop.dmodem.io.asSink
+import com.neodesktop.dmodem.io.asSource
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
@@ -19,8 +21,8 @@ import java.util.UUID
 /** a TCP connection as a [Duplex] */
 class SocketDuplex(private val socket: Socket, override val name: String = socket.inetAddress.hostAddress ?: "?") : Duplex {
     init { runCatching { socket.tcpNoDelay = true } }
-    override val input: InputStream = socket.getInputStream()
-    override val output: OutputStream = socket.getOutputStream()
+    override val input: Source = socket.getInputStream().asSource()
+    override val output: Sink = socket.getOutputStream().asSink()
     override fun close() = socket.close()
 }
 
@@ -106,8 +108,8 @@ class BluetoothPeerTransport(private val context: Context) : PeerTransport {
     private val adapter get() = context.getSystemService(BluetoothManager::class.java)?.adapter
 
     private class BtDuplex(private val s: BluetoothSocket) : Duplex {
-        override val input: InputStream = s.inputStream
-        override val output: OutputStream = s.outputStream
+        override val input: Source = s.inputStream.asSource()
+        override val output: Sink = s.outputStream.asSink()
         override val name: String = runCatching { s.remoteDevice?.let { it.name ?: it.address } }.getOrNull() ?: "Bluetooth"
         override fun close() = s.close()
     }

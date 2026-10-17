@@ -127,7 +127,12 @@ Android's JNI), with D-Modem-RE, libre and Mbed TLS as one XCFramework:
 
 The Kotlin the two apps share is `shared/` (Kotlin Multiplatform: the
 JVM for Android, iOS's framework `DModemShared`; Linux native for its
-tests): so far the terminal's emulator. `./gradlew :shared:allTests`.
+tests): the terminal's emulator, the file transfers (X/Y/ZMODEM, Kermit),
+PPP (its client and server, the chat scripts), fax (T.4, T.30, class 1,
+the PDF) and the line to another phone (PeerLine), on a small common I/O
+layer (`shared/.../io`). What stays each app's own: the UI, the modem
+service, sockets and Bluetooth, Android's VPN and files. Its tests run on
+the JVM and natively: `./gradlew :shared:allTests`.
 
 D-Modem-RE's `portable.h` has Apple's ways where Linux has its own
 (close-on-exec sockets, SIGPIPE, a monotonic sleep, a peer's hang-up);

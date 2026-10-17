@@ -158,7 +158,7 @@ class FaxAppTest {
         assertEquals("OK", c.command("E0"))
         assertEquals("OK", c.command("X3+FCLASS=1"))
         val rates = T30.modemRates(c)
-        val pages = listOf(T4Test.testPage(true, rows = 800, seed = 7), T4Test.testPage(true, rows = 400, seed = 8))
+        val pages = listOf(FaxTestPage.of(true, rows = 800, seed = 7), FaxTestPage.of(true, rows = 400, seed = 8))
         // the other machine dials, the app answers
         c.send("D5550100")
         assertEquals(null, Fax.answer(ctx))

@@ -48,7 +48,7 @@ class FaxPdfTest {
     @Test
     fun pagesReadBackExactly() {
         assumeTrue("poppler-utils isn't installed", File("/usr/bin/pdfimages").canExecute())
-        val pages = listOf(T4Test.testPage(true, rows = 700, seed = 1), T4Test.testPage(false, rows = 350, seed = 2))
+        val pages = listOf(FaxTestPage.of(true, rows = 700, seed = 1), FaxTestPage.of(false, rows = 350, seed = 2))
         val f = tmp.newFile("fax.pdf")
         f.outputStream().asSink().use { FaxPdf.write(pages, it) }
         // small: the fax's own coding

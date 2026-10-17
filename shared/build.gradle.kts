@@ -4,7 +4,8 @@
 // What the Android app and the iOS app share, in Kotlin Multiplatform:
 // the terminal's emulator (VT/xterm, its screen, Sixel, the character
 // sets, the keys, the characters' widths, the themes), the file
-// transfers (X/Y/ZMODEM, Kermit), and the I/O they're on (io/). The Android app
+// transfers (X/Y/ZMODEM, Kermit), PPP, fax, the line to another phone,
+// and the I/O they're on (io/). The Android app
 // has its JVM side; the iOS app its framework (iOS devices, simulator).
 plugins {
     alias(libs.plugins.kotlin.multiplatform)

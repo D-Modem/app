@@ -118,7 +118,7 @@ class FaxCallTest {
 
     @Test
     fun ourSenderToOurReceiver() {
-        val pages = listOf(T4Test.testPage(true, rows = 600, seed = 1), T4Test.testPage(true, rows = 300, seed = 2))
+        val pages = listOf(FaxTestPage.of(true, rows = 600, seed = 1), FaxTestPage.of(true, rows = 300, seed = 2))
         val tx = PtyEnd(a).apply { setUp(caller = true) }
         val rx = PtyEnd(b).apply { setUp(caller = false) }
         val got = ArrayList<FaxPage>()
@@ -192,7 +192,7 @@ class FaxCallTest {
     fun efaxSendsToUs() {
         assumeTrue("efax isn't installed", efaxThere())
         val dir = tmp.newFolder("efax-tx")
-        val page = T4Test.testPage(true, rows = 500, seed = 3)
+        val page = FaxTestPage.of(true, rows = 500, seed = 3)
         pbm(page, File(dir, "page.pbm"))
         // (a TIFF, as efax reads its documents)
         assertEquals(0, run("efix", "-i", "pbm", "-R", "204x196", "-o", "tiffg3", "-n", "page.tif", "page.pbm", dir = dir))
@@ -229,7 +229,7 @@ class FaxCallTest {
     fun weSendToEfax() {
         assumeTrue("efax isn't installed", efaxThere())
         val dir = tmp.newFolder("efax-rx")
-        val pages = listOf(T4Test.testPage(false, rows = 300, seed = 4), T4Test.testPage(false, rows = 200, seed = 5))
+        val pages = listOf(FaxTestPage.of(false, rows = 300, seed = 4), FaxTestPage.of(false, rows = 200, seed = 5))
         val tx = PtyEnd(a).apply { setUp(caller = true) }
         // efax waiting for the modem's CONNECT (-w): its answer given here with our dial, as this line needs
         val efax = ProcessBuilder("efax", "-v", "ewin", "-o1", "-l", "+1 555 0199", "-d", b, "-w", "-r", "got")

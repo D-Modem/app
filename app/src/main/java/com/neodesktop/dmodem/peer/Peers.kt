@@ -17,13 +17,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.io.InputStream
-import java.io.OutputStream
+import com.neodesktop.dmodem.io.Sink
+import com.neodesktop.dmodem.io.Source
+import com.neodesktop.dmodem.io.asSink
+import com.neodesktop.dmodem.io.asSource
 
 /** the native modem's line socket as a [Duplex] (closing it wakes a read blocked on it) */
 class FdDuplex(private val pfd: ParcelFileDescriptor, override val name: String = "modem") : Duplex {
-    override val input: InputStream = FileInputStream(pfd.fileDescriptor)
-    override val output: OutputStream = FileOutputStream(pfd.fileDescriptor)
+    override val input: Source = FileInputStream(pfd.fileDescriptor).asSource()
+    override val output: Sink = FileOutputStream(pfd.fileDescriptor).asSink()
     override fun close() {
         runCatching { Os.shutdown(pfd.fileDescriptor, OsConstants.SHUT_RDWR) }
         pfd.close()

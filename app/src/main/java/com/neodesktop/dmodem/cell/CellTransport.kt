@@ -9,8 +9,8 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.ByteArrayOutputStream
 import java.io.IOException
-import java.io.InputStream
-import java.io.OutputStream
+import com.neodesktop.dmodem.io.Sink
+import com.neodesktop.dmodem.io.Source
 
 /**
  * The phone's own mobile calls as the modem's line, for [PeerLine]: a
@@ -128,12 +128,7 @@ class CellTransport(
             close()
         }, "cell-end").apply { isDaemon = true; start() }
 
-        override val input: InputStream = object : InputStream() {
-            override fun read(): Int {
-                val b = ByteArray(1)
-                return if (read(b, 0, 1) < 0) -1 else b[0].toInt() and 0xff
-            }
-
+        override val input: Source = object : Source {
             override fun read(b: ByteArray, off: Int, len: Int): Int {
                 if (helloAt < hello.size) {
                     val n = minOf(len, hello.size - helloAt)
@@ -150,7 +145,7 @@ class CellTransport(
             }
         }
 
-        override val output: OutputStream = object : OutputStream() {
+        override val output: Sink = object : Sink {
             override fun write(b: Int) = write(byteArrayOf(b.toByte()), 0, 1)
 
             override fun write(b: ByteArray, off: Int, len: Int) {
