@@ -129,9 +129,9 @@ private val Badge = Color(0xffeceef1)
 
 /** the panel drawn for [lights] (the screenshots draw it too) */
 @Composable
-fun Panel(lights: Lights, modifier: Modifier = Modifier, compact: Boolean = false, bare: Boolean = false) {
+fun Panel(lights: Lights, modifier: Modifier = Modifier, compact: Boolean = false, bare: Boolean = false, vertical: Boolean = false) {
     if (bare) {
-        Strip(lights, modifier, compact = false)
+        Strip(lights, modifier, compact = false, vertical)
         return
     }
     val shape = RectangleShape
@@ -151,14 +151,14 @@ fun Panel(lights: Lights, modifier: Modifier = Modifier, compact: Boolean = fals
                 // (the strip the lights sit in)
                 Spacer(Modifier.height(10.dp))
             }
-            Strip(lights, Modifier, compact)
+            Strip(lights, Modifier, compact, vertical)
         }
     }
 }
 
 /** the strip the lights sit in: their legends over them */
 @Composable
-private fun Strip(lights: Lights, modifier: Modifier, compact: Boolean) {
+private fun Strip(lights: Lights, modifier: Modifier, compact: Boolean, vertical: Boolean = false) {
     Box(
         modifier
             .fillMaxWidth()
@@ -174,22 +174,24 @@ private fun Strip(lights: Lights, modifier: Modifier, compact: Boolean) {
                         fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp, maxLines = 1,
                     )
                     Spacer(Modifier.height(if (compact) 2.dp else 5.dp))
-                    Led(lit, if (compact) 4.dp else 6.dp)
+                    Led(lit, if (compact) 4.dp else 6.dp, vertical)
                 }
             }
         }
     }
 }
 
-/** an LED: a sharp-cornered red bar, dark when off; lit, bright with a square glow around it */
+/** an LED: a sharp-cornered red bar, dark when off; lit, bright with a square glow around it ([vertical]: standing up) */
 @Composable
-private fun Led(lit: Boolean, height: Dp) {
-    val w = height * 2.2f
-    val pad = height * 0.6f
-    Canvas(Modifier.size(w + pad * 2, height + pad * 2)) {
+private fun Led(lit: Boolean, thickness: Dp, vertical: Boolean = false) {
+    val long = thickness * 2.2f
+    val w = if (vertical) thickness else long
+    val h = if (vertical) long else thickness
+    val pad = thickness * 0.6f
+    Canvas(Modifier.size(w + pad * 2, h + pad * 2)) {
         val p = pad.toPx()
         val bw = w.toPx()
-        val bh = height.toPx()
+        val bh = h.toPx()
         val at = Offset(p, p)
         val bar = Size(bw, bh)
         if (lit) {

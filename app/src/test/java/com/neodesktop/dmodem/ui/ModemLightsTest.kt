@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
@@ -17,6 +18,8 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.material3.Text
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -62,5 +65,32 @@ class ModemLightsTest {
             if ((p shr 16 and 0xff) > 230 && (p shr 8 and 0xff) in 40..120 && (p and 0xff) < 90) bright++
         }
         assertTrue("lit LEDs drawn: $bright", bright > 50)
+    }
+
+    /** a mockup: the LEDs lying down (as they are) and standing up, side by side: build/screens/lights-vertical.png */
+    @Test
+    @Config(sdk = [35], qualifiers = "w820dp-h900dp-xxhdpi")
+    fun verticalMockup() {
+        val online = Lights(mr = true, tr = true, cs = true, aa = true, cd = true, oh = true, rd = true, sd = false, arq = true)
+        compose.setContent {
+            Row(
+                Modifier.testTag("all").background(Color(0xfff5f5f7)).padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                for (vertical in listOf(false, true)) {
+                    Column(Modifier.width(380.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(if (vertical) "Vertical" else "Horizontal (now)", fontSize = 14.sp, color = Color(0xff222222))
+                        Panel(Lights(mr = true, tr = true, cs = true, aa = true), vertical = vertical)
+                        Panel(online, vertical = vertical)
+                        Panel(online, compact = true, vertical = vertical)
+                        Panel(online, bare = true, vertical = vertical)
+                    }
+                }
+            }
+        }
+        compose.waitForIdle()
+        val bmp = compose.onNodeWithTag("all").captureToImage().asAndroidBitmap()
+        File("build/screens").mkdirs()
+        File("build/screens/lights-vertical.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 }
