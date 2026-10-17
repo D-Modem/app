@@ -127,9 +127,9 @@ private val Case = Brush.verticalGradient(listOf(Color(0xff45474b), Color(0xff2a
 private val Legend = Color(0xffd4d5d8)
 private val Badge = Color(0xffeceef1)
 
-/** the panel drawn for [lights] (the screenshots draw it too) */
+/** the panel drawn for [lights] (the screenshots draw it too): LEDs standing up, lying down in the compact strip */
 @Composable
-fun Panel(lights: Lights, modifier: Modifier = Modifier, compact: Boolean = false, bare: Boolean = false, vertical: Boolean = false) {
+fun Panel(lights: Lights, modifier: Modifier = Modifier, compact: Boolean = false, bare: Boolean = false, vertical: Boolean = !compact) {
     if (bare) {
         Strip(lights, modifier, compact = false, vertical)
         return
