@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.peer
 
+import com.neodesktop.dmodem.TestLogs
 import java.io.File
 import java.io.IOException
 import java.net.Socket
@@ -36,8 +37,8 @@ open class TestModem(
     init {
         val bin = peerHost()
         org.junit.Assume.assumeTrue("peer_host isn't built (native-test)", bin != null)
-        proc = ProcessBuilder(bin!!.path, leadMs.toString()).redirectError(File("/tmp/peer_host_$name.log"))
-            .apply { environment()["PEER_SPEAKER"] = "/tmp/peer_speaker_$name.raw" }.start()
+        proc = ProcessBuilder(bin!!.path, leadMs.toString()).start()
+        TestLogs.echo("peer_host $name", proc.errorStream)
         closers.add { proc.destroyForcibly() }
         Thread {
             proc.inputStream.bufferedReader().forEachLine { l -> out.add(l) }
@@ -62,7 +63,7 @@ open class TestModem(
                 }
             },
             target = { dial -> target(dial) },
-            log = { log.add(it) },
+            log = { log.add(it); TestLogs.note("line $name", it) },
             ringMs = 1000,
             pin = pin,
         )

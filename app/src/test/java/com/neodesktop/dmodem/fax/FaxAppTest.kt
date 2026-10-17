@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.fax
 
+import com.neodesktop.dmodem.TestLogs
 import android.content.Context
 import android.net.Uri
 import android.os.Environment
@@ -53,7 +54,7 @@ class FaxAppTest {
         assumeTrue("fax_line isn't built (native-test)", fl != null)
         val p = ProcessBuilder(fl!!.path).redirectErrorStream(true).apply { environment()["LINE_SPEED"] = LINE_SPEED }.start()
         line = p
-        Thread { p.inputStream.bufferedReader().forEachLine { log.add(it) } }.apply { isDaemon = true; start() }
+        TestLogs.echo("fax_line", p.inputStream) { log.add(it) }
         val end = System.currentTimeMillis() + 10_000
         while (System.currentTimeMillis() < end && log.none { it.startsWith("created modemB: ") }) Thread.sleep(20)
         a = log.first { it.startsWith("created modemA: ") }.substringAfter(": ")
@@ -68,8 +69,8 @@ class FaxAppTest {
 
     @After
     fun tearDown() {
-        // (both sides' logs, for a failing run: build/fax-app-log.txt)
-        File("build/fax-app-log.txt").writeText((ModemState.log.flow.value + listOf("----") + log).joinToString("\n"))
+        // (the app's modem log, into the test's)
+        ModemState.log.flow.value.forEach { TestLogs.note("app", it) }
         Fax.cancel()
         closers.forEach { runCatching { it() } }
         ModemState.dte.detach()
@@ -93,7 +94,7 @@ class FaxAppTest {
                 io.feed(buf, 0, n)
             }
         }.apply { isDaemon = true; start() }
-        return Class1(io) { log.add("B: $it") }
+        return Class1(io) { log.add("B: $it"); TestLogs.note("B", it) }
     }
 
     private fun waitLog(what: String, secs: Int = 30): Boolean {

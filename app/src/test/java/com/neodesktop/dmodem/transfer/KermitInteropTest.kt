@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.transfer
 
+import com.neodesktop.dmodem.TestLogs
 import com.neodesktop.dmodem.local.LocalLink
 import com.neodesktop.dmodem.local.LocalShellTest
 import com.neodesktop.dmodem.local.Pty
@@ -64,21 +65,18 @@ class KermitInteropTest {
             }
             io.feed(b)
         }
-        // (KERMIT_TRACE=1: the line both ways in build/kermit-trace.txt, for a failing run)
+        // (KERMIT_TRACE=1: the line both ways in the test's log, for a failing run)
         if (System.getenv("KERMIT_TRACE") != null) traceTo(io)
         assertTrue(l.start())
         return l to io
     }
 
     private fun traceTo(io: TransferIo) {
-        val trace = File("build/kermit-trace.txt").apply { delete() }
         io.trace = { inbound, b ->
-            synchronized(trace) {
-                trace.appendText((if (inbound) "<< " else ">> ") + b.joinToString("") { c ->
-                    val v = c.toInt() and 0xff
-                    if (v in 0x20..0x7e) v.toChar().toString() else "\\x%02x".format(v)
-                } + "\n")
-            }
+            TestLogs.note(if (inbound) "<<" else ">>", b.joinToString("") { c ->
+                val v = c.toInt() and 0xff
+                if (v in 0x20..0x7e) v.toChar().toString() else "\\x%02x".format(v)
+            })
         }
     }
 

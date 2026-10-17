@@ -132,6 +132,19 @@ The host test needs OpenSSL's headers (libssl-dev):
     cmake --build build-host
     ctest --test-dir build-host --output-on-failure
 
+With `build-host` built, the unit tests also make calls on its test
+lines (fax between modems, against efax and D-Modem-RE's own T.30, over
+SIP with T.38, phone to phone, through mobile codecs); without it those
+are skipped. The lines run at twice a phone line's pace
+(`DMODEM_LINE_SPEED=1` for a real one's).
+
+Each test run's logs go to `build/test-runs/<date_time>/<module>-<task>/`,
+one file for each test (`<class>/<test>.log`: what it printed, the line
+tools' logs among it, and a failure's stack trace). A run where nothing
+failed deletes its folder; the build names the one it kept.
+`KERMIT_TRACE=1` and `TRANSFER_TRACE=1` add the transfer tests' bytes
+each way.
+
 CI (`.github/workflows/android.yml`) runs all three; it needs a
 `DMODEM_RE_TOKEN` secret that can read the private D-Modem-RE submodule.
 

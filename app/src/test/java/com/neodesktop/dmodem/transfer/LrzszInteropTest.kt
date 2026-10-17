@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.transfer
 
+import com.neodesktop.dmodem.TestLogs
 import com.neodesktop.dmodem.local.LocalLink
 import com.neodesktop.dmodem.local.LocalShellTest
 import com.neodesktop.dmodem.local.Pty
@@ -63,16 +64,13 @@ class LrzszInteropTest {
             }
             io.feed(b)
         }
-        // (TRANSFER_TRACE=1: the bytes each way, for a failing run: build/transfer-trace.txt)
+        // (TRANSFER_TRACE=1: the bytes each way, for a failing run: into the test's log)
         if (System.getenv("TRANSFER_TRACE") != null) {
-            val trace = File("build/transfer-trace.txt").apply { delete() }
             io.trace = { inbound, b ->
-                synchronized(trace) {
-                    trace.appendText((if (inbound) "<< " else ">> ") + b.joinToString("") { c ->
-                        val v = c.toInt() and 0xff
-                        if (v in 0x20..0x7e) v.toChar().toString() else "\\x%02x".format(v)
-                    } + "\n")
-                }
+                TestLogs.note(if (inbound) "<<" else ">>", b.joinToString("") { c ->
+                    val v = c.toInt() and 0xff
+                    if (v in 0x20..0x7e) v.toChar().toString() else "\\x%02x".format(v)
+                })
             }
         }
         assertTrue(l.start())

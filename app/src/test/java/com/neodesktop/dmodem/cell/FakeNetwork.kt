@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.cell
 
+import com.neodesktop.dmodem.TestLogs
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.io.File
@@ -24,8 +25,8 @@ class FakeNetwork(private val codec: String? = null, private val closers: Mutabl
         private var part = ByteArray(0)
         private val filter: Process? = codec?.let { c ->
             val bin = codecLine() ?: throw AssertionError("codec_line isn't built")
-            ProcessBuilder(bin.path, "--filter", c).redirectError(File("/tmp/codec_$name.log")).start()
-                .also { p -> closers.add { p.destroyForcibly() } }
+            ProcessBuilder(bin.path, "--filter", c).start()
+                .also { p -> closers.add { p.destroyForcibly() }; TestLogs.echo("codec $name", p.errorStream) }
         }
         @Volatile var open = true
 

@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.fax
 
+import com.neodesktop.dmodem.TestLogs
 import com.neodesktop.dmodem.transfer.TransferIo
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
@@ -52,7 +53,7 @@ class FaxCallTest {
         val p = ProcessBuilder(mt!!.path).redirectErrorStream(true).apply { environment()["LINE_SPEED"] = LINE_SPEED }.start()
         modems = p
         Thread {
-            p.inputStream.bufferedReader().forEachLine { l -> log.add(l) }
+            p.inputStream.bufferedReader().forEachLine { l -> log.add(l); TestLogs.note("fax_line", l) }
         }.apply { isDaemon = true; start() }
         val end = System.currentTimeMillis() + 10_000
         while (System.currentTimeMillis() < end && log.none { it.startsWith("created modemB: ") }) Thread.sleep(20)
@@ -79,7 +80,10 @@ class FaxCallTest {
             input = FileInputStream(path)
             output = FileOutputStream(path)
             io = TransferIo { bytes -> output.write(bytes); output.flush() }
-            c1 = Class1(io) { line -> log.add("${path.substringAfterLast('/')}: $line") }
+            c1 = Class1(io) { line ->
+                log.add("${path.substringAfterLast('/')}: $line")
+                TestLogs.note(path.substringAfterLast('/'), line)
+            }
             Thread {
                 val buf = ByteArray(4096)
                 while (true) {

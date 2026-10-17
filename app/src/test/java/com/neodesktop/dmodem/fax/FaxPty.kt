@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.fax
 
+import com.neodesktop.dmodem.TestLogs
 import com.neodesktop.dmodem.transfer.TransferIo
 import java.io.File
 import java.io.FileInputStream
@@ -36,9 +37,11 @@ class FaxLineProcess(cmd: List<String>) : AutoCloseable {
     private val proc: Process = ProcessBuilder(cmd).apply { environment()["LINE_SPEED"] = LINE_SPEED }.start()
     private val closers = ArrayList<() -> Unit>()
 
+    private val tag = File(cmd.first()).name
+
     init {
-        Thread { proc.errorStream.bufferedReader().forEachLine { log.add(it) } }.apply { isDaemon = true; start() }
-        Thread { proc.inputStream.bufferedReader().forEachLine { log.add(it) } }.apply { isDaemon = true; start() }
+        TestLogs.echo(tag, proc.errorStream) { log.add(it) }
+        TestLogs.echo(tag, proc.inputStream) { log.add(it) }
     }
 
     /** the pty of [name] (modemA, modemB), opened raw: our class 1 modem on it */
@@ -60,7 +63,7 @@ class FaxLineProcess(cmd: List<String>) : AutoCloseable {
                 io.feed(buf, 0, n)
             }
         }.apply { isDaemon = true; start() }
-        return Class1(io) { line -> log.add("$tag: $line") }
+        return Class1(io) { line -> log.add("$tag: $line"); TestLogs.note(tag, line) }
     }
 
     fun dump(n: Int = 80) = log.takeLast(n).joinToString("\n")
