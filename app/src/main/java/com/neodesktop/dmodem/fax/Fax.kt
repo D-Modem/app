@@ -56,6 +56,8 @@ data class FaxRecord(
  * modem's DTE to itself while it lasts (the terminal and the bridges
  * see nothing of it).
  */
+// (it holds the application's context, which lives as long as the process does)
+@android.annotation.SuppressLint("StaticFieldLeak")
 object Fax {
     /** what the fax call is doing; null when none is (or has been) */
     data class State(
