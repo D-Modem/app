@@ -2,7 +2,8 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.fax
 
-import java.io.IOException
+import com.neodesktop.dmodem.io.*
+
 
 /** how a fax call went, as it goes */
 data class FaxProgress(
@@ -184,8 +185,8 @@ object T30 {
         var dis: ByteArray? = null
         var remote = ""
         var first = true
-        val t1 = System.currentTimeMillis() + 35_000
-        while (dis == null && System.currentTimeMillis() < t1) {
+        val t1 = monotonicMs() + 35_000
+        while (dis == null && monotonicMs() < t1) {
             val f = if (first) c.readFrame(10_000) else c.receiveFrame()
             first = false
             if (f == null) continue
@@ -268,7 +269,7 @@ object T30 {
                 }
                 DCN -> throw FaxException("the fax machine hung up after page ${i + 1}")
                 null -> throw FaxException("no answer to page ${i + 1}")
-                else -> throw FaxException("the fax machine answered page ${i + 1} with %02x".format(answer))
+                else -> throw FaxException("the fax machine answered page ${i + 1} with ${hex2(answer)}")
             }
         }
         // phase E
@@ -397,7 +398,7 @@ object T30 {
                             c.receiveFrame()
                             return p.copy(phase = "Received")
                         }
-                        else -> throw FaxException("the sender ended page $pages with %02x".format(post))
+                        else -> throw FaxException("the sender ended page $pages with ${hex2(post)}")
                     }
                 }
             }

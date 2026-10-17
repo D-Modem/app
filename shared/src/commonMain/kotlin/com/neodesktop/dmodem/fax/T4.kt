@@ -2,7 +2,8 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.fax
 
-import java.io.ByteArrayOutputStream
+import com.neodesktop.dmodem.io.*
+
 
 /**
  * A fax page: [rows] rows of [width] pels, 1 = black, packed eight to a
@@ -90,8 +91,8 @@ object T4 {
         var n = 1
 
         init {
-            java.util.Arrays.fill(zero, -1)
-            java.util.Arrays.fill(one, -1)
+            zero.fill(-1)
+            one.fill(-1)
             for (c in table) {
                 var at = 0
                 for (ch in c.bits) {
@@ -108,9 +109,9 @@ object T4 {
 
         private fun grow() {
             val s = zero.size * 2
-            zero = zero.copyOf(s).also { java.util.Arrays.fill(it, s / 2, s, -1) }
-            one = one.copyOf(s).also { java.util.Arrays.fill(it, s / 2, s, -1) }
-            leaf = leaf.copyOf(s).also { java.util.Arrays.fill(it, s / 2, s, -1) }
+            zero = zero.copyOf(s).also { it.fill(-1, s / 2, s) }
+            one = one.copyOf(s).also { it.fill(-1, s / 2, s) }
+            leaf = leaf.copyOf(s).also { it.fill(-1, s / 2, s) }
         }
     }
 
@@ -119,7 +120,7 @@ object T4 {
 
     /** bits out, the first in the bottom bit of each byte */
     private class BitWriter {
-        val out = ByteArrayOutputStream()
+        val out = Bytes()
         private var cur = 0
         private var n = 0
         var count = 0L
@@ -243,7 +244,7 @@ object T4 {
             if (rows.size > 20_000) break
         }
         val page = FaxPage(width, rows.size, fine)
-        for ((y, r) in rows.withIndex()) System.arraycopy(r, 0, page.bits, y * stride, stride)
+        for ((y, r) in rows.withIndex()) r.copyInto(page.bits, y * stride, 0, stride)
         return Decoded(page, bad)
     }
 

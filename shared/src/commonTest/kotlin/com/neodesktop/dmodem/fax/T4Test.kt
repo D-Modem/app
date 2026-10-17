@@ -2,11 +2,11 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.fax
 
-import org.junit.Assert.assertArrayEquals
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+import kotlin.test.Test
 import kotlin.random.Random
 
 /** T.4's MH coding both ways; T.30's DIS/DCS bits and identities. */
@@ -40,7 +40,7 @@ class T4Test {
             val back = T4.decode(data, fine = fine)
             assertEquals(0, back.badRows)
             assertEquals(page.rows, back.page.rows)
-            assertArrayEquals(page.bits, back.page.bits)
+            assertContentEquals(page.bits, back.page.bits)
         }
     }
 
@@ -62,7 +62,7 @@ class T4Test {
         // a byte in the middle spoilt: a row or two lost, the rest still there
         data[data.size / 2] = (data[data.size / 2].toInt() xor 0xff).toByte()
         val back = T4.decode(data, fine = false)
-        assertTrue("bad rows: ${back.badRows}", back.badRows in 1..3)
+        assertTrue(back.badRows in 1..3, "bad rows: ${back.badRows}")
         assertEquals(page.rows, back.page.rows)
     }
 

@@ -2,7 +2,6 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.fax
 
-import com.neodesktop.dmodem.io.asOutputStream
 import android.content.Context
 import android.net.Uri
 import com.neodesktop.dmodem.bridge.Bridges
@@ -244,7 +243,7 @@ object Fax {
         val into = DownloadsIncoming(context)
         val (out, actual) = into.create(name, -1)
         try {
-            out.asOutputStream().use { FaxPdf.write(pages, it) }
+            out.use { FaxPdf.write(pages, it) }
             into.done(actual, System.currentTimeMillis() / 1000)
         } catch (e: IOException) {
             into.abandon(actual)

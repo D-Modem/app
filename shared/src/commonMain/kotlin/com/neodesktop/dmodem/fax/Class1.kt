@@ -2,9 +2,9 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.fax
 
+import com.neodesktop.dmodem.io.*
+
 import com.neodesktop.dmodem.transfer.TransferIo
-import java.io.ByteArrayOutputStream
-import java.io.IOException
 
 /**
  * A class 1 fax modem (T.31) from its DTE: AT commands and their
@@ -23,9 +23,9 @@ class Class1(private val io: TransferIo, private val log: (String) -> Unit = {})
     /** a line from the modem, its CR LF off; null when none came in [ms] */
     fun line(ms: Long): String? {
         val sb = StringBuilder()
-        val end = System.currentTimeMillis() + ms
+        val end = monotonicMs() + ms
         while (true) {
-            val left = end - System.currentTimeMillis()
+            val left = end - monotonicMs()
             if (left <= 0) return null
             val c = io.read(left)
             if (c < 0) return null
@@ -40,21 +40,21 @@ class Class1(private val io: TransferIo, private val log: (String) -> Unit = {})
     /** a command (without its AT): its result line (OK, CONNECT, ERROR, NO CARRIER, +FCERROR, …), null on a timeout */
     fun command(cmd: String, ms: Long = 5000): String? {
         log("-> AT$cmd")
-        io.write("AT$cmd\r".toByteArray())
+        io.write("AT$cmd\r".encodeToByteArray())
         return result(ms)
     }
 
     /** a command out (without its AT), its result left for [result] */
     fun send(cmd: String) {
         log("-> AT$cmd")
-        io.write("AT$cmd\r".toByteArray())
+        io.write("AT$cmd\r".encodeToByteArray())
     }
 
     /** the next result line (the command's echo, and anything else that isn't one, passed over) */
     fun result(ms: Long): String? {
-        val end = System.currentTimeMillis() + ms
+        val end = monotonicMs() + ms
         while (true) {
-            val l = line(end - System.currentTimeMillis()) ?: return null
+            val l = line(end - monotonicMs()) ?: return null
             if (l.startsWith("AT", ignoreCase = true)) continue
             if (l in RESULTS || l.startsWith("CONNECT") || l.startsWith("+F") && !l.startsWith("+FTM:")) return l
             lastInfo = l
@@ -67,7 +67,7 @@ class Class1(private val io: TransferIo, private val log: (String) -> Unit = {})
 
     /** octets out, <DLE> doubled, <DLE><ETX> after */
     fun sendData(data: ByteArray, end: Boolean = true) {
-        val o = ByteArrayOutputStream(data.size + data.size / 64 + 4)
+        val o = Bytes(data.size + data.size / 64 + 4)
         for (b in data) {
             o.write(b.toInt())
             if (b == DLE.toByte()) o.write(DLE)
@@ -81,7 +81,7 @@ class Class1(private val io: TransferIo, private val log: (String) -> Unit = {})
      * timeout of [ms] with nothing coming
      */
     fun readData(ms: Long, max: Int = 4 * 1024 * 1024): ByteArray? {
-        val o = ByteArrayOutputStream()
+        val o = Bytes()
         var dle = false
         while (true) {
             val c = io.read(ms)
@@ -99,7 +99,7 @@ class Class1(private val io: TransferIo, private val log: (String) -> Unit = {})
             } else {
                 o.write(c)
             }
-            if (o.size() > max) throw IOException("too much data")
+            if (o.size > max) throw IOException("too much data")
         }
     }
 
@@ -169,7 +169,7 @@ class Class1(private val io: TransferIo, private val log: (String) -> Unit = {})
         const val T2_MS = 6000L
         val RESULTS = setOf("OK", "ERROR", "NO CARRIER", "NO DIALTONE", "NO DIAL TONE", "BUSY", "NO ANSWER", "RING", "FCERROR")
 
-        fun hex(b: ByteArray) = b.joinToString(" ") { "%02x".format(it) }
+        fun hex(b: ByteArray) = b.joinToString(" ") { hex2(it.toInt() and 0xff) }
 
         /** a frame: address, control (set when sent), FCF, FIF */
         fun frame(fcf: Int, fif: ByteArray = ByteArray(0)) = byteArrayOf(ADDR.toByte(), CTRL.toByte(), fcf.toByte()) + fif
