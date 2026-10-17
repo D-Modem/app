@@ -8,6 +8,7 @@ import com.neodesktop.dmodem.bridge.Bridges
 import com.neodesktop.dmodem.modem.ModemState
 import com.neodesktop.dmodem.settings.FaxSettings
 import com.neodesktop.dmodem.settings.FaxSettingsStore
+import com.neodesktop.dmodem.settings.ModemSettings
 import com.neodesktop.dmodem.terminal.JsonListStore
 import com.neodesktop.dmodem.terminal.TerminalLink
 import com.neodesktop.dmodem.transfer.DownloadsIncoming
@@ -86,10 +87,19 @@ object Fax {
 
     val running: Boolean get() = _state.value?.running == true
 
+    /**
+     * (a mobile call's speech codec spoils the fax modulations: through
+     * AMR-NB 12.2, the best of them, V.27ter's training at 2400 bit/s
+     * comes with about one bit in sixteen wrong, more than ECM can mend;
+     * CellFaxTest)
+     */
+    private const val CELL_NO_FAX = "fax doesn't go through a mobile call (its speech codec spoils the fax signals): use a SIP account or the line to another phone"
+
     /** why a fax can't start now, or null */
     private fun busy(): String? = when {
         ModemState.run.value != ModemState.Run.RUNNING -> "the modem is off"
         running -> "a fax call is going on"
+        ModemState.line == ModemSettings.LINE_CELL -> CELL_NO_FAX
         ModemState.status.value.offhook -> "the modem is in a call"
         Bridges.serial.client.value != null -> "the modem is in use by ${Bridges.serial.client.value?.name}"
         else -> null

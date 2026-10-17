@@ -41,17 +41,23 @@ class SipFaxTest {
         var rxDone: FaxProgress? = null
         var rxError: Throwable? = null
         tx.send("D5551000")
-        assertEquals(l.dump(), "RING", rx.result(20_000))
+        val ring = rx.result(20_000)
+        assertEquals(l.dump(), "RING", ring)
         val receiver = Thread {
             try {
-                assertEquals("CONNECT", rx.command("A", 20_000))
+                rx.send("A")
+                // (the RINGs still coming before it)
+                var r = rx.result(30_000)
+                while (r == "RING") r = rx.result(30_000)
+                assertEquals("CONNECT", r)
                 rxDone = T30.receive(rx, "+1 555 0199", rxRates, ecm = ecm) { pg, _ -> got.add(pg) }
             } catch (e: Throwable) {
                 rxError = e
             }
         }
         receiver.start()
-        assertEquals(l.dump(), "CONNECT", tx.result(30_000))
+        val connect = tx.result(30_000)
+        assertEquals(l.dump(200), "CONNECT", connect)
         val sent = try {
             T30.send(tx, pages, "+1 555 0100", txRates, ecm = ecm)
         } catch (e: Exception) {

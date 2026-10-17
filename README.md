@@ -28,6 +28,25 @@ speech through codecs that wreck modem signals; native-test's
 
 So the mobile-call line starts the modem at V.21 (+MS=V21), with 1200 and
 2400 bit/s as settings to try.
+Fax doesn't get through at all (V.27ter's training at 2400 bit/s comes
+through AMR 12.2 with about one bit in sixteen wrong), so the app turns
+fax down on that line.
+
+Two phones with the app can also be each other's line, over Wi-Fi or
+Bluetooth, with no SIP account: the modems connect as over a perfect line.
+An optional PIN, the same on both phones, keeps other callers out (a
+challenge and response: the PIN never goes over the connection).
+
+## Fax
+
+Class 1 fax (T.30, MH coding, V.27ter, V.29 and V.17 up to 14400 bit/s),
+sending PDFs and images and receiving into PDFs, on the SIP line (audio,
+or T.38 when the far end asks for it) and the line to another phone.
+Error correction mode (T.30 Annex A) when the other machine has it: the
+page in numbered HDLC frames, those a noisy line spoils sent again. Tested
+against efax, against D-Modem-RE's own T.30 machine (native-test's
+`t30_line`, on a clean line and a noisy one), and over SIP with T.38
+between the app's engine and dmodemd (`sip_fax_line`).
 
 ## The app
 

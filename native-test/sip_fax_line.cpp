@@ -128,10 +128,16 @@ void relay(int a, int b)
 	}
 }
 
+/* dmodemd ended too (its SIP port free for the next one), then us */
 void on_signal(int)
 {
-	if (dmodemd_pid > 0)
+	if (dmodemd_pid > 0) {
 		kill(dmodemd_pid, SIGTERM);
+		for (int i = 0; i < 50 && waitpid(dmodemd_pid, nullptr, WNOHANG) == 0; i++)
+			usleep(100000);
+		kill(dmodemd_pid, SIGKILL);
+		waitpid(dmodemd_pid, nullptr, 0);
+	}
 	_exit(0);
 }
 

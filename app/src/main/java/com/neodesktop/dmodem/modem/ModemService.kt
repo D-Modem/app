@@ -226,6 +226,7 @@ class ModemService : Service() {
         ModemState.dte.attach(pfd)
         ModemState.setStatus(ModemState.IDLE)
         ModemState.speaker.enabled = settings.speaker
+        ModemState.line = settings.line
         // (the speaker's sound: one socket for the process, read for good once started)
         NativeModem.speakerSound()?.let { s ->
             speakerSocket = s

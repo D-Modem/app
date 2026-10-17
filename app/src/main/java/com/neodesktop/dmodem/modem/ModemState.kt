@@ -32,6 +32,9 @@ object ModemState {
     /** The modem's DTE, shared by the console, the terminal and the bridges. */
     val dte = DteHub()
 
+    /** the line the running modem is on (ModemSettings.LINE_*) */
+    @Volatile var line: String = com.neodesktop.dmodem.settings.ModemSettings.LINE_SIP
+
     /** the modem's speaker on the phone's (ATM, ATL) */
     val speaker = ModemSpeaker()
 

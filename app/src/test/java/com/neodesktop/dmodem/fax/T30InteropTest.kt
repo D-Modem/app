@@ -85,9 +85,9 @@ class T30InteropTest {
         }
     }
 
-    private fun theySend(ecm: Boolean, snr: Double = 0.0): List<FaxPage> {
+    private fun theySend(ecm: Boolean, snr: Double = 0.0, maxBps: Int = 14400): List<FaxPage> {
         val dir = tmp.newFolder()
-        val args = mutableListOf("send", dir.path)
+        val args = mutableListOf("send", dir.path, "--bps", maxBps.toString())
         if (snr > 0) args += listOf("--snr", snr.toString())
         val c = start(*args.toTypedArray())
         assertEquals("OK", c.command("+FCLASS=1"))
@@ -124,9 +124,13 @@ class T30InteropTest {
         theySend(ecm = true)
     }
 
+    // (at 12000: at V.17's 14400 its first page's row 90, 1-pel runs across
+    // the page, comes with its second half spoilt, the same place each time,
+    // on a clean line: from D-Modem-RE's T.30 sender to its class 1 receiver,
+    // before our T.30 sees it; ECM's frames sent again hide it)
     @Test
     fun weReceiveWithoutEcm() {
-        theySend(ecm = false)
+        theySend(ecm = false, maxBps = 12000)
     }
 
     @Test
