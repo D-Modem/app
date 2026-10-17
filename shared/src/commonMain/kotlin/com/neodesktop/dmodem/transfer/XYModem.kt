@@ -2,9 +2,8 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.transfer
 
-import java.io.IOException
-import java.io.InputStream
-import java.io.OutputStream
+import com.neodesktop.dmodem.io.*
+
 
 /**
  * XMODEM (128-byte blocks, checksum or CRC; 1K blocks) and YMODEM (1K
@@ -37,7 +36,7 @@ class XYModem(
         report { it.copy(file = actual) }
         try {
             out.use { o ->
-                val trailing = java.io.ByteArrayOutputStream()
+                val trailing = Bytes()
                 receiveFile(o, -1, ymodem = false, first = null, holdLast = trailing)
                 // the last block, its padding off
                 val last = trailing.toByteArray()
@@ -67,8 +66,8 @@ class XYModem(
                 return names
             }
             val nul = data.indexOf(0.toByte())
-            val name = String(data, 0, nul, Charsets.UTF_8)
-            val meta = String(data, nul + 1, data.size - nul - 1, Charsets.ISO_8859_1).trimEnd('\u0000').split(' ')
+            val name = data.decodeToString(0, 0 + nul)
+            val meta = latin1String(data, nul + 1, data.size - nul - 1).trimEnd('\u0000').split(' ')
             val size = meta.getOrNull(0)?.toLongOrNull() ?: -1
             val mtime = meta.getOrNull(1)?.toLongOrNull(8) ?: 0
             io.write(ACK)
@@ -115,10 +114,10 @@ class XYModem(
     private fun readBlock(useCrc: Boolean, waitMs: Long): Block? {
         eot = false
         // (what isn't a block's start let go by: the sender's own messages, line noise)
-        val deadline = System.currentTimeMillis() + waitMs
+        val deadline = monotonicMs() + waitMs
         var size = 0
         while (size == 0) {
-            val left = deadline - System.currentTimeMillis()
+            val left = deadline - monotonicMs()
             if (left <= 0) return null
             when (io.read(left)) {
                 -1 -> return null
@@ -159,7 +158,7 @@ class XYModem(
      * a file's blocks into [o] (all but the last one into [holdLast], if
      * given: XMODEM takes its padding off): up to [size] bytes if known
      */
-    private fun receiveFile(o: OutputStream, size: Long, ymodem: Boolean, first: Block?, holdLast: java.io.ByteArrayOutputStream?) {
+    private fun receiveFile(o: Sink, size: Long, ymodem: Boolean, first: Block?, holdLast: Bytes?) {
         var expect = 1
         var written = 0L
         var errors = 0
@@ -230,8 +229,8 @@ class XYModem(
         for (f in files) {
             if (waitForStart() != true) throw IOException("the receiver didn't start")
             val head = ByteArray(128)
-            val meta = (f.name.substringAfterLast('/').toByteArray(Charsets.UTF_8) + 0) +
-                ("${if (f.size >= 0) f.size else 0} ${java.lang.Long.toOctalString(f.mtime.coerceAtLeast(0))} 0").toByteArray()
+            val meta = (f.name.substringAfterLast('/').encodeToByteArray() + 0) +
+                ("${if (f.size >= 0) f.size else 0} ${(f.mtime.coerceAtLeast(0)).toString(8)} 0").encodeToByteArray()
             val block0 = if (meta.size > 128) ByteArray(1024) else head
             meta.copyInto(block0, 0, 0, minOf(meta.size, block0.size))
             sendBlock(0, block0, true)
@@ -252,8 +251,8 @@ class XYModem(
 
     /** C (CRC: true) or NAK (checksum: false) from the receiver; null if neither came */
     private fun waitForStart(): Boolean? {
-        val end = System.currentTimeMillis() + 60_000
-        while (System.currentTimeMillis() < end) {
+        val end = monotonicMs() + 60_000
+        while (monotonicMs() < end) {
             when (io.read(timeoutMs)) {
                 C -> return true
                 NAK -> return false
@@ -263,7 +262,7 @@ class XYModem(
         return null
     }
 
-    private fun sendData(input: InputStream, blockSize: Int, useCrc: Boolean, ymodem: Boolean) {
+    private fun sendData(input: Source, blockSize: Int, useCrc: Boolean, ymodem: Boolean) {
         var n = 1
         var sent = 0L
         val buf = ByteArray(blockSize)
@@ -307,7 +306,7 @@ class XYModem(
     }
 
     private fun blockBytes(n: Int, data: ByteArray, useCrc: Boolean): ByteArray {
-        val out = java.io.ByteArrayOutputStream()
+        val out = Bytes()
         out.write(if (data.size == 1024) STX else SOH)
         out.write(n and 0xff)
         out.write(0xff - (n and 0xff))
@@ -329,9 +328,9 @@ class XYModem(
      * straight away)
      */
     private fun answer(allowC: Boolean, wait: Long = timeoutMs): Int {
-        val deadline = System.currentTimeMillis() + wait
+        val deadline = monotonicMs() + wait
         while (true) {
-            val left = deadline - System.currentTimeMillis()
+            val left = deadline - monotonicMs()
             if (left <= 0) return NAK
             when (io.read(left)) {
                 -1 -> return NAK

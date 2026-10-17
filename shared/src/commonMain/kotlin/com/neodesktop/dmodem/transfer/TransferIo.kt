@@ -2,9 +2,8 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.transfer
 
-import java.io.IOException
-import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.TimeUnit
+import com.neodesktop.dmodem.io.*
+
 
 /** The transfer was stopped: by the user, or the other side. */
 class TransferCancelled(msg: String) : IOException(msg)
@@ -16,12 +15,12 @@ class TransferCancelled(msg: String) : IOException(msg)
  */
 class TransferIo(private val send: (ByteArray) -> Unit) {
     /** each way's bytes as they go (true: from the remote), for finding faults */
-    @Volatile var trace: ((Boolean, ByteArray) -> Unit)? = null
+    @kotlin.concurrent.Volatile var trace: ((Boolean, ByteArray) -> Unit)? = null
 
-    private val queue = LinkedBlockingQueue<ByteArray>()
+    private val queue = ByteQueue()
     private var cur: ByteArray? = null
     private var pos = 0
-    @Volatile private var cancelled: String? = null
+    @kotlin.concurrent.Volatile private var cancelled: String? = null
 
     /** bytes from the remote */
     fun feed(data: ByteArray, off: Int = 0, len: Int = data.size - off) {
@@ -38,14 +37,14 @@ class TransferIo(private val send: (ByteArray) -> Unit) {
 
     /** a byte (0-255), or -1 when none came within [timeoutMs] (the cancel looked at every quarter second) */
     fun read(timeoutMs: Long): Int {
-        val deadline = System.nanoTime() + timeoutMs * 1_000_000
+        val deadline = monotonicMs() + timeoutMs
         while (true) {
             cancelled?.let { throw TransferCancelled(it) }
             val c = cur
             if (c != null && pos < c.size) return c[pos++].toInt() and 0xff
-            val left = (deadline - System.nanoTime()) / 1_000_000
+            val left = deadline - monotonicMs()
             if (left <= 0) return -1
-            val next = queue.poll(minOf(left, 250L), TimeUnit.MILLISECONDS) ?: continue
+            val next = queue.poll(minOf(left, 250L)) ?: continue
             cur = next
             pos = 0
         }
@@ -72,7 +71,7 @@ class TransferIo(private val send: (ByteArray) -> Unit) {
 
     /** what came but wasn't read: back to the terminal when the transfer ends */
     fun leftover(): ByteArray {
-        val out = java.io.ByteArrayOutputStream()
+        val out = Bytes()
         cur?.let { if (pos < it.size) out.write(it, pos, it.size - pos) }
         cur = null
         while (true) out.write(queue.poll() ?: break)

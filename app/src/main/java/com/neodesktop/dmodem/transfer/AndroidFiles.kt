@@ -11,7 +11,9 @@ import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import java.io.IOException
-import java.io.OutputStream
+import com.neodesktop.dmodem.io.Sink
+import com.neodesktop.dmodem.io.asSink
+import com.neodesktop.dmodem.io.asSource
 
 /**
  * Received files into Downloads/D-Modem (MediaStore's, from Android 10;
@@ -25,7 +27,7 @@ class DownloadsIncoming(context: Context) : Incoming {
 
     // (the stream is the caller's to close)
     @android.annotation.SuppressLint("Recycle")
-    override fun create(name: String, size: Long): Pair<OutputStream, String> {
+    override fun create(name: String, size: Long): Pair<Sink, String> {
         if (Build.VERSION.SDK_INT < 29) return folder!!.create(name, size)
         val safe = FolderIncoming.safeName(name)
         val v = ContentValues().apply {
@@ -41,7 +43,7 @@ class DownloadsIncoming(context: Context) : Incoming {
             if (c.moveToFirst()) c.getString(0) else null
         } ?: safe
         synchronized(pending) { pending[actual] = uri }
-        return out to actual
+        return out.asSink() to actual
     }
 
     override fun done(name: String, mtime: Long) {
@@ -86,5 +88,5 @@ fun outgoingOf(context: Context, uri: Uri): Outgoing {
             }
         }
     }
-    return Outgoing(name, size, mtime) { r.openInputStream(uri) ?: throw IOException("can't read $name") }
+    return Outgoing(name, size, mtime) { (r.openInputStream(uri) ?: throw IOException("can't read $name")).asSource() }
 }

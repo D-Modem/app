@@ -3,7 +3,8 @@
 //
 // What the Android app and the iOS app share, in Kotlin Multiplatform:
 // the terminal's emulator (VT/xterm, its screen, Sixel, the character
-// sets, the keys, the characters' widths, the themes). The Android app
+// sets, the keys, the characters' widths, the themes), the file
+// transfers (X/Y/ZMODEM, Kermit), and the I/O they're on (io/). The Android app
 // has its JVM side; the iOS app its framework (iOS devices, simulator).
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
@@ -25,6 +26,9 @@ kotlin {
     }
 
     sourceSets {
+        commonMain.dependencies {
+            implementation(libs.kotlinx.coroutines.core)
+        }
         commonTest.dependencies {
             implementation(kotlin("test"))
         }

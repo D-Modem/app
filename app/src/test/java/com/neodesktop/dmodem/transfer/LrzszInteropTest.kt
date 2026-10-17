@@ -142,11 +142,13 @@ class LrzszInteropTest {
         t.start()
         val e = runCatching { ZModem(io).receive(object : Incoming by into {
             // (slowly: the cancel comes in the middle)
-            override fun create(name: String, size: Long) = into.create(name, size).let { (o, n) ->
-                object : java.io.FilterOutputStream(o) {
-                    override fun write(b: ByteArray, off: Int, len: Int) { Thread.sleep(5); out.write(b, off, len) }
-                } to n
-            }
+            override fun create(name: String, size: Long): Pair<com.neodesktop.dmodem.io.Sink, String> =
+                into.create(name, size).let { (o, n) ->
+                    object : com.neodesktop.dmodem.io.Sink {
+                        override fun write(b: ByteArray, off: Int, len: Int) { Thread.sleep(5); o.write(b, off, len) }
+                        override fun close() = o.close()
+                    } to n
+                }
         }) }.exceptionOrNull()
         // the sender's own cancel echoed back, or the line going quiet
         assertTrue("$e", e != null)

@@ -8,6 +8,7 @@ coreKtx = "1.19.1"
 lifecycle = "2.11.0"
 datastore = "1.2.1"
 junit = "4.13.2"
+coroutines = "1.10.2"
 robolectric = "4.17"
 sshj = "0.41.2"
 xz = "1.10"
@@ -33,6 +34,7 @@ compose-material-icons = { module = "androidx.compose.material:material-icons-co
 compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
 compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 junit = { module = "junit:junit", version.ref = "junit" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 sshj = { module = "com.hierynomus:sshj", version.ref = "sshj" }
 xz = { module = "org.tukaani:xz", version.ref = "xz" }

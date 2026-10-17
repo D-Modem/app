@@ -2,12 +2,8 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.transfer
 
-import java.io.ByteArrayOutputStream
-import java.io.IOException
-import java.io.InputStream
-import java.io.OutputStream
-import java.util.Calendar
-import java.util.TimeZone
+import com.neodesktop.dmodem.io.*
+
 
 /**
  * Kermit, both ways, stop-and-wait: packets of printable characters (so it
@@ -62,10 +58,10 @@ class Kermit(
 
     private fun sendPacket(seq: Int, type: Char, data: ByteArray) {
         val ct = checkLen(type)
-        val out = ByteArrayOutputStream()
+        val out = Bytes()
         repeat(npad) { out.write(padc) }
         out.write(MARK)
-        val body = ByteArrayOutputStream()
+        val body = Bytes()
         if (data.size + 2 + ct <= 94) {
             body.write(tochar(data.size + 2 + ct))
             body.write(tochar(seq))
@@ -108,9 +104,9 @@ class Kermit(
      * before its mark skipped; a mark in the middle starts over)
      */
     private fun readPacket(wait: Long = timeoutMs): Packet? {
-        val deadline = System.currentTimeMillis() + wait
+        val deadline = monotonicMs() + wait
         fun next(): Int {
-            val left = deadline - System.currentTimeMillis()
+            val left = deadline - monotonicMs()
             if (left <= 0) return -1
             return io.read(left)
         }
@@ -120,7 +116,7 @@ class Kermit(
                 if (c < 0) return null
                 c = next()
             }
-            val buf = ByteArrayOutputStream()
+            val buf = Bytes()
             fun take(): Int {
                 val v = next()
                 if (v >= 0) buf.write(v)
@@ -155,7 +151,7 @@ class Kermit(
                 rest = len - 2
             }
             if (rest > 9100) return null
-            val headerLen = buf.size()
+            val headerLen = buf.size
             for (i in 0 until rest) {
                 val v = take()
                 if (v < 0) return null
@@ -193,13 +189,13 @@ class Kermit(
 
     /** an E packet ending the transfer, for sending when the user cancels */
     fun cancelBytes(): ByteArray {
-        val out = ByteArrayOutputStream()
+        val out = Bytes()
         val tmp = TransferIo { out.write(it) }
         Kermit(tmp).also {
             it.check = check
             it.forceCheck1 = forceCheck1
             it.eol = eol
-        }.sendPacket(seq, 'E', "cancelled".toByteArray())
+        }.sendPacket(seq, 'E', "cancelled".encodeToByteArray())
         return out.toByteArray()
     }
 
@@ -207,7 +203,7 @@ class Kermit(
     // the S/Y exchange
 
     private fun ourParams(): ByteArray {
-        val b = ByteArrayOutputStream()
+        val b = Bytes()
         b.write(tochar(94))                       // MAXL
         b.write(tochar((timeoutMs / 1000).toInt().coerceIn(1, 94))) // TIME
         b.write(tochar(0))                        // NPAD
@@ -275,7 +271,7 @@ class Kermit(
         return if (sendLong > 0) sendLong - 5 - ct - 2 else sendMax - 2 - ct
     }
 
-    private fun encodeByte(out: ByteArrayOutputStream, v: Int) {
+    private fun encodeByte(out: Bytes, v: Int) {
         var b = v
         if (qbin != 0 && b and 0x80 != 0) {
             out.write(qbin)
@@ -297,10 +293,10 @@ class Kermit(
 
     /** [src] from [off], encoded into at most [max] characters: the characters and the bytes they hold */
     private fun encode(src: ByteArray, off: Int, len: Int, max: Int): Pair<ByteArray, Int> {
-        val out = ByteArrayOutputStream()
+        val out = Bytes()
         var i = off
         val end = off + len
-        val unit = ByteArrayOutputStream()
+        val unit = Bytes()
         while (i < end) {
             val v = src[i].toInt() and 0xff
             var n = 1
@@ -314,20 +310,20 @@ class Kermit(
                 n = 1
                 encodeByte(unit, v)
             }
-            if (out.size() + unit.size() > max) break
-            unit.writeTo(out)
+            if (out.size + unit.size > max) break
+            out.write(unit.toByteArray())
             i += n
         }
         return out.toByteArray() to (i - off)
     }
 
     private fun encodeText(s: String): ByteArray {
-        val b = s.toByteArray(Charsets.UTF_8)
+        val b = s.encodeToByteArray()
         return encode(b, 0, b.size, Int.MAX_VALUE).first
     }
 
     /** a packet's data decoded */
-    private fun decode(d: ByteArray, out: OutputStream) {
+    private fun decode(d: ByteArray, out: Sink) {
         var i = 0
         while (i < d.size) {
             var n = 1
@@ -352,7 +348,7 @@ class Kermit(
         }
     }
 
-    private fun decodeText(d: ByteArray): String = ByteArrayOutputStream().also { decode(d, it) }.toString(Charsets.UTF_8.name())
+    private fun decodeText(d: ByteArray): String = Bytes().also { decode(d, it) }.toByteArray().decodeToString()
 
     // ------------------------------------------------------------------
     // sending
@@ -400,11 +396,11 @@ class Kermit(
         val nameAck = exchange('F', encodeText(f.name))
         if (nameAck.isNotEmpty()) decodeText(nameAck)
         if (attributes) {
-            val a = ByteArrayOutputStream()
+            val a = Bytes()
             fun attr(tag: Char, v: String) {
                 a.write(tag.code)
                 a.write(tochar(v.length))
-                a.write(v.toByteArray(Charsets.US_ASCII))
+                a.write(v.encodeToByteArray())
             }
             attr('"', "B8")                          // binary, 8-bit
             if (f.size >= 0) {
@@ -422,7 +418,7 @@ class Kermit(
         val buf = ByteArray(OUR_LONG)
         var have = 0
         var sent = 0L
-        f.open().use { input: InputStream ->
+        f.open().use { input: Source ->
             var eof = false
             while (true) {
                 while (!eof && have < buf.size) {
@@ -432,7 +428,7 @@ class Kermit(
                 if (have == 0) break
                 val (chars, used) = encode(buf, 0, have, room())
                 val ack = exchange('D', chars)
-                System.arraycopy(buf, used, buf, 0, have - used)
+                buf.copyInto(buf, 0, used, have)
                 have -= used
                 sent += used
                 report { it.copy(bytes = sent) }
@@ -483,7 +479,7 @@ class Kermit(
         forceCheck1 = false
         seq = (init.seq + 1) and 63
 
-        var out: OutputStream? = null
+        var out: Sink? = null
         var current: String? = null
         var mtime = 0L
         var got = 0L
@@ -529,7 +525,7 @@ class Kermit(
                             val tag = a[i].toInt().toChar()
                             val n = unchar(a[i + 1].toInt() and 0xff)
                             if (i + 2 + n > a.size) break
-                            val v = String(a, i + 2, n, Charsets.US_ASCII)
+                            val v = latin1String(a, i + 2, n)
                             when (tag) {
                                 '1' -> v.trim().toLongOrNull()?.let { s -> report { it.copy(size = s) } }
                                 '!' -> if (p.size < 0) v.trim().toLongOrNull()?.let { k -> report { it.copy(size = k * 1024) } }
@@ -537,7 +533,7 @@ class Kermit(
                             }
                             i += 2 + n
                         }
-                        reply = "Y".toByteArray()
+                        reply = "Y".encodeToByteArray()
                     }
                     'D' -> {
                         val o = out ?: error("data before a file's name")
@@ -584,9 +580,10 @@ class Kermit(
         }
     }
 
-    private class CountingStream(private val o: OutputStream) : OutputStream() {
+    private class CountingStream(private val o: Sink) : Sink {
         var n = 0L
         override fun write(b: Int) { o.write(b); n++ }
+        override fun write(b: ByteArray, off: Int, len: Int) { o.write(b, off, len); n += len }
     }
 
     companion object {
@@ -626,25 +623,47 @@ class Kermit(
         }
 
         private fun formatDate(sec: Long): String {
-            val c = Calendar.getInstance(TimeZone.getDefault())
-            c.timeInMillis = sec * 1000
-            return "%04d%02d%02d %02d:%02d:%02d".format(
-                c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1, c.get(Calendar.DAY_OF_MONTH),
-                c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE), c.get(Calendar.SECOND),
-            )
+            val local = sec + localOffsetSeconds(sec)
+            val (y, mo, d) = civil(local.floorDiv(86400L))
+            val t = local.mod(86400L).toInt()
+            fun two(v: Int) = v.toString().padStart(2, '0')
+            return "${y.toString().padStart(4, '0')}${two(mo)}${two(d)} ${two(t / 3600)}:${two(t / 60 % 60)}:${two(t % 60)}"
+        }
+
+        /** the day [days] after 1970-01-01: (year, month 1-12, day 1-31) (Howard Hinnant's civil_from_days) */
+        internal fun civil(days: Long): Triple<Int, Int, Int> {
+            val z = days + 719468
+            val era = z.floorDiv(146097L)
+            val doe = z - era * 146097
+            val yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
+            val doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
+            val mp = (5 * doy + 2) / 153
+            val d = (doy - (153 * mp + 2) / 5 + 1).toInt()
+            val m = (if (mp < 10) mp + 3 else mp - 9).toInt()
+            return Triple((yoe + era * 400 + if (m <= 2) 1 else 0).toInt(), m, d)
+        }
+
+        /** the days from 1970-01-01 to [y]-[m]-[d] (days_from_civil) */
+        internal fun days(y: Int, m: Int, d: Int): Long {
+            val yy = (if (m <= 2) y - 1 else y).toLong()
+            val era = yy.floorDiv(400L)
+            val yoe = yy - era * 400
+            val doy = (153 * (if (m > 2) m - 3 else m + 9) + 2) / 5 + d - 1
+            val doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
+            return era * 146097 + doe - 719468
         }
 
         /** "[yy]yymmdd[ hh:mm[:ss]]", local time: seconds, 0 when it isn't one */
         private fun parseDate(v: String): Long {
-            val m = Regex("""^(\d{6}|\d{8})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?""").find(v.trim()) ?: return 0
+            val m = Regex("""^(\d{8}|\d{6})(?!\d)(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?""").find(v.trim()) ?: return 0
             val d = m.groupValues[1]
             val year = if (d.length == 8) d.substring(0, 4).toInt() else 1900 + d.substring(0, 2).toInt().let { if (it < 70) it + 100 else it }
             val rest = d.takeLast(4)
-            val c = Calendar.getInstance(TimeZone.getDefault())
-            c.clear()
-            c.set(year, rest.substring(0, 2).toInt() - 1, rest.substring(2).toInt(),
-                m.groupValues[2].toIntOrNull() ?: 0, m.groupValues[3].toIntOrNull() ?: 0, m.groupValues[4].toIntOrNull() ?: 0)
-            return c.timeInMillis / 1000
+            val wall = days(year, rest.substring(0, 2).toInt(), rest.substring(2).toInt()) * 86400 +
+                (m.groupValues[2].toIntOrNull() ?: 0) * 3600L + (m.groupValues[3].toIntOrNull() ?: 0) * 60L +
+                (m.groupValues[4].toIntOrNull() ?: 0)
+            // (local time: the zone's offset then, as near as the wall clock tells it)
+            return wall - localOffsetSeconds(wall - localOffsetSeconds(wall))
         }
     }
 }

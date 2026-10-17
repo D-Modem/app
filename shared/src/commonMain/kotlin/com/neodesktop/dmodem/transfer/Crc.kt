@@ -2,6 +2,8 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.transfer
 
+import com.neodesktop.dmodem.io.*
+
 /** The checks XMODEM, YMODEM and ZMODEM use: CRC-16/XMODEM (CCITT, 0x1021, from 0) and CRC-32 (IEEE). */
 object Crc {
     private val table16 = IntArray(256) { i ->

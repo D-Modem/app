@@ -2,37 +2,22 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.transfer
 
+import com.neodesktop.dmodem.io.Sink
+import com.neodesktop.dmodem.io.asSink
+import com.neodesktop.dmodem.io.asSource
 import java.io.File
-import java.io.InputStream
-import java.io.OutputStream
 
-/** A file to send: its name, size (-1 unknown), time (seconds, 0 unknown), contents. */
-class Outgoing(val name: String, val size: Long, val mtime: Long, val open: () -> InputStream) {
-    companion object {
-        fun of(f: File) = Outgoing(f.name, f.length(), f.lastModified() / 1000, f::inputStream)
-    }
-}
-
-/** Where received files go. */
-interface Incoming {
-    /** a new file named [name] (made safe, and unique there) to write: its stream and the name it got */
-    fun create(name: String, size: Long): Pair<OutputStream, String>
-
-    /** a file finished: [mtime] its time, if known (seconds) */
-    fun done(name: String, mtime: Long) {}
-
-    /** a file not finished (an error, a cancel): what was written, removed */
-    fun abandon(name: String) {}
-}
+/** a file to send, from a JVM file */
+fun Outgoing.Companion.of(f: File) = Outgoing(f.name, f.length(), f.lastModified() / 1000) { f.inputStream().asSource() }
 
 /** received files into a directory */
 class FolderIncoming(private val dir: File) : Incoming {
     val received = ArrayList<File>()
 
-    override fun create(name: String, size: Long): Pair<OutputStream, String> {
+    override fun create(name: String, size: Long): Pair<Sink, String> {
         dir.mkdirs()
         val f = unique(dir, safeName(name))
-        return f.outputStream() to f.name
+        return f.outputStream().asSink() to f.name
     }
 
     override fun done(name: String, mtime: Long) {
@@ -68,14 +53,3 @@ class FolderIncoming(private val dir: File) : Incoming {
     }
 }
 
-/** How far a transfer has got. */
-data class Progress(
-    val file: String = "",
-    val bytes: Long = 0,
-    /** the file's size, -1 unknown */
-    val size: Long = -1,
-    /** files finished so far */
-    val files: Int = 0,
-    /** errors corrected on the line (blocks repeated) */
-    val errors: Int = 0,
-)

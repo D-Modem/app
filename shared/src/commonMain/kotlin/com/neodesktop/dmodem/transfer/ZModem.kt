@@ -2,9 +2,8 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.transfer
 
-import java.io.ByteArrayOutputStream
-import java.io.IOException
-import java.io.InputStream
+import com.neodesktop.dmodem.io.*
+
 
 /**
  * ZMODEM (Forsberg's, as lrzsz's sz and rz speak it), both ways: hex and
@@ -50,7 +49,7 @@ class ZModem(
 
     /** a header in hex (the first ones, and the receiver's) */
     private fun sendHex(h: Header) {
-        val b = ByteArrayOutputStream()
+        val b = Bytes()
         b.write(ZPAD); b.write(ZPAD); b.write(ZDLE); b.write('B'.code)
         val raw = byteArrayOf(h.type.toByte()) + h.p
         for (x in raw) b.write(hex2(x.toInt() and 0xff))
@@ -62,11 +61,11 @@ class ZModem(
         io.write(b.toByteArray())
     }
 
-    private fun hex2(v: Int): ByteArray = "%02x".format(v).toByteArray()
+    private fun hex2(v: Int): ByteArray = v.toString(16).padStart(2, '0').encodeToByteArray()
 
     /** a header in binary (the sender's): CRC-32 when the receiver can */
     private fun sendBin(h: Header) {
-        val b = ByteArrayOutputStream()
+        val b = Bytes()
         b.write(ZPAD); b.write(ZDLE); b.write(if (crc32) 'C'.code else 'A'.code)
         val raw = byteArrayOf(h.type.toByte()) + h.p
         for (x in raw) escape(b, x.toInt() and 0xff)
@@ -82,7 +81,7 @@ class ZModem(
 
     /** a data subpacket ended by [end] (ZCRCE, ZCRCG, ZCRCQ, ZCRCW) */
     private fun sendData(data: ByteArray, len: Int, end: Int) {
-        val b = ByteArrayOutputStream(len + len / 8 + 16)
+        val b = Bytes(len + len / 8 + 16)
         for (i in 0 until len) escape(b, data[i].toInt() and 0xff)
         b.write(ZDLE); b.write(end)
         if (crc32) {
@@ -99,7 +98,7 @@ class ZModem(
     private var lastSent = 0
 
     /** ZDLE escaping: ZDLE, XON/XOFF, DLE (and their high-bit forms), and CR after @ (a Telnet escape) */
-    private fun escape(b: ByteArrayOutputStream, c: Int) {
+    private fun escape(b: Bytes, c: Int) {
         val esc = when (c) {
             ZDLE, 0x10, 0x90, 0x11, 0x91, 0x13, 0x93 -> true
             0x0d, 0x8d -> (lastSent and 0x7f) == '@'.code
@@ -234,7 +233,7 @@ class ZModem(
 
     /** a data subpacket: its bytes and how it ended (ZCRCx); null if its check failed or it ran over [max] */
     private fun readData(max: Int): Pair<ByteArray, Int>? {
-        val b = ByteArrayOutputStream()
+        val b = Bytes()
         while (true) {
             val c = readEscaped()
             if (c == BAD) return null
@@ -257,7 +256,7 @@ class ZModem(
                 return data to end
             }
             b.write(c)
-            if (b.size() > max) return null
+            if (b.size > max) return null
         }
     }
 
@@ -270,14 +269,14 @@ class ZModem(
         var errors = 0
         fun zrinit() = sendHex(Header.flags(ZRINIT, CANFDX or CANOVIO or CANFC32))
         zrinit()
-        var lastHeaderAt = System.currentTimeMillis()
+        var lastHeaderAt = monotonicMs()
         while (true) {
             val h = try {
                 readHeader()
             } catch (e: IOException) {
                 if (e is TransferCancelled) throw e
                 // quiet: ask again (the sender may not have heard us)
-                if (System.currentTimeMillis() - lastHeaderAt > 60_000 || ++errors > MAX_ERRORS) throw e
+                if (monotonicMs() - lastHeaderAt > 60_000 || ++errors > MAX_ERRORS) throw e
                 zrinit()
                 continue
             }
@@ -286,7 +285,7 @@ class ZModem(
                 zrinit()
                 continue
             }
-            lastHeaderAt = System.currentTimeMillis()
+            lastHeaderAt = monotonicMs()
             when (h.type) {
                 ZRQINIT -> zrinit()
                 ZSINIT -> {
@@ -325,8 +324,8 @@ class ZModem(
     /** a file's data received after its ZFILE: its name, or null when it was skipped */
     private fun receiveFile(info: ByteArray, into: Incoming): String? {
         val nul = info.indexOf(0.toByte()).takeIf { it >= 0 } ?: info.size
-        val name = String(info, 0, nul, Charsets.UTF_8)
-        val meta = if (nul + 1 < info.size) String(info, nul + 1, info.size - nul - 1, Charsets.ISO_8859_1).trimEnd('\u0000').trim().split(' ') else emptyList()
+        val name = info.decodeToString(0, 0 + nul)
+        val meta = if (nul + 1 < info.size) latin1String(info, nul + 1, info.size - nul - 1).trimEnd('\u0000').trim().split(' ') else emptyList()
         val size = meta.getOrNull(0)?.toLongOrNull() ?: -1
         val mtime = meta.getOrNull(1)?.toLongOrNull(8) ?: 0
         val (out, actual) = into.create(name, size)
@@ -410,7 +409,7 @@ class ZModem(
      * file until the receiver's next ZRINIT says it has it
      */
     fun send(files: List<Outgoing>, startRz: Boolean = false) {
-        if (startRz) io.write("rz\r".toByteArray())
+        if (startRz) io.write("rz\r".encodeToByteArray())
         val r = waitForZrinit()
         crc32 = r.f0 and CANFC32 != 0
         var left = files.sumOf { it.size.coerceAtLeast(0) }
@@ -425,7 +424,7 @@ class ZModem(
             sendHex(Header(ZFIN))
             if (readHeaderOrNull()?.type == ZFIN) break
         }
-        io.write("OO".toByteArray())
+        io.write("OO".encodeToByteArray())
     }
 
     private fun waitForZrinit(): Header {
@@ -456,8 +455,8 @@ class ZModem(
 
     /** a file sent, until the receiver's ZRINIT: true if it skipped it */
     private fun sendFile(f: Outgoing, filesLeft: Int, bytesLeft: Long): Boolean {
-        val info = (f.name.substringAfterLast('/').toByteArray(Charsets.UTF_8) + 0) +
-            ("${f.size.coerceAtLeast(0)} ${java.lang.Long.toOctalString(f.mtime.coerceAtLeast(0))} 0 0 $filesLeft $bytesLeft").toByteArray() + 0
+        val info = (f.name.substringAfterLast('/').encodeToByteArray() + 0) +
+            ("${f.size.coerceAtLeast(0)} ${(f.mtime.coerceAtLeast(0)).toString(8)} 0 0 $filesLeft $bytesLeft").encodeToByteArray() + 0
         var start = -1L
         var tries = 0
         send@ while (start < 0) {
@@ -492,7 +491,7 @@ class ZModem(
 
     /** a file read from where the receiver wants it (reopened to go back) */
     private class Reader(private val f: Outgoing) {
-        private var input: InputStream = f.open()
+        private var input: Source = f.open()
         var pos = 0L
             private set
 
@@ -547,7 +546,7 @@ class ZModem(
             at = to
             // (what the receiver said before it saw this restart: its ZRPOSes for the same
             // error, which would each be another restart)
-            Thread.sleep(20)
+            sleepMs(20)
             io.purge()
         }
         resend@ while (true) {
