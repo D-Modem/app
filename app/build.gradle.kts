@@ -96,6 +96,8 @@ kotlin {
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
+    // USB serial adapters (FTDI, CP210x, CH34x, PL2303, CDC-ACM): the modem as a serial port on one
+    implementation(libs.usb.serial)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.datastore.preferences)

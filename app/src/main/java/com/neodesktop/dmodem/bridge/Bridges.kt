@@ -37,6 +37,15 @@ object Bridges {
 
     private var tcp: TcpBridge? = null
     private var tcpJob: Job? = null
+    private val _usb = MutableStateFlow<UsbBridge.State>(UsbBridge.State.Stopped)
+    val usbState: StateFlow<UsbBridge.State> = _usb.asStateFlow()
+    private val _gadget = MutableStateFlow<UsbGadget.State>(UsbGadget.State.Stopped)
+    val gadgetState: StateFlow<UsbGadget.State> = _gadget.asStateFlow()
+    private var usb: UsbBridge? = null
+    private var usbJob: Job? = null
+    private var gadget: UsbGadget? = null
+    private var gadgetJob: Job? = null
+
     private var bt: BluetoothBridge? = null
     private var btJob: Job? = null
     private var applied: BridgeSettings? = null
@@ -90,6 +99,26 @@ object Bridges {
                 t.start()
             }
         }
+        val usbSame = old != null && old.usb == s.usb && old.usbBaud == s.usbBaud && old.usbFormat == s.usbFormat &&
+            old.usbCarrierOnDtr == s.usbCarrierOnDtr && old.usbDtrHangsUp == s.usbDtrHangsUp
+        if (!usbSame || (s.usb && usb == null)) {
+            stopUsb()
+            if (s.usb) {
+                val u = UsbBridge(context.applicationContext, serial, signals.asStateFlow(), format(s.usbBaud, s.usbFormat), s.usbCarrierOnDtr, s.usbDtrHangsUp)
+                usb = u
+                usbJob = scope.launch { u.state.collect { _usb.value = it } }
+                u.start()
+            }
+        }
+        if (old?.usbGadget != s.usbGadget || (s.usbGadget && gadget == null)) {
+            stopGadget()
+            if (s.usbGadget) {
+                val g = UsbGadget(serial)
+                gadget = g
+                gadgetJob = scope.launch { g.state.collect { _gadget.value = it } }
+                scope.launch { g.start() }
+            }
+        }
         val btSame = old != null && old.bluetooth == s.bluetooth && old.btConnectTo == s.btConnectTo
         if (!btSame || (s.bluetooth && bt == null)) {
             stopBt()
@@ -106,6 +135,8 @@ object Bridges {
     fun stopAll() {
         stopTcp()
         stopBt()
+        stopUsb()
+        stopGadget()
         applied = null
     }
 
@@ -114,6 +145,28 @@ object Bridges {
         tcp = null
         tcpJob?.cancel()
         _tcp.value = TcpBridge.State.Stopped
+    }
+
+    private fun stopUsb() {
+        usb?.stop()
+        usb = null
+        usbJob?.cancel()
+        _usb.value = UsbBridge.State.Stopped
+    }
+
+    private fun stopGadget() {
+        val g = gadget
+        gadget = null
+        gadgetJob?.cancel()
+        // (su and a rebind: off the caller's thread)
+        if (g != null) scope.launch { g.stop() }
+        _gadget.value = UsbGadget.State.Stopped
+    }
+
+    /** "8N1" as a format at [baud] */
+    fun format(baud: Int, f: String): SerialFormat {
+        val m = Regex("([5-8])([NEOMS])([12])").matchEntire(f.uppercase())
+        return if (m == null) SerialFormat(baud) else SerialFormat(baud, m.groupValues[1].toInt(), m.groupValues[2][0], m.groupValues[3].toInt())
     }
 
     private fun stopBt() {

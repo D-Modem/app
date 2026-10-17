@@ -125,7 +125,7 @@ class SerialBridge(
     }
 
     /** DTR off: the call over (as AT&D2 has it) */
-    private fun dropDtr() {
+    fun dropDtr() {
         val s = signals.value
         if (s.offhook || s.carrier) Thread({ hangUp() }, "bridge-hangup").apply { isDaemon = true; start() }
     }

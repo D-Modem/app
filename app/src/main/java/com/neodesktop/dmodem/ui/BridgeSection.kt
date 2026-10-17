@@ -58,6 +58,8 @@ fun BridgeSection() {
     val run by ModemState.run.collectAsStateWithLifecycle()
     val tcpState by Bridges.tcpState.collectAsStateWithLifecycle()
     val btState by Bridges.btState.collectAsStateWithLifecycle()
+    val usbState by Bridges.usbState.collectAsStateWithLifecycle()
+    val gadgetState by Bridges.gadgetState.collectAsStateWithLifecycle()
     val client by Bridges.serial.client.collectAsStateWithLifecycle()
     var hasBt by remember { mutableStateOf(BluetoothBridge.hasPermission(context)) }
     var paired by remember { mutableStateOf(BluetoothBridge.paired(context)) }
@@ -146,6 +148,24 @@ fun BridgeSection() {
             }
         }
 
+        // USB
+        Toggle("On a USB serial adapter (OTG)", s.usb) { v -> change { it.copy(usb = v) } }
+        if (s.usb) {
+            Text(usbText(usbState), style = MaterialTheme.typography.bodySmall)
+            Applied("Speed (bit/s)", s.usbBaud.toString(), number = true) { v ->
+                v.toIntOrNull()?.takeIf { it in 50..4_000_000 }?.let { b -> change { it.copy(usbBaud = b) } }
+            }
+            Applied("Format (data bits, parity, stop bits)", s.usbFormat) { v ->
+                v.uppercase().takeIf { Regex("[5-8][NEOMS][12]").matches(it) }?.let { f -> change { it.copy(usbFormat = f) } }
+            }
+            Toggle("Its DTR is the modem's carrier (the computer's DCD)", s.usbCarrierOnDtr) { v -> change { it.copy(usbCarrierOnDtr = v) } }
+            Toggle("The computer dropping DTR hangs up", s.usbDtrHangsUp) { v -> change { it.copy(usbDtrHangsUp = v) } }
+        }
+        if (s.usbGadget || com.neodesktop.dmodem.bridge.UsbGadget.rootAvailable()) {
+            Toggle("This phone's USB port as a serial port to a computer (root)", s.usbGadget) { v -> change { it.copy(usbGadget = v) } }
+            if (s.usbGadget) Text(gadgetText(gadgetState), style = MaterialTheme.typography.bodySmall)
+        }
+
         Toggle("Hang up when the client disconnects (drops DTR)", s.hangUpOnClose) { v -> change { it.copy(hangUpOnClose = v) } }
     }
 }
@@ -155,6 +175,21 @@ private fun tcpText(st: TcpBridge.State, s: BridgeSettings): String = when (st) 
     is TcpBridge.State.Listening -> "Listening on " + (if (s.tcpAnyAddress) "port" else "localhost port") + " ${st.port}" +
         if (s.tcpTelnet) " (Telnet)" else " (raw)"
     is TcpBridge.State.Failed -> "Can't listen: ${st.why}"
+}
+
+private fun usbText(st: com.neodesktop.dmodem.bridge.UsbBridge.State): String = when (st) {
+    com.neodesktop.dmodem.bridge.UsbBridge.State.Stopped -> "Starts with the modem"
+    com.neodesktop.dmodem.bridge.UsbBridge.State.Waiting -> "Waiting for an adapter to be plugged in"
+    is com.neodesktop.dmodem.bridge.UsbBridge.State.NeedsPermission -> "Allow D-Modem to use ${st.device} (Android asks)"
+    is com.neodesktop.dmodem.bridge.UsbBridge.State.Connected -> "On ${st.device}"
+    is com.neodesktop.dmodem.bridge.UsbBridge.State.Failed -> st.why
+}
+
+private fun gadgetText(st: com.neodesktop.dmodem.bridge.UsbGadget.State): String = when (st) {
+    com.neodesktop.dmodem.bridge.UsbGadget.State.Stopped -> "Starts with the modem"
+    com.neodesktop.dmodem.bridge.UsbGadget.State.Ready -> "Ready: the computer sees a modem on its USB (COM port, /dev/ttyACM0)"
+    com.neodesktop.dmodem.bridge.UsbGadget.State.Connected -> "The computer is using the modem"
+    is com.neodesktop.dmodem.bridge.UsbGadget.State.Failed -> st.why
 }
 
 private fun btText(st: BluetoothBridge.State): String = when (st) {

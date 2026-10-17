@@ -29,6 +29,17 @@ data class BridgeSettings(
     val btConnectTo: String = "",
     /** the client going hangs up the call (DTR dropped) */
     val hangUpOnClose: Boolean = true,
+    /** a USB serial adapter plugged into the phone */
+    val usb: Boolean = false,
+    val usbBaud: Int = 115200,
+    /** its character format: data bits, parity (N E O M S), stop bits ("8N1") */
+    val usbFormat: String = "8N1",
+    /** the adapter's DTR out is the modem's carrier (the computer's DCD, on a null modem cable) */
+    val usbCarrierOnDtr: Boolean = true,
+    /** the computer's DTR (the adapter's DSR) dropped hangs up */
+    val usbDtrHangsUp: Boolean = true,
+    /** the phone's own USB port as a serial port to a computer (root) */
+    val usbGadget: Boolean = false,
 )
 
 private val Context.bridgeStore: DataStore<Preferences> by preferencesDataStore("bridges")
@@ -43,6 +54,12 @@ class BridgeSettingsStore(private val context: Context) {
         val bt = booleanPreferencesKey("bt")
         val btConnectTo = stringPreferencesKey("bt_connect_to")
         val hangUp = booleanPreferencesKey("hang_up_on_close")
+        val usb = booleanPreferencesKey("usb")
+        val usbBaud = intPreferencesKey("usb_baud")
+        val usbFormat = stringPreferencesKey("usb_format")
+        val usbCarrierOnDtr = booleanPreferencesKey("usb_carrier_on_dtr")
+        val usbDtrHangsUp = booleanPreferencesKey("usb_dtr_hangs_up")
+        val usbGadget = booleanPreferencesKey("usb_gadget")
     }
 
     val settings: Flow<BridgeSettings> = context.bridgeStore.data.map { from(it) }
@@ -58,6 +75,12 @@ class BridgeSettingsStore(private val context: Context) {
             bluetooth = p[K.bt] ?: d.bluetooth,
             btConnectTo = p[K.btConnectTo] ?: d.btConnectTo,
             hangUpOnClose = p[K.hangUp] ?: d.hangUpOnClose,
+            usb = p[K.usb] ?: d.usb,
+            usbBaud = p[K.usbBaud] ?: d.usbBaud,
+            usbFormat = p[K.usbFormat] ?: d.usbFormat,
+            usbCarrierOnDtr = p[K.usbCarrierOnDtr] ?: d.usbCarrierOnDtr,
+            usbDtrHangsUp = p[K.usbDtrHangsUp] ?: d.usbDtrHangsUp,
+            usbGadget = p[K.usbGadget] ?: d.usbGadget,
         )
     }
 
@@ -82,6 +105,12 @@ class BridgeSettingsStore(private val context: Context) {
             p[K.bt] = s.bluetooth
             p[K.btConnectTo] = s.btConnectTo.trim()
             p[K.hangUp] = s.hangUpOnClose
+            p[K.usb] = s.usb
+            p[K.usbBaud] = s.usbBaud
+            p[K.usbFormat] = s.usbFormat
+            p[K.usbCarrierOnDtr] = s.usbCarrierOnDtr
+            p[K.usbDtrHangsUp] = s.usbDtrHangsUp
+            p[K.usbGadget] = s.usbGadget
         }
     }
 }

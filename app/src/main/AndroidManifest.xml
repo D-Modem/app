@@ -22,6 +22,10 @@
     <uses-feature
         android:name="android.hardware.bluetooth"
         android:required="false" />
+    <!-- the modem on a USB serial adapter plugged into the phone (OTG) -->
+    <uses-feature
+        android:name="android.hardware.usb.host"
+        android:required="false" />
     <!-- the terminal's bell -->
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- the phone's shared storage in the Linux system (at /sdcard), when the user allows it:
@@ -55,6 +59,13 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- a USB serial adapter plugged in: the app offered for it -->
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
+                android:resource="@xml/usb_serial_adapters" />
         </activity>
 
         <!-- the terminal's capture files, shared with other apps -->
