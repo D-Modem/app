@@ -23,3 +23,5 @@ ios/DModem/Tunnel/DModemTunnel.entitlements
 
 # Swift packages build here
 .build/
+# the native host build (cmake -S native-test -B build-host), or a link to one
+/build-host

@@ -72,6 +72,8 @@ class PeerShotsTest {
         compose.onNodeWithText("Settings").performClick()
         compose.onNodeWithText("Calls ringing here go to the modem").performScrollTo()
         shot("peer-3-cell-settings")
-        compose.onNodeWithText("300 bit/s (V.21): what mobile calls carry").assertExists()
+        // (V.cvm first, the default; V.21 for other modems)
+        compose.onNodeWithText("About 1200 bit/s (V.cvm, made for mobile calls)", substring = true).assertExists()
+        compose.onNodeWithText("300 bit/s (V.21): what any modem's call carries").assertExists()
     }
 }
