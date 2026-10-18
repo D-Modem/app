@@ -175,7 +175,9 @@ service, sockets and Bluetooth, Android's VPN and files. Its tests run on
 the JVM and natively: `./gradlew :shared:allTests`.
 
 The iOS app (`ios/DModem`, SwiftUI, iOS 16) is the modem on a SIP
-account: Home (its state, the rates and what the CONNECT was, start, hang
+account, or on the line to another phone with the app (Android or iOS)
+on the same Wi-Fi: the shared PeerLine on POSIX sockets (its PIN too),
+offered and found with Bonjour (`_dmodem._tcp`, as Android's NSD). It has Home (its state, the rates and what the CONNECT was, start, hang
 up, stop, an AT command line), the terminal (the shared emulator drawn in
 SwiftUI, CP437 and the VGA colours, Esc/Ctrl/Tab/arrows), the log and the
 settings. Its modem keeps going in the background on the audio session
@@ -190,8 +192,8 @@ build:
 
     DMODEM_HOST_BUILD=$PWD/build-host swift test --package-path ios/DModemKit   # Linux or macOS
 
-Still to come on iOS: the line to another phone (Bonjour), CallKit, the
-Keychain for the password, fax, transfers and PPP's screens.
+Still to come on iOS: CallKit, the Keychain for the password, fax,
+transfers and PPP's screens.
 
 D-Modem-RE's `portable.h` has Apple's ways where Linux has its own
 (close-on-exec sockets, SIGPIPE, a monotonic sleep, a peer's hang-up);

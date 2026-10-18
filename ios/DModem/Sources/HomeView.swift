@@ -43,9 +43,17 @@ struct HomeView: View {
                 .padding(.vertical, 6)
             }
             Section("Line") {
-                LabeledContent("SIP account", value: model.settings.complete ? "\(model.settings.user)@\(model.settings.domain)" : "not set up")
+                if model.settings.line == .wifi {
+                    LabeledContent("Another phone", value: model.settings.peerAddress.isEmpty ? "none chosen" : model.settings.peerAddress)
+                    Text(model.peerState ?? "Starts with the modem").foregroundStyle(.secondary)
+                    if let e = model.peerError {
+                        Text(e).foregroundStyle(.red).font(.callout)
+                    }
+                } else {
+                    LabeledContent("SIP account", value: model.settings.complete ? "\(model.settings.user)@\(model.settings.domain)" : "not set up")
+                    LabeledContent("Fax", value: model.settings.t38 ? "audio or T.38" : "audio")
+                }
                 LabeledContent("Incoming calls", value: model.settings.listen ? "taken" : "off")
-                LabeledContent("Fax", value: model.settings.t38 ? "audio or T.38" : "audio")
             }
             if model.run == .running {
                 Section("AT command") {

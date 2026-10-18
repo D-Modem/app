@@ -16,6 +16,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var error: String?
     /// when the call came online (for its time on Home)
     @Published private(set) var onlineSince: Date?
+    /// the line to another phone: what it's doing, what went wrong last (nil on a SIP line)
+    @Published private(set) var peerState: String?
+    @Published private(set) var peerError: String?
     @Published var settings: ModemSettings {
         didSet { store.settings = settings }
     }
@@ -24,7 +27,8 @@ final class AppModel: ObservableObject {
     let terminal = TerminalModel()
     private let store = SettingsStore()
     private let audio = ModemAudio()
-    private var pending = false
+    private let peer = PeerLineController()
+    private var peerTimer: Timer?
 
     init() {
         settings = store.settings
@@ -51,17 +55,43 @@ final class AppModel: ObservableObject {
                 return url.appendingPathComponent("modem-data").path
             } ?? ""
         let s = settings
-        Task.detached { [session, audio] in
+        Task.detached { [session, audio, peer] in
             // (the background audio first: the call keeps the app running)
             audio.begin()
-            if !session.start(s, dns: SystemDNS.servers(), dataFile: dataFile) { audio.end() }
+            // (the line to another phone first: the modem's start commands may dial)
+            if s.peer { peer.start(s, session: session) } else { session.onLine = nil }
+            if !session.start(s, dns: SystemDNS.servers(), dataFile: dataFile) {
+                peer.stop()
+                audio.end()
+            }
         }
+        watchPeer(s.peer)
     }
 
     func stop() {
-        Task.detached { [session, audio] in
+        Task.detached { [session, audio, peer] in
             session.stop()
+            peer.stop()
             audio.end()
+        }
+        watchPeer(false)
+    }
+
+    /// the peer line's state, twice a second while there's one
+    private func watchPeer(_ on: Bool) {
+        peerTimer?.invalidate()
+        peerTimer = nil
+        peerState = nil
+        peerError = nil
+        guard on else { return }
+        peerTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let st = self.peer.stateText
+                let err = self.peer.lastError
+                if st != self.peerState { self.peerState = st }
+                if err != self.peerError { self.peerError = err }
+            }
         }
     }
 
@@ -74,6 +104,7 @@ final class AppModel: ObservableObject {
 
     private func refresh() {
         let wasOnline = status.link == .online
+        let wasRunning = run == .running
         run = session.run
         status = session.status
         log = session.log
@@ -81,6 +112,14 @@ final class AppModel: ObservableObject {
         error = session.error
         if status.link == .online && !wasOnline { onlineSince = Date() }
         if status.link != .online { onlineSince = nil }
-        if run == .stopped { audio.end() }
+        // (the modem stopped by itself: the call over, the line to the other phone too. Only a stop
+        // after it ran: while it starts, its log comes before it's running)
+        if wasRunning && run == .stopped {
+            audio.end()
+            if peerTimer != nil {
+                peer.stop()
+                watchPeer(false)
+            }
+        }
     }
 }

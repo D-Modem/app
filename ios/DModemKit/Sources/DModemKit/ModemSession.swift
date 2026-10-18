@@ -29,6 +29,9 @@ public final class ModemSession: EngineListener, @unchecked Sendable {
     /// the speaker's level and sound (the app's audio)
     public var onSpeaker: ((Int) -> Void)?
     public var onSound: ((UnsafeBufferPointer<Int16>) -> Void)?
+    /// a peer line's modem off hook (the app's line to the other phone takes it): dialling [dial] if
+    /// caller; fd its samples, the handler's to close. Without one the line is closed (the dial fails)
+    public var onLine: ((_ caller: Bool, _ dial: String, _ fd: Int32) -> Void)?
 
     private let engine: Engine
 
@@ -143,6 +146,10 @@ public final class ModemSession: EngineListener, @unchecked Sendable {
         if result != 0 && wasRunning { _error = "the modem stopped (the log says why)" }
         lock.unlock()
         changed()
+    }
+
+    public func engineLine(caller: Bool, dial: String, fd: Int32) {
+        if let h = onLine { h(caller, dial, fd) } else { close(fd) }
     }
 
     public func engineSpeaker(_ level: Int) { onSpeaker?(level) }

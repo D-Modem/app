@@ -83,6 +83,28 @@ final class DModemKitTests: XCTestCase {
         Engine.shared.stop()
     }
 
+    func testThePeerLineGoesToTheApp() {
+        signal(SIGPIPE, SIG_IGN)
+        let session = ModemSession()
+        let got = NSLock()
+        var line: (Bool, String, Int32)?
+        session.onLine = { caller, dial, fd in got.lock(); line = (caller, dial, fd); got.unlock() }
+        var settings = ModemSettings()
+        settings.line = .wifi
+        settings.initCommands = "ATE0X3"
+        XCTAssertTrue(session.start(settings))
+        XCTAssertTrue(waitFor { session.console.contains("OK") })
+        session.command("ATD192*168*1*20")
+        XCTAssertTrue(waitFor { got.lock(); defer { got.unlock() }; return line != nil })
+        XCTAssertEqual(line?.0, true)
+        XCTAssertEqual(line?.1, "192*168*1*20")
+        // the app's line gone: the call's NO CARRIER
+        Engine.shared.peerEvent("FAILED 480")
+        close(line!.2)
+        XCTAssertTrue(waitFor { session.console.contains("NO ") }, session.console)
+        session.stop()
+    }
+
     func testIncompleteSettingsDontStart() {
         let session = ModemSession()
         XCTAssertFalse(session.start(ModemSettings()))
