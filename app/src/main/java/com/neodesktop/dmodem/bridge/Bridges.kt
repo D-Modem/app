@@ -39,6 +39,10 @@ object Bridges {
     private var tcpJob: Job? = null
     private val _usb = MutableStateFlow<UsbBridge.State>(UsbBridge.State.Stopped)
     val usbState: StateFlow<UsbBridge.State> = _usb.asStateFlow()
+    private val _usbBoard = MutableStateFlow<PicoBoard?>(null)
+    /** the pico-serial board on the USB bridge, while there's one */
+    val usbBoard: StateFlow<PicoBoard?> = _usbBoard.asStateFlow()
+    private var usbBoardJob: Job? = null
     private val _gadget = MutableStateFlow<UsbGadget.State>(UsbGadget.State.Stopped)
     val gadgetState: StateFlow<UsbGadget.State> = _gadget.asStateFlow()
     private var usb: UsbBridge? = null
@@ -112,6 +116,7 @@ object Bridges {
                 val u = UsbBridge(context.applicationContext, serial, signals.asStateFlow(), format(s.usbBaud, s.usbFormat), s.usbCarrierOnDtr, s.usbDtrHangsUp)
                 usb = u
                 usbJob = scope.launch { u.state.collect { _usb.value = it } }
+                usbBoardJob = scope.launch { u.board.collect { _usbBoard.value = it } }
                 u.start()
             }
         }
@@ -152,10 +157,18 @@ object Bridges {
         _tcp.value = TcpBridge.State.Stopped
     }
 
+    /** [f] done to the pico-serial board on the USB bridge (off the main thread): false when there's none */
+    fun withUsbBoard(f: (PicoSerial) -> Boolean) {
+        val u = usb ?: return
+        scope.launch { u.withBoard(f) }
+    }
+
     private fun stopUsb() {
         usb?.stop()
         usb = null
         usbJob?.cancel()
+        usbBoardJob?.cancel()
+        _usbBoard.value = null
         _usb.value = UsbBridge.State.Stopped
     }
 

@@ -26,7 +26,9 @@ import java.util.concurrent.atomic.AtomicInteger
 /**
  * The modem on a USB serial adapter (a port of its driver's, faked: what
  * the computer sends, its DTR on the adapter's DSR) and on the phone's
- * own USB port as a gadget (a pty for /dev/ttyGS0, root faked).
+ * own USB port as a gadget (a pty for /dev/ttyGS0, root faked); a
+ * pico-serial board's lines and protocol (the board faked as its firmware
+ * answers), a CDC adapter's SERIAL_STATE.
  */
 class UsbBridgeTest {
 
@@ -54,6 +56,8 @@ class UsbBridgeTest {
         @Volatile var dtr = false
         @Volatile var rts = false
         @Volatile var dsr = true
+        /** (a CDC adapter's driver: no DSR to read) */
+        @Volatile var noDsr = false
         @Volatile var closed = false
         override fun read(dest: ByteArray, timeout: Int): Int {
             if (closed) throw IOException("closed")
@@ -66,7 +70,7 @@ class UsbBridgeTest {
         override fun write(src: ByteArray, length: Int, timeout: Int) { synchronized(toComputer) { toComputer.write(src, 0, length) } }
         override fun setDTR(value: Boolean) { dtr = value }
         override fun setRTS(value: Boolean) { rts = value }
-        override fun getDSR() = dsr
+        override fun getDSR(): Boolean = if (noDsr) throw UnsupportedOperationException() else dsr
         override fun getDTR() = dtr
         override fun getRTS() = rts
         override fun getCD() = dsr
@@ -178,6 +182,150 @@ for line in sys.stdin:
             val out = p.inputStream.readBytes().decodeToString()
             assertEquals(out, 0, p.waitFor())
         }
+    }
+
+    /**
+     * a pico-serial board's control requests as its firmware answers them
+     * (firmware/src/core/core.c): DCE, the computer's DTR and RTS read, the
+     * outputs SET_OUTPUTS sets
+     */
+    private class FakeBoard : UsbControl {
+        @Volatile var role = 1
+        @Volatile var computer = PicoSerialProtocol.DTR or PicoSerialProtocol.RTS
+        @Volatile var outputs = 0
+        @Volatile var mode = 0
+        val requests = CopyOnWriteArrayList<String>()
+
+        override fun read(request: Int, value: Int, length: Int): ByteArray? = when (request) {
+            PicoSerialProtocol.GET_INFO -> byteArrayOf(1, 0, 1, 2, 0, mode.toByte(), role.toByte(), 0, 0x0c, 0, 0x4b, 0, 0, 0)
+            PicoSerialProtocol.GET_INPUTS -> byteArrayOf(role.toByte(), computer.toByte(), outputs.toByte(), 1, 1)
+            PicoSerialProtocol.GET_STATS -> ByteArray(32)
+            else -> null
+        }?.copyOf(minOf(length, 64)).also { requests.add("in $request") }?.let { it.copyOf(minOf(it.size, length)) }
+
+        override fun write(request: Int, value: Int): Boolean {
+            requests.add("out $request %04x".format(value))
+            when (request) {
+                PicoSerialProtocol.SET_OUTPUTS -> {
+                    val mask = value shr 8
+                    outputs = (outputs and mask.inv()) or (value and mask)
+                }
+                PicoSerialProtocol.SET_MODE -> mode = value
+                else -> {}
+            }
+            return true
+        }
+    }
+
+    @Test
+    fun picoSerialStructuresAsTheFirmwareHasThem() {
+        // (bytes from firmware/src/core/protocol.h's structs, compiled)
+        fun hex(s: String) = s.split(" ").map { it.toInt(16).toByte() }.toByteArray()
+        val info = PicoSerialProtocol.info(hex("01 00 01 02 00 00 01 00 0c 00 4b 00 00 00"))!!
+        assertEquals(1, info.protocol)
+        assertEquals("0.1.2", info.firmware)
+        assertEquals("pico-serial DB25", info.boardName)
+        assertEquals(PicoSerialProtocol.Mode.AUTO, info.mode)
+        assertEquals(PicoSerialProtocol.Role.DCE, info.role)
+        assertEquals(PicoSerialProtocol.Flow.AUTO, info.flow)
+        assertEquals(19200L, info.baud)
+        assertTrue(info.learned && info.flowActive && !info.learning)
+        assertEquals(PicoSerialProtocol.BaudMode.AUTO, info.baudMode)
+        // (a later firmware's longer one read as far as we know it; a short one not at all)
+        assertEquals(19200L, PicoSerialProtocol.info(hex("01 00 02 00 00 00 01 00 0c 00 4b 00 00 00 ff ff"))!!.baud)
+        assertEquals(null, PicoSerialProtocol.info(hex("01 00 01")))
+        val i = PicoSerialProtocol.inputs(hex("01 03 2c 01 01"))!!
+        assertEquals(PicoSerialProtocol.Role.DCE, i.role)
+        assertEquals(PicoSerialProtocol.DTR or PicoSerialProtocol.RTS, i.inputs)
+        assertEquals(PicoSerialProtocol.DCD or PicoSerialProtocol.DSR or PicoSerialProtocol.CTS, i.outputs)
+        val st = PicoSerialProtocol.stats(hex("e8 03 00 00 70 11 01 00 01 00 00 00 02 00 00 00 03 00 00 00 04 00 00 00 05 00 00 00 06 00 00 00"))!!
+        assertEquals(PicoSerialProtocol.Stats(1000, 70000, 1, 2, 3, 4, 5, 6), st)
+        // SET_OUTPUTS' wValue: PROTOCOL.md's own example, RI up
+        assertEquals(0x1010, PicoSerialProtocol.outputs(PicoSerialProtocol.RI, PicoSerialProtocol.RI))
+        assertEquals(0x1c04, PicoSerialProtocol.outputs(PicoSerialProtocol.DCE_MASK, PicoSerialProtocol.dceOutputs(dcd = true, dsr = false, ri = false)))
+        // CDC SERIAL_STATE: DSR (bTxCarrier) and a framing error
+        val n = byteArrayOf(0xA1.toByte(), 0x20, 0, 0, 0, 0, 2, 0, 0x12, 0)
+        assertEquals(CdcSerialState(dcd = false, dsr = true, brk = false, ring = false, framing = true, parity = false, overrun = false), CdcSerialState.parse(n, 10))
+        assertEquals(null, CdcSerialState.parse(byteArrayOf(0xA1.toByte(), 0x2A, 0, 0, 0, 0, 2, 0, 0, 0), 10))
+    }
+
+    @Test
+    fun aPicoSerialBoardsLinesEachTheirOwn() {
+        val modem = FakeModem()
+        val signals = MutableStateFlow(LineSignals(ready = true))
+        val hangUps = AtomicInteger()
+        val bridge = SerialBridge(modem, signals, { hangUps.incrementAndGet() }, hangUpOnClose = false)
+        // (a CDC port: its driver reads no DSR; the board tells the computer's DTR)
+        val port = FakePort().apply { noDsr = true }
+        val board = FakeBoard()
+        val lines = PicoSerialLines(PicoSerial(board))
+        val link = UsbPortLink(port, bridge, signals, "pico-serial DB25", extra = lines)
+        val t = Thread { link.serve() }.apply { start() }
+        val dcd = PicoSerialProtocol.DCD
+        val dsr = PicoSerialProtocol.DSR
+        val ri = PicoSerialProtocol.RI
+        // the modem on: DSR to the computer, no DCD; the port's DTR on (the board's lines its own)
+        waitUntil("DSR") { board.outputs == dsr }
+        assertTrue(port.dtr)
+        // RING: RI up, then down again
+        signals.value = LineSignals(ready = true, ringing = true)
+        waitUntil("RI") { board.outputs == dsr or ri }
+        signals.value = LineSignals(ready = true, offhook = true, carrier = true)
+        waitUntil("DCD") { board.outputs == dsr or dcd }
+        // the board's state for the app
+        waitUntil("the board's state") { lines.board.value?.info?.firmware == "0.1.2" }
+        assertEquals(PicoSerialProtocol.Role.DCE, lines.board.value?.inputs?.role)
+        // the computer drops its DTR (the board reads it): hung up
+        board.computer = PicoSerialProtocol.RTS
+        waitUntil("hung up") { hangUps.get() == 1 }
+        // unplugged from the computer (no role): the lines left to the board, sent again once it's back
+        board.computer = PicoSerialProtocol.DTR
+        board.role = 0
+        Thread.sleep(400)
+        val before = board.requests.count { it.startsWith("out 3") }
+        board.role = 1
+        waitUntil("sent again") { board.requests.count { it.startsWith("out 3") } > before }
+        // (only DCD, DSR and RI: CTS stays the board's own flow control)
+        assertTrue(board.requests.filter { it.startsWith("out 3") }.all { it.startsWith("out 3 1c") })
+        link.close()
+        t.join(5000)
+        assertEquals(null, bridge.client.value)
+        // its settings
+        val p = PicoSerial(board)
+        assertTrue(p.setMode(PicoSerialProtocol.Mode.DCE))
+        assertEquals(PicoSerialProtocol.Mode.DCE, p.info()?.mode)
+    }
+
+    @Test
+    fun aCdcAdaptersNotificationsHangUp() {
+        val modem = FakeModem()
+        val signals = MutableStateFlow(LineSignals(ready = true))
+        val hangUps = AtomicInteger()
+        val bridge = SerialBridge(modem, signals, { hangUps.incrementAndGet() }, hangUpOnClose = false)
+        val port = FakePort().apply { noDsr = true }
+        // the interrupt endpoint's notifications, as they come
+        val notes = LinkedBlockingQueue<ByteArray>()
+        val cdc = CdcLineState { buf, ms ->
+            val n = notes.poll(ms.toLong(), TimeUnit.MILLISECONDS) ?: return@CdcLineState -1
+            System.arraycopy(n, 0, buf, 0, n.size)
+            n.size
+        }.start()
+        fun state(v: Int) = byteArrayOf(0xA1.toByte(), 0x20, 0, 0, 0, 0, 2, 0, v.toByte(), 0)
+        val link = UsbPortLink(port, bridge, signals, "CDC adapter", extra = cdc)
+        val t = Thread { link.serve() }.apply { start() }
+        waitUntil("claimed") { bridge.client.value != null }
+        // (the port's DTR still the modem's carrier: a plain CDC adapter has no lines of its own)
+        signals.value = LineSignals(ready = true, offhook = true, carrier = true)
+        waitUntil("DCD on") { port.dtr }
+        notes.add(state(0x03))
+        waitUntil("DTR seen") { cdc.computerDtr() == true }
+        // (the link's next look at the lines: DTR up there too)
+        Thread.sleep(400)
+        assertEquals(0, hangUps.get())
+        notes.add(state(0x01))
+        waitUntil("hung up") { hangUps.get() == 1 }
+        link.close()
+        t.join(5000)
     }
 
     @Test

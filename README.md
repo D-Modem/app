@@ -56,6 +56,26 @@ against efax, against D-Modem-RE's own T.30 machine (native-test's
 `t30_line`, on a clean line and a noisy one), and over SIP with T.38
 between the app's engine and dmodemd (`sip_fax_line`).
 
+## A modem for a vintage computer: pico-serial
+
+The phone can be a computer's external modem on a serial cable: on a
+USB serial adapter (FTDI, CP210x, CH34x, PL2303, CDC-ACM), Bluetooth
+serial, or TCP. [pico-serial](https://github.com/Neo-Desktop/pico-serial)
+is a USB-C to DB25 adapter made for it: plugged into the computer's
+serial port it is the modem there. The app finds its control interface
+and uses its lines and settings (its firmware/PROTOCOL.md):
+
+- the modem's DCD, DSR and RI each their own: a call ringing in raises RI
+  on the computer, as a real modem's ring does;
+- the computer's DTR read from the board, so dropping it hangs up;
+- the board's role (automatic, modem or computer port), where its speed
+  comes from (learned from the computer's typing, as a Hayes modem does,
+  or the app's), RTS/CTS flow control, and what it has carried, in the
+  serial port settings.
+
+Any other CDC-ACM adapter's line notifications (`SERIAL_STATE`) are read
+too, so the computer dropping DTR hangs up there as well.
+
 ## The app
 
 - **Home**: what the modem is doing (off, ready, connecting, online with

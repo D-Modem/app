@@ -36,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.neodesktop.dmodem.bridge.BluetoothBridge
 import com.neodesktop.dmodem.bridge.Bridges
+import com.neodesktop.dmodem.bridge.PicoBoard
+import com.neodesktop.dmodem.bridge.PicoSerialProtocol
 import com.neodesktop.dmodem.bridge.TcpBridge
 import com.neodesktop.dmodem.modem.ModemState
 import com.neodesktop.dmodem.settings.BridgeSettings
@@ -64,6 +66,7 @@ fun BridgeSection() {
     val tcpState by Bridges.tcpState.collectAsStateWithLifecycle()
     val btState by Bridges.btState.collectAsStateWithLifecycle()
     val usbState by Bridges.usbState.collectAsStateWithLifecycle()
+    val usbBoard by Bridges.usbBoard.collectAsStateWithLifecycle()
     val gadgetState by Bridges.gadgetState.collectAsStateWithLifecycle()
     val client by Bridges.serial.client.collectAsStateWithLifecycle()
     var hasBt by remember { mutableStateOf(BluetoothBridge.hasPermission(context)) }
@@ -173,6 +176,7 @@ fun BridgeSection() {
             }
             Toggle("Its DTR is the modem's carrier (the computer's DCD)", s.usbCarrierOnDtr) { v -> change { it.copy(usbCarrierOnDtr = v) } }
             Toggle("The computer dropping DTR hangs up", s.usbDtrHangsUp) { v -> change { it.copy(usbDtrHangsUp = v) } }
+            usbBoard?.let { PicoBoardPanel(it) }
         }
         if (s.usbGadget || com.neodesktop.dmodem.bridge.UsbGadget.rootAvailable()) {
             Toggle("This phone's USB port as a serial port to a computer (root)", s.usbGadget) { v -> change { it.copy(usbGadget = v) } }
@@ -218,6 +222,73 @@ internal fun addresses(): List<String> = runCatching {
     NetworkInterface.getNetworkInterfaces().toList().filter { it.isUp && !it.isLoopback }
         .flatMap { it.inetAddresses.toList() }.filterIsInstance<Inet4Address>().mapNotNull { it.hostAddress }
 }.getOrDefault(emptyList())
+
+/**
+ * a pico-serial board on the USB bridge: what it is, its role and lines
+ * now, its speed; its settings (kept in the board's flash)
+ */
+@Composable
+private fun PicoBoardPanel(b: PicoBoard) {
+    val info = b.info
+    val i = b.inputs
+    Column(Modifier.padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            listOfNotNull(info?.boardName ?: "pico-serial", info?.let { "firmware ${it.firmware}" }).joinToString(", "),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        val role = i?.role ?: info?.role ?: PicoSerialProtocol.Role.NONE
+        Text("Working as ${role.label}", style = MaterialTheme.typography.bodySmall)
+        if (role == PicoSerialProtocol.Role.DTE) {
+            Text(
+                "Set it to the modem role (DCE) to plug it into a computer: as DTE it's for reaching a real modem.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        if (i != null && role == PicoSerialProtocol.Role.DCE) {
+            Text("To the computer: " + lines(i.outputs, listOf(PicoSerialProtocol.DCD to "DCD", PicoSerialProtocol.DSR to "DSR", PicoSerialProtocol.RI to "RI", PicoSerialProtocol.CTS to "CTS")), style = MaterialTheme.typography.bodySmall)
+            Text("From the computer: " + lines(i.inputs, listOf(PicoSerialProtocol.DTR to "DTR", PicoSerialProtocol.RTS to "RTS")), style = MaterialTheme.typography.bodySmall)
+        }
+        info?.let {
+            Text(
+                when {
+                    it.learning -> "Speed: learning it from the computer's typing (press Enter there)"
+                    it.learned -> "Speed: ${it.baud} bit/s, learned from the computer"
+                    else -> "Speed: ${it.baud} bit/s"
+                } + if (it.flowActive) ", RTS/CTS flow control" else "",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        b.stats?.let { st ->
+            val errs = st.framing + st.parity + st.overrun
+            Text(
+                "${st.toRs232} bytes out, ${st.fromRs232} in" + (if (errs > 0) ", $errs errors" else "") +
+                    if (st.dropped > 0) ", ${st.dropped} dropped" else "",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        Text("Role", style = MaterialTheme.typography.bodyMedium)
+        for (m in PicoSerialProtocol.Mode.entries) {
+            Choice(m.label, info?.mode == m) { Bridges.withUsbBoard { it.setMode(m) } }
+        }
+        Text("Speed", style = MaterialTheme.typography.bodyMedium)
+        for (m in PicoSerialProtocol.BaudMode.entries) {
+            Choice(m.label, info?.baudMode == m) { Bridges.withUsbBoard { it.setBaudMode(m) } }
+        }
+        Text("Flow control (RTS/CTS)", style = MaterialTheme.typography.bodyMedium)
+        for (f in PicoSerialProtocol.Flow.entries) {
+            Choice(f.label, info?.flow == f) { Bridges.withUsbBoard { it.setFlow(f) } }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { Bridges.withUsbBoard { it.relearnBaud() } }) { Text("Learn the speed again") }
+            TextButton(onClick = { Bridges.withUsbBoard { it.clearStats() } }) { Text("Clear counts") }
+        }
+    }
+}
+
+/** the lines in [bits] that are on, by name */
+private fun lines(bits: Int, names: List<Pair<Int, String>>): String =
+    names.filter { bits and it.first != 0 }.joinToString(" ") { it.second }.ifEmpty { "none" }
 
 @Composable
 private fun Toggle(label: String, value: Boolean, onChange: (Boolean) -> Unit) {

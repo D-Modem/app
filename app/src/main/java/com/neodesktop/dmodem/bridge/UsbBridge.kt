@@ -40,7 +40,10 @@ data class SerialFormat(val baud: Int = 115200, val dataBits: Int = 8, val parit
  * cabled as a modem is (a null modem to the computer): its DTR out the
  * modem's carrier (the computer's DCD) when [carrierOnDtr], RTS on; the
  * computer's DTR (on the adapter's DSR) dropped hangs up when
- * [dtrHangsUp]. Until the port fails, or [close].
+ * [dtrHangsUp]. An adapter with more ([extra]: a pico-serial board, a CDC
+ * adapter's notifications) drives the modem's lines itself (DCD, DSR and
+ * RI each its own) and tells the computer's DTR where the port can't.
+ * Until the port fails, or [close].
  */
 class UsbPortLink(
     private val port: UsbSerialPort,
@@ -49,11 +52,13 @@ class UsbPortLink(
     private val name: String,
     private val carrierOnDtr: Boolean = true,
     private val dtrHangsUp: Boolean = true,
+    private val extra: AdapterLines? = null,
 ) {
     @Volatile private var open = true
 
     fun close() {
         open = false
+        runCatching { extra?.close() }
         runCatching { port.close() }
     }
 
@@ -116,12 +121,15 @@ class UsbPortLink(
         while (open) {
             val s = bridge.lines()
             val carrier = if (carrierOnDtr) s.carrier else s.ready
-            if (carrier != lastCarrier) {
-                runCatching { port.setDTR(carrier) }
-                lastCarrier = carrier
+            // (the adapter's own lines when it has them; its DTR on, the port open to it)
+            val wanted = if (runCatching { extra?.drive(dcd = carrier, dsr = s.ready, ri = s.ringing) }.getOrNull() == true) true else carrier
+            if (wanted != lastCarrier) {
+                runCatching { port.setDTR(wanted) }
+                lastCarrier = wanted
             }
             if (dtrHangsUp) {
-                val dsr = runCatching { port.dsr }.getOrNull()
+                // (CDC drivers can't read DSR: the adapter's own word for it first)
+                val dsr = runCatching { extra?.computerDtr() }.getOrNull() ?: runCatching { port.dsr }.getOrNull()
                 if (dsr != null) {
                     // (its fall: the computer's DTR dropped)
                     if (computerDtr == true && !dsr) bridge.dropDtr()
@@ -135,7 +143,8 @@ class UsbPortLink(
 
 /**
  * The modem on a USB serial adapter plugged into the phone (FTDI, CP210x,
- * CH34x, PL2303, CDC-ACM): the first one found, again whenever one is
+ * CH34x, PL2303, CDC-ACM; a pico-serial board's lines and settings too):
+ * the first one found, again whenever one is
  * plugged in while it's on; Android's permission for it asked for.
  */
 @SuppressLint("UnspecifiedRegisterReceiverFlag")
@@ -157,6 +166,19 @@ class UsbBridge(
 
     private val _state = MutableStateFlow<State>(State.Stopped)
     val state: StateFlow<State> = _state.asStateFlow()
+
+    /** the pico-serial board plugged in, while there's one */
+    private val _board = MutableStateFlow<PicoBoard?>(null)
+    val board: StateFlow<PicoBoard?> = _board.asStateFlow()
+    @Volatile private var pico: PicoSerialLines? = null
+
+    /** [f] done to the pico-serial board (its settings), its state read again after; false when there's none */
+    fun withBoard(f: (PicoSerial) -> Boolean): Boolean {
+        val p = pico ?: return false
+        val ok = f(p.pico)
+        p.refresh()
+        return ok
+    }
 
     private val usb: UsbManager? get() = context.getSystemService(UsbManager::class.java)
     @Volatile private var link: UsbPortLink? = null
@@ -234,16 +256,48 @@ class UsbBridge(
             _state.value = State.Failed("${label(dev)}: ${e.message}")
             return
         }
-        val l = UsbPortLink(port, bridge, signals, label(dev), carrierOnDtr, dtrHangsUp)
+        val extra = extraLines(dev, conn)
+        val boardJob = (extra as? PicoSerialLines)?.let { p ->
+            pico = p
+            Thread({
+                // (the board's state to the app as the link reads it)
+                try {
+                    while (pico === p) {
+                        _board.value = p.board.value
+                        Thread.sleep(300)
+                    }
+                } catch (_: InterruptedException) {
+                }
+            }, "usb-board").apply { isDaemon = true; start() }
+        }
+        val l = UsbPortLink(port, bridge, signals, label(dev), carrierOnDtr, dtrHangsUp, extra)
         link = l
         _state.value = State.Connected(label(dev))
         Thread({
             val served = l.serve()
+            pico = null
+            boardJob?.interrupt()
+            _board.value = null
             link = null
             _state.value = if (!served) State.Failed("the modem is in use") else State.Waiting
             // (another adapter, or this one again once replugged)
             if (running) find()
         }, "usb-bridge").apply { isDaemon = true; start() }
+    }
+
+    /**
+     * what [dev] has beyond its port: a pico-serial board's control
+     * interface, else a CDC adapter's notifications, else nothing
+     */
+    private fun extraLines(dev: UsbDevice, conn: android.hardware.usb.UsbDeviceConnection): AdapterLines? {
+        PicoSerial.controlInterface(dev)?.let { itf ->
+            if (conn.claimInterface(itf, false)) {
+                val p = PicoSerial(AndroidUsbControl(conn, itf.id))
+                if (p.info()?.protocol == PicoSerialProtocol.VERSION) return PicoSerialLines(p)
+            }
+        }
+        val ep = CdcLineState.endpoint(dev) ?: return null
+        return CdcLineState { buf, ms -> conn.bulkTransfer(ep, buf, buf.size, ms) }.start()
     }
 
     private fun label(d: UsbDevice): String =
