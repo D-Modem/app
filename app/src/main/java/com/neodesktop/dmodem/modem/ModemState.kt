@@ -38,6 +38,10 @@ object ModemState {
     /** the modem's speaker on the phone's (ATM, ATL) */
     val speaker = ModemSpeaker()
 
+    /** the country's call progress tones, and when they play */
+    val tones = CallTones()
+    val progress = CallProgress(tones)
+
     /** The log's last lines (the modem's and SIP's). */
     val log = LineBuffer(MAX_LOG)
 

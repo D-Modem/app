@@ -45,6 +45,8 @@ data class ModemSettings(
     val peerPin: String = "",
     /** the modem's speaker on the phone's: the dialling and the handshake heard (as ATM and ATL have it) */
     val speaker: Boolean = true,
+    /** the country's call progress tones (dial, ringing, busy, congestion) where the line has none of its own */
+    val callTones: Boolean = true,
     /**
      * the modulation on mobile calls (+MS): V_CVM (V.cvm, made for speech codecs: about 1200 bit/s
      * through AMR 12.2, to another D-Modem; V.22 or V.21 to other modems), V21 (300 bit/s), V22, V22B
@@ -116,6 +118,7 @@ class SettingsStore(private val context: Context) {
         val peerPort = intPreferencesKey("peer_port")
         val peerPin = stringPreferencesKey("peer_pin")
         val speaker = booleanPreferencesKey("speaker")
+        val callTones = booleanPreferencesKey("callTones")
         val cellSpeed = stringPreferencesKey("cell_speed")
     }
 
@@ -138,6 +141,7 @@ class SettingsStore(private val context: Context) {
             peerPort = p[Keys.peerPort] ?: d.peerPort,
             peerPin = p[Keys.peerPin] ?: d.peerPin,
             speaker = p[Keys.speaker] ?: d.speaker,
+            callTones = p[Keys.callTones] ?: d.callTones,
             cellSpeed = p[Keys.cellSpeed] ?: d.cellSpeed,
         )
     }
@@ -162,6 +166,7 @@ class SettingsStore(private val context: Context) {
             p[Keys.peerPort] = s.peerPort
             p[Keys.peerPin] = s.peerPin.trim()
             p[Keys.speaker] = s.speaker
+            p[Keys.callTones] = s.callTones
             p[Keys.cellSpeed] = s.cellSpeed
         }
     }

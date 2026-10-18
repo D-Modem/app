@@ -226,6 +226,10 @@ class ModemService : Service() {
         ModemState.dte.attach(pfd)
         ModemState.setStatus(ModemState.IDLE)
         ModemState.speaker.enabled = settings.speaker
+        ModemState.tones.enabled = settings.callTones
+        ModemState.tones.country = com.neodesktop.dmodem.tones.CountryTones.find(settings.country)
+            ?: com.neodesktop.dmodem.tones.CountryTones.find("")!!
+        watchProgress()
         ModemState.line = settings.line
         // (the speaker's sound: one socket for the process, read for good once started)
         NativeModem.speakerSound()?.let { s ->
@@ -238,9 +242,37 @@ class ModemService : Service() {
         return true
     }
 
+    private var progressJob: kotlinx.coroutines.Job? = null
+    private val progressText = com.neodesktop.dmodem.terminal.TerminalLink.Listener { d, n ->
+        ModemState.progress.modemText(String(d, 0, n, Charsets.ISO_8859_1))
+    }
+
+    /** the call progress tones' watch: what the modem says, its state, the other phone ringing */
+    private fun watchProgress() {
+        progressJob?.cancel()
+        ModemState.dte.removeListener(progressText)
+        ModemState.dte.addListener(progressText)
+        progressJob = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
+            launch {
+                ModemState.status.collect { st ->
+                    ModemState.progress.status(st.offhook, st.link == NativeModem.Link.CONNECTING || st.link == NativeModem.Link.ONLINE)
+                }
+            }
+            launch {
+                com.neodesktop.dmodem.peer.Peers.state.collect { st ->
+                    ModemState.progress.ringingThere(st is com.neodesktop.dmodem.peer.PeerLine.State.Calling)
+                }
+            }
+        }
+    }
+
     /** the native modem stopped: the call hung up, SIP gone, the DTE's socket closed */
     private fun stopNative() {
         stopping = true
+        progressJob?.cancel()
+        progressJob = null
+        ModemState.dte.removeListener(progressText)
+        ModemState.tones.stop()
         ModemState.speaker.setLevel(0)
         com.neodesktop.dmodem.peer.Peers.stop()
         NativeModem.stop()

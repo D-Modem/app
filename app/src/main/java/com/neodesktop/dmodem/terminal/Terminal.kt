@@ -278,6 +278,8 @@ object Terminal {
             withContext(Dispatchers.IO) { sendAndWait(cmd + "\r", 2000) }
         }
         _active.value = session
+        // (the line's dial tone first, a second of it, as a phone off hook has: the country's)
+        withContext(Dispatchers.IO) { ModemState.tones.playAndWait(com.neodesktop.dmodem.modem.CallTones.Kind.DIAL, DIAL_TONE_MS) }
         session.send("ATD" + e.number.trim() + "\r")
         directory.put(e.copy(lastDialed = System.currentTimeMillis(), dialCount = e.dialCount + 1))
         return null
@@ -303,4 +305,6 @@ object Terminal {
     }
 
     private const val START_TIMEOUT_MS = 20_000L
+    /** the dial tone before an entry is dialled (ms) */
+    private const val DIAL_TONE_MS = 1000
 }

@@ -89,7 +89,7 @@ class ModemSpeaker(
     }
 
     /** the phone's speaker (media's stream and volume) */
-    private class TrackSink : Sink {
+    internal class TrackSink : Sink {
         private val track: AudioTrack = run {
             val min = AudioTrack.getMinBufferSize(8000, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
             AudioTrack.Builder()

@@ -11,7 +11,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.font.FontWeight
+import com.neodesktop.dmodem.tones.CountryTones
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -96,7 +104,13 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
             style = MaterialTheme.typography.bodySmall,
         )
         Field("Init commands (sent at start)", s.initCommands) { s = s.copy(initCommands = it) }
-        Field("Country (empty: USA)", s.country) { s = s.copy(country = it) }
+        CountryPicker(s.country) { s = s.copy(country = it) }
+        Toggle("Call progress tones: dial, ringing, busy, congestion", s.callTones) { s = s.copy(callTones = it) }
+        Text(
+            "The country's tones, as its phone network plays them: a second of dial tone as an entry is dialled, " +
+                "the ringing tone while the other phone rings, the busy or congestion tone when a call can't be made.",
+            style = MaterialTheme.typography.bodySmall,
+        )
         NumberField("Modem log level (0-5)", s.logLevel) { s = s.copy(logLevel = it.coerceIn(0, 5)) }
         if (!s.peer) NumberField("SIP log level (0-4)", s.sipLogLevel) { s = s.copy(sipLogLevel = it.coerceIn(0, 4)) }
 
@@ -162,4 +176,63 @@ private fun Toggle(label: String, value: Boolean, onChange: (Boolean) -> Unit) {
         Text(label, Modifier.weight(1f))
         Switch(checked = value, onCheckedChange = onChange)
     }
+}
+
+/**
+ * the modem's country (its line settings, how it hears busy) and the call
+ * progress tones': D-Modem-RE's ITU list, searched by name, each with its
+ * tones; the value its name ("" for the default, the USA)
+ */
+@Composable
+private fun CountryPicker(value: String, onPick: (String) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    val now = CountryTones.find(value)
+    OutlinedTextField(
+        value = now?.label ?: value,
+        onValueChange = {},
+        readOnly = true,
+        label = { Text("Country") },
+        supportingText = { Text(now?.let { "Dial tone ${it.dial}; busy ${it.busy}" } ?: "Not in the list: the USA's tones") },
+        trailingIcon = { TextButton(onClick = { open = true }) { Text("Change") } },
+        modifier = Modifier.fillMaxWidth().clickable { open = true },
+    )
+    TextButton(onClick = { ModemState.tones.preview(now ?: CountryTones.find("")!!) }) {
+        Text("Hear its tones: dial, ringing, busy, congestion")
+    }
+    if (!open) return
+    var query by remember { mutableStateOf("") }
+    val shown = remember(query) {
+        val q = query.trim().lowercase()
+        CountryTones.all.filter { q.isEmpty() || it.label.lowercase().contains(q) || it.name.lowercase().contains(q.replace(' ', '_')) }
+            .sortedBy { it.label }
+    }
+    AlertDialog(
+        onDismissRequest = { open = false },
+        title = { Text("Country") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text("Search") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                    items(shown, key = { it.name }) { c ->
+                        Column(
+                            Modifier.fillMaxWidth().clickable {
+                                onPick(if (c.name == CountryTones.DEFAULT) "" else c.name)
+                                open = false
+                            }.padding(vertical = 8.dp),
+                        ) {
+                            Text(c.label, fontWeight = if (c.name == now?.name) FontWeight.Bold else FontWeight.Normal)
+                            Text("Ringing ${c.ringing}", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { open = false }) { Text("Close") } },
+    )
 }

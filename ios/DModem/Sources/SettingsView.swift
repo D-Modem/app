@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Neo-Desktop
 import DModemKit
+import DModemShared
 import SwiftUI
 
 /// The SIP account (or pasted as user:password@host), incoming calls, T.38,
@@ -66,6 +67,11 @@ struct SettingsView: View {
 
     @ViewBuilder private var modemSections: some View {
         Section {
+            NavigationLink {
+                CountryList(selection: $model.settings.country)
+            } label: {
+                LabeledContent("Country", value: CountryTones.companion.find(name: model.settings.country)?.label ?? model.settings.country)
+            }
             TextField("AT commands at start", text: $model.settings.initCommands)
                 .textInputAutocapitalization(.characters).autocorrectionDisabled().font(.body.monospaced())
         } header: {
@@ -144,5 +150,35 @@ private struct PeerSection: View {
         finder?.stop()
         finder = nil
         finding = false
+    }
+}
+
+/// the modem's country (D-Modem-RE's ITU list: its line settings, how it hears busy), searched by name
+private struct CountryList: View {
+    @Binding var selection: String
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+
+    private var countries: [CountryTones] {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        return CountryTones.companion.all
+            .filter { q.isEmpty || $0.label.lowercased().contains(q) }
+            .sorted { $0.label < $1.label }
+    }
+
+    var body: some View {
+        List(countries, id: \.name) { c in
+            Button {
+                selection = c.name == CountryTones.companion.DEFAULT ? "" : c.name
+                dismiss()
+            } label: {
+                VStack(alignment: .leading) {
+                    Text(c.label).foregroundStyle(.primary)
+                    Text("Dial tone \(c.dial.description), busy \(c.busy.description)").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .searchable(text: $query)
+        .navigationTitle("Country")
     }
 }

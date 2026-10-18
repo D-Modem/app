@@ -86,7 +86,13 @@ too, so the computer dropping DTR hangs up there as well.
   with an AT command line).
 - **Settings**: the SIP account (or paste `user:password@host`, as
   dmodemd's `SIP_LOGIN`), taking incoming calls, T.38, the AT commands
-  sent at start (`ATX3` by default: SIP has no dial tone), the log levels.
+  sent at start (`ATX3` by default: SIP has no dial tone), the log levels;
+  the country, from the ITU's list of 192 (D-Modem-RE's, after E.180):
+  the modem's line settings and how it hears busy, and the call progress
+  tones the app plays in its tones (a second of dial tone as an entry is
+  dialled, the ringing tone while the other phone rings, the busy or
+  congestion tone when a call can't be made), with a button to hear them.
+  `tools/country_tones.py` makes the shared Kotlin's copy of the table.
 - **Terminal**: a VT100/VT220/xterm terminal on the modem (256 and 24-bit
   colours, the alternate screen, bracketed paste, DEC line drawing) that
   also speaks what BBSes expect: CP437, ANSI.SYS's cursor save/restore and
