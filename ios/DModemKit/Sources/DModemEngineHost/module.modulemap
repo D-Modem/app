@@ -1,0 +1,4 @@
+module DModemEngine [system] {
+    header "../../../../app/src/main/cpp/dmodem_engine.h"
+    export *
+}
