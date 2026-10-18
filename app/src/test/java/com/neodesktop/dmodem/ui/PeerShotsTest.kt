@@ -55,6 +55,16 @@ class PeerShotsTest {
     }
 
     @Test
+    fun theLineFromItsMenu() {
+        save(ModemSettings(line = ModemSettings.LINE_SIP))
+        compose.onNodeWithText("Settings").performClick()
+        compose.onNodeWithText("A SIP account (calls over the internet)").performScrollTo().performClick()
+        compose.onNodeWithText("Another phone with D-Modem, on Wi-Fi").performClick()
+        compose.onNodeWithText("Find phones on this network").performScrollTo().assertExists()
+        shot("peer-0-line-menu")
+    }
+
+    @Test
     fun homeOnACall() {
         save(ModemSettings(line = ModemSettings.LINE_WIFI, peerAddress = "192.168.1.20:5070", peerName = "D-Modem on Pixel 8", listen = true))
         ModemState.setRun(ModemState.Run.RUNNING)

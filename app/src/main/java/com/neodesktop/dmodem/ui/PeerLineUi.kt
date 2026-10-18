@@ -11,6 +11,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -35,7 +40,8 @@ import com.neodesktop.dmodem.peer.PeerFinder
 import com.neodesktop.dmodem.peer.PeerLine
 import com.neodesktop.dmodem.settings.ModemSettings
 
-/** the line's choice: a SIP account, or another phone with the app */
+/** the line's choice (a menu): a SIP account, another phone with the app, the phone's mobile calls */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LineChoice(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
     val context = LocalContext.current
@@ -43,20 +49,44 @@ fun LineChoice(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
         if (BluetoothBridge.hasPermission(context)) onChange(s.copy(line = ModemSettings.LINE_BLUETOOTH))
     }
     Text("Line", style = MaterialTheme.typography.titleMedium)
-    LineRadio("A SIP account (calls over the internet)", s.line == ModemSettings.LINE_SIP) {
-        onChange(s.copy(line = ModemSettings.LINE_SIP))
-    }
-    LineRadio("Another phone with D-Modem, on Wi-Fi", s.line == ModemSettings.LINE_WIFI) {
-        onChange(s.copy(line = ModemSettings.LINE_WIFI, peerAddress = if (s.line == ModemSettings.LINE_WIFI) s.peerAddress else "", peerName = ""))
-    }
-    LineRadio("This phone's mobile calls (slow; root)", s.line == ModemSettings.LINE_CELL) {
-        onChange(s.copy(line = ModemSettings.LINE_CELL))
-    }
-    LineRadio("Another phone with D-Modem, on Bluetooth", s.line == ModemSettings.LINE_BLUETOOTH) {
-        if (!BluetoothBridge.hasPermission(context)) {
-            askBt.launch(BluetoothBridge.permissions())
-        } else {
-            onChange(s.copy(line = ModemSettings.LINE_BLUETOOTH, peerAddress = if (s.line == ModemSettings.LINE_BLUETOOTH) s.peerAddress else "", peerName = ""))
+    val lines = listOf(
+        ModemSettings.LINE_SIP to "A SIP account (calls over the internet)",
+        ModemSettings.LINE_WIFI to "Another phone with D-Modem, on Wi-Fi",
+        ModemSettings.LINE_BLUETOOTH to "Another phone with D-Modem, on Bluetooth",
+        ModemSettings.LINE_CELL to "This phone's mobile calls (slow; root)",
+    )
+    var open by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(expanded = open, onExpandedChange = { open = it }) {
+        OutlinedTextField(
+            value = lines.firstOrNull { it.first == s.line }?.second ?: lines[0].second,
+            onValueChange = {},
+            readOnly = true,
+            singleLine = true,
+            label = { Text("The modem's line") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = open) },
+            modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+        )
+        ExposedDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            for ((line, label) in lines) {
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    onClick = {
+                        open = false
+                        when (line) {
+                            ModemSettings.LINE_SIP, ModemSettings.LINE_CELL -> onChange(s.copy(line = line))
+                            ModemSettings.LINE_WIFI -> onChange(
+                                s.copy(line = line, peerAddress = if (s.line == line) s.peerAddress else "", peerName = ""),
+                            )
+                            ModemSettings.LINE_BLUETOOTH -> if (!BluetoothBridge.hasPermission(context)) {
+                                askBt.launch(BluetoothBridge.permissions())
+                            } else {
+                                onChange(s.copy(line = line, peerAddress = if (s.line == line) s.peerAddress else "", peerName = ""))
+                            }
+                        }
+                    },
+                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
+                )
+            }
         }
     }
 }

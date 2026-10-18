@@ -26,6 +26,21 @@ class Tone(val f1: Int, val f2: Int, val mod: Float, val cadence: FloatArray) {
         return false
     }
 
+    /**
+     * at [t] seconds from its start: (seconds since this burst came on,
+     * seconds until it goes off; infinite for a continuous tone), or null
+     * while it's off
+     */
+    fun burst(t: Double): Pair<Double, Double>? {
+        if (cadence.isEmpty()) return t to Double.POSITIVE_INFINITY
+        var x = t % period
+        for (i in cadence.indices) {
+            if (x < cadence[i]) return if (i % 2 == 0) x to cadence[i] - x else null
+            x -= cadence[i]
+        }
+        return null
+    }
+
     /** how it's written in E.180 ("350+440 Hz, continuous", "480+620 Hz, 0.5 on 0.5 off") */
     override fun toString(): String {
         val f = when {
@@ -100,26 +115,24 @@ class CountryTones(
 object ToneSynth {
     /**
      * [ms] of [tone] at [rate] Hz, from [fromMs] into its cadence, peaking
-     * at [level] of full scale (two frequencies each at half). The edges of
-     * each burst ramp over 4 ms, so the cadence doesn't click; the end of
-     * the sound too, if [fadeOut].
+     * at [level] of full scale (two frequencies each at half). Each burst's
+     * edges ramp over 4 ms, by where it is in the cadence, so one sound in
+     * pieces is the same as in one (a player's chunks: no clicks between
+     * them); the end of the sound fades too, if [fadeOut].
      */
     fun pcm(tone: Tone, ms: Int, rate: Int = 8000, level: Double = 0.3, fromMs: Int = 0, fadeOut: Boolean = true): ShortArray {
         val n = (ms.toLong() * rate / 1000).toInt()
         val out = ShortArray(n)
-        val ramp = rate * 4 / 1000
+        val ramp = RAMP_S * rate
         val peak = level * 32767
-        var onFor = 0
+        val start = fromMs.toLong() * rate / 1000
         for (i in 0 until n) {
-            val t = (fromMs.toDouble() / 1000) + i.toDouble() / rate
-            if (!tone.onAt(t)) {
-                onFor = 0
-                continue
-            }
-            // (the burst's ends faded in and out)
-            val toOff = minOf(untilOff(tone, t, rate, ramp), if (fadeOut) n - i else ramp)
-            val g = minOf(1.0, (onFor + 1).toDouble() / ramp, toOff.toDouble() / ramp)
-            onFor++
+            // (the sample's time from the tone's start: from its count, so the pieces line up exactly)
+            val t = (start + i).toDouble() / rate
+            val (since, until) = tone.burst(t) ?: continue
+            var g = minOf(1.0, since / RAMP_S, until / RAMP_S)
+            if (fadeOut) g = minOf(g, (n - 1 - i) / ramp)
+            if (g <= 0) continue
             var x = sin(2 * PI * tone.f1 * t)
             if (tone.f2 > 0) x = (x + sin(2 * PI * tone.f2 * t)) / 2
             if (tone.mod > 0) x *= 0.6 + 0.4 * sin(2 * PI * tone.mod * t)
@@ -128,10 +141,6 @@ object ToneSynth {
         return out
     }
 
-    /** samples (up to [max]) until the tone goes off after [t] */
-    private fun untilOff(tone: Tone, t: Double, rate: Int, max: Int): Int {
-        if (tone.cadence.isEmpty()) return max
-        for (k in 1..max) if (!tone.onAt(t + k.toDouble() / rate)) return k
-        return max
-    }
+    /** how long a burst's edges ramp (s) */
+    const val RAMP_S = 0.004
 }

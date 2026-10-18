@@ -95,4 +95,24 @@ class CountryTonesTest {
         assertTrue(level(x, 415.0) > 0.02 && level(x, 385.0) > 0.02)
         assertTrue(jp.onAt(0.5) && !jp.onAt(1.5) && jp.onAt(3.2))
     }
+
+    @Test
+    fun inPiecesAsInOne() {
+        // a player's 50 ms chunks (the last one fading out) are the same sound as one long one: no clicks between them
+        for (name in listOf("USA", "UK", "JAPAN", "GERMANY")) {
+            val c = CountryTones.find(name)!!
+            for (tone in listOf(c.dial, c.ringing, c.busy, c.congestion)) {
+                val whole = ToneSynth.pcm(tone, 3000)
+                val pieces = (0 until 3000 step 50).flatMap { at ->
+                    ToneSynth.pcm(tone, 50, fromMs = at, fadeOut = at + 50 >= 3000).toList()
+                }.toShortArray()
+                assertEquals(whole.toList(), pieces.toList(), "$name $tone")
+                // and nowhere a jump bigger than the highest tone's own slope (a click is one)
+                val maxStep = 2 * PI * maxOf(tone.f1, tone.f2) * 0.3 * 32767 / 8000 * 1.05 + 2
+                for (i in 1 until whole.size) {
+                    assertTrue(abs(whole[i] - whole[i - 1]) <= maxStep, "$name $tone: a jump at sample $i")
+                }
+            }
+        }
+    }
 }
