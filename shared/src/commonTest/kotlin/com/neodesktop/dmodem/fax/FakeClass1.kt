@@ -48,6 +48,13 @@ class FakeFaxLine {
         /** the V.21 frames being received, those left of them */
         private var receiving: ArrayDeque<ByteArray>? = null
         @Volatile var stopped = false
+        /** what the modem says, to here instead of [io] (a FaxJob's feed) */
+        @Volatile var tap: ((ByteArray) -> Unit)? = null
+
+        private fun toHost(b: ByteArray) {
+            val t = tap
+            if (t != null) t(b) else io.feed(b)
+        }
 
         fun deliver(t: Tx) = synchronized(lock) { inbox.add(t) }
 
@@ -62,7 +69,7 @@ class FakeFaxLine {
             return cur[at++].toInt() and 0xff
         }
 
-        private fun say(s: String) = io.feed("\r\n$s\r\n".encodeToByteArray())
+        private fun say(s: String) = toHost("\r\n$s\r\n".encodeToByteArray())
 
         /** <DLE> shielded data from the DTE, to <DLE><ETX> */
         private fun dteData(): ByteArray {
@@ -82,7 +89,7 @@ class FakeFaxLine {
             for (b in d) { o.write(b.toInt()); if (b.toInt() and 0xff == Class1.DLE) o.write(Class1.DLE) }
             o.write(Class1.DLE)
             o.write(Class1.ETX)
-            io.feed(o.toByteArray())
+            toHost(o.toByteArray())
         }
 
         /** the next transmission come in (left there); null if the DTE stopped the wait (a character) */
@@ -159,7 +166,7 @@ class FakeFaxLine {
                 }
                 c.startsWith("+FRM=") -> receiveFast(c.substring(5).toInt())
                 // dialled: CONNECT, then as +FRH=3; answered: CONNECT, then as +FTH=3
-                c == "D" -> { say("CONNECT"); receiveFrame(true) }
+                c.startsWith("D") -> { say("CONNECT"); receiveFrame(true) }
                 c == "A" -> { say("CONNECT"); sendFrames() }
                 else -> say("OK")      // (E0, +FCLASS=1, +FTS, +FRS, …)
             }

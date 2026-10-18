@@ -34,7 +34,7 @@ class PosixPeerTest {
         private val events = ArrayList<String>()
         val heardOther = atomic(0)
         val hungUp = atomic(false)
-        val host = PeerHost(0, callTo, pin, events = { e -> synchronized(lock) { events.add(e) } }, log = {}, ringMs = 300)
+        val host = PeerHost(0, callTo, pin, events = { e -> synchronized(lock) { events.add(e) } }, log = { }, ringMs = 300)
 
         init {
             assertEquals(null, host.start(listen))

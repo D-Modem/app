@@ -10,6 +10,7 @@ import kotlinx.coroutines.IO
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * The threads for blocking work: as many as there is work (I/O's 64, the
@@ -29,4 +30,7 @@ class Latch {
         done.complete(Unit)
     }
     fun await() = runBlocking { done.await() }
+
+    /** waited for up to [ms]: whether it was counted down */
+    fun await(ms: Long): Boolean = runBlocking { withTimeoutOrNull(ms) { done.await() } != null }
 }

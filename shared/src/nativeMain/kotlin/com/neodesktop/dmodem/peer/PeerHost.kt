@@ -2,6 +2,8 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.peer
 
+import com.neodesktop.dmodem.jobs.LogOut
+
 /**
  * The line to another phone over Wi-Fi as the iOS app's Swift has it:
  * [PeerLine] on [PosixTcpTransport], made from plain values (Swift has
@@ -15,17 +17,17 @@ class PeerHost(
     private val callTo: String,
     /** the PIN between the two (empty: none) */
     pin: String,
-    /** to the engine: RING, CANCEL, ANSWERED, FAILED <code>, DROPPED */
-    events: (String) -> Unit,
-    log: (String) -> Unit,
+    /** to the engine: RING, CANCEL, ANSWERED, FAILED <code>, DROPPED (a line each) */
+    events: LogOut,
+    log: LogOut,
     ringMs: Long = 3000,
 ) {
     val transport = PosixTcpTransport(port)
     val line = PeerLine(
         transport,
-        events = events,
+        events = { e -> events.log(e) },
         target = { dial -> PeerLine.wifiTarget(dial, callTo) },
-        log = log,
+        log = { l -> log.log(l) },
         ringMs = ringMs,
         pin = pin,
     )

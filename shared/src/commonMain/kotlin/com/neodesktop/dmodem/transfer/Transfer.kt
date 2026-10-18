@@ -2,7 +2,10 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.transfer
 
-import java.io.IOException
+import com.neodesktop.dmodem.io.IOException
+import com.neodesktop.dmodem.io.background
+import com.neodesktop.dmodem.io.sleepMs
+import kotlin.concurrent.Volatile
 
 /** The file transfer protocols. */
 enum class Protocol(val label: String, val batch: Boolean) {
@@ -38,7 +41,8 @@ data class TransferState(
 }
 
 /**
- * One transfer on a line, on its own thread: the session feeds it the
+ * One transfer on a line, on its own thread (the Android app's terminal,
+ * and iOS's TransferJob): the session feeds it the
  * remote's bytes ([io]) while it runs; [onEnd] has what it didn't read.
  */
 class Transfer(
@@ -54,7 +58,6 @@ class Transfer(
     @Volatile var state = TransferState(protocol, sending)
         private set
     private var kermit: Kermit? = null
-    private var thread: Thread? = null
 
     private fun update(s: TransferState) {
         state = s
@@ -87,7 +90,7 @@ class Transfer(
 
     private fun start(body: () -> List<String>) {
         update(state)
-        thread = Thread({
+        background("transfer-${protocol.name.lowercase()}") {
             val end = try {
                 val names = body()
                 state.copy(result = "", received = names)
@@ -99,12 +102,9 @@ class Transfer(
                 state.copy(result = e.toString())
             }
             // (what the other side still sends of the protocol settles first)
-            if (end.result != "") Thread.sleep(300)
+            if (end.result != "") sleepMs(300)
             update(end)
             onEnd(end, io.leftover())
-        }, "transfer-${protocol.name.lowercase()}").apply {
-            isDaemon = true
-            start()
         }
     }
 
@@ -121,9 +121,6 @@ class Transfer(
         }
         io.cancel("cancelled")
     }
-
-    /** for tests: until it ends */
-    fun join(ms: Long) = thread?.join(ms)
 
     companion object {
         /**
