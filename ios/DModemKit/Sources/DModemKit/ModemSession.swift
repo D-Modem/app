@@ -17,6 +17,8 @@ public final class ModemSession: EngineListener, @unchecked Sendable {
     private var _console = ""
     private var _error: String?
     private var dte: DTE?
+    /// the job the DTE is lent to (a fax call, a transfer, dial-up): its data goes there, not to [onData]
+    private var claimant: ((Data) -> Void)?
 
     /// the most of the log and the console kept
     public var logMax = 2000
@@ -81,6 +83,7 @@ public final class ModemSession: EngineListener, @unchecked Sendable {
         lock.lock()
         let d = dte
         dte = nil
+        claimant = nil
         lock.unlock()
         engine.stop()
         d?.close()
@@ -106,7 +109,36 @@ public final class ModemSession: EngineListener, @unchecked Sendable {
         command("ATH")
     }
 
+    /// the DTE lent to [handler]: what the modem says goes to it alone until [release]. False while
+    /// another has it, or the modem's off
+    @discardableResult
+    public func claim(_ handler: @escaping (Data) -> Void) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard claimant == nil, dte != nil else { return false }
+        claimant = handler
+        return true
+    }
+
+    /// the DTE back from its job; what the job didn't read, [leftover], to [onData] (the terminal)
+    public func release(leftover: Data = Data()) {
+        lock.lock()
+        let had = claimant != nil
+        claimant = nil
+        lock.unlock()
+        if had && !leftover.isEmpty { received(leftover) }
+    }
+
+    /// whether a job has the DTE
+    public var claimed: Bool { lock.lock(); defer { lock.unlock() }; return claimant != nil }
+
     private func received(_ data: Data) {
+        lock.lock()
+        if let c = claimant {
+            lock.unlock()
+            c(data)
+            return
+        }
+        lock.unlock()
         let text = String(decoding: data, as: UTF8.self)
         lock.lock()
         _console += text

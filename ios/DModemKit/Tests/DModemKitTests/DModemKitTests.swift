@@ -105,6 +105,35 @@ final class DModemKitTests: XCTestCase {
         session.stop()
     }
 
+    func testTheDteLentToAJob() {
+        signal(SIGPIPE, SIG_IGN)
+        let session = ModemSession()
+        var terminal = ""
+        let tl = NSLock()
+        session.onData = { d in tl.lock(); terminal += String(decoding: d, as: UTF8.self); tl.unlock() }
+        // (the modem off: nothing to lend)
+        XCTAssertFalse(session.claim { _ in })
+        var settings = ModemSettings()
+        settings.line = .wifi
+        settings.initCommands = "ATE0"
+        XCTAssertTrue(session.start(settings))
+        XCTAssertTrue(waitFor { tl.lock(); defer { tl.unlock() }; return terminal.contains("OK") })
+        var job = ""
+        let jl = NSLock()
+        XCTAssertTrue(session.claim { d in jl.lock(); job += String(decoding: d, as: UTF8.self); jl.unlock() })
+        XCTAssertTrue(session.claimed)
+        XCTAssertFalse(session.claim { _ in })
+        tl.lock(); terminal = ""; tl.unlock()
+        session.command("ATI3")
+        XCTAssertTrue(waitFor { jl.lock(); defer { jl.unlock() }; return job.contains("peer") }, job)
+        tl.lock(); XCTAssertEqual(terminal, ""); tl.unlock()
+        // back to the terminal, with what the job left
+        session.release(leftover: Data("left\r\n".utf8))
+        XCTAssertFalse(session.claimed)
+        tl.lock(); XCTAssertEqual(terminal, "left\r\n"); tl.unlock()
+        session.stop()
+    }
+
     func testIncompleteSettingsDontStart() {
         let session = ModemSession()
         XCTAssertFalse(session.start(ModemSettings()))
@@ -126,16 +155,35 @@ final class DModemKitTests: XCTestCase {
 
     func testSettingsKeptAndOldOnesRead() throws {
         let defaults = UserDefaults(suiteName: "dmodemkit-test-\(UUID())")!
-        let store = SettingsStore(defaults: defaults)
+        let secrets = MemorySecrets()
+        let store = SettingsStore(defaults: defaults, secrets: secrets)
         XCTAssertEqual(store.settings, ModemSettings())
         var s = ModemSettings()
-        s.user = "alice"; s.domain = "sip.example.com"; s.line = .wifi; s.peerPin = "1234"
+        s.user = "alice"; s.password = "pw1"; s.domain = "sip.example.com"; s.line = .wifi; s.peerPin = "1234"
+        s.ispPassword = "isp"; s.faxIdent = "+1 555 0100"
         store.settings = s
         XCTAssertEqual(store.settings, s)
         XCTAssertTrue(s.complete)
+        // the secrets apart, not in the JSON
+        let json = String(decoding: defaults.data(forKey: "modemSettings")!, as: UTF8.self)
+        XCTAssertFalse(json.contains("pw1") || json.contains("1234") || json.contains("isp\""), json)
+        XCTAssertEqual(secrets.get("sip-password"), "pw1")
+        XCTAssertEqual(secrets.get("peer-pin"), "1234")
+        // a secret cleared: gone from the store too
+        s.peerPin = ""
+        store.settings = s
+        XCTAssertNil(secrets.get("peer-pin"))
+        // an older version's password in the JSON: moved to the secrets
+        defaults.set(Data(#"{"user":"u","password":"old","domain":"d"}"#.utf8), forKey: "modemSettings")
+        XCTAssertEqual(store.settings.password, "old")
+        XCTAssertEqual(secrets.get("sip-password"), "old")
+        XCTAssertFalse(String(decoding: defaults.data(forKey: "modemSettings")!, as: UTF8.self).contains("old"))
+        XCTAssertEqual(store.settings.password, "old")
         // settings from before a field was added: its default
         defaults.set(Data(#"{"user":"u","domain":"d"}"#.utf8), forKey: "modemSettings")
         XCTAssertEqual(store.settings.user, "u")
+        XCTAssertTrue(store.settings.faxEcm)
+        XCTAssertEqual(store.settings.faxMaxBps, 14400)
         XCTAssertEqual(store.settings.initCommands, "ATX3")
         XCTAssertTrue(store.settings.t38)
         XCTAssertEqual(ModemSettings().engineConfig(dns: ["1.1.1.1"]).dns, ["1.1.1.1"])

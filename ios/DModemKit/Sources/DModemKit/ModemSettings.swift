@@ -32,7 +32,27 @@ public struct ModemSettings: Codable, Equatable, Sendable {
     public var peerPort = 5070
     public var peerPin = ""
 
+    /// fax: the identity sent (CSI/TSI), error correction, the fastest rate, fine resolution,
+    /// ringing calls answered as faxes
+    public var faxIdent = ""
+    public var faxEcm = true
+    public var faxMaxBps = 14400
+    public var faxFine = true
+    public var faxAutoAnswer = false
+
+    /// dial-up internet: the ISP's number, login, its login script (chat, if any), the modem's commands first
+    public var ispNumber = ""
+    public var ispUser = ""
+    public var ispPassword = ""
+    public var ispScript = ""
+    public var ispInit = ""
+
     public init() {}
+
+    /// the settings' secrets, kept apart from the rest (the Keychain), by name
+    public static let secretKeys: [(String, WritableKeyPath<ModemSettings, String>)] = [
+        ("sip-password", \.password), ("peer-pin", \.peerPin), ("isp-password", \.ispPassword),
+    ]
 
     /// the line another phone's, not SIP
     public var peer: Bool { line != .sip }
@@ -94,29 +114,62 @@ public struct ModemSettings: Codable, Equatable, Sendable {
         peerAddress = try c.decodeIfPresent(String.self, forKey: .peerAddress) ?? d.peerAddress
         peerPort = try c.decodeIfPresent(Int.self, forKey: .peerPort) ?? d.peerPort
         peerPin = try c.decodeIfPresent(String.self, forKey: .peerPin) ?? d.peerPin
+        faxIdent = try c.decodeIfPresent(String.self, forKey: .faxIdent) ?? d.faxIdent
+        faxEcm = try c.decodeIfPresent(Bool.self, forKey: .faxEcm) ?? d.faxEcm
+        faxMaxBps = try c.decodeIfPresent(Int.self, forKey: .faxMaxBps) ?? d.faxMaxBps
+        faxFine = try c.decodeIfPresent(Bool.self, forKey: .faxFine) ?? d.faxFine
+        faxAutoAnswer = try c.decodeIfPresent(Bool.self, forKey: .faxAutoAnswer) ?? d.faxAutoAnswer
+        ispNumber = try c.decodeIfPresent(String.self, forKey: .ispNumber) ?? d.ispNumber
+        ispUser = try c.decodeIfPresent(String.self, forKey: .ispUser) ?? d.ispUser
+        ispPassword = try c.decodeIfPresent(String.self, forKey: .ispPassword) ?? d.ispPassword
+        ispScript = try c.decodeIfPresent(String.self, forKey: .ispScript) ?? d.ispScript
+        ispInit = try c.decodeIfPresent(String.self, forKey: .ispInit) ?? d.ispInit
     }
 }
 
-/// The settings kept (UserDefaults, as JSON). The password stays there
-/// for now; the Keychain is the app's next step.
+/// The settings kept: in UserDefaults as JSON, but for their secrets (the
+/// SIP password, the PIN, the ISP's password), which go to [secrets] (the
+/// Keychain). Secrets an older version left in the JSON are moved there
+/// the first time they're read.
 public final class SettingsStore: @unchecked Sendable {
     private let defaults: UserDefaults
     private let key: String
+    private let secrets: SecretStore
 
-    public init(defaults: UserDefaults = .standard, key: String = "modemSettings") {
+    public init(defaults: UserDefaults = .standard, key: String = "modemSettings", secrets: SecretStore = defaultSecrets()) {
         self.defaults = defaults
         self.key = key
+        self.secrets = secrets
     }
 
     public var settings: ModemSettings {
         get {
-            guard let d = defaults.data(forKey: key), let s = try? JSONDecoder().decode(ModemSettings.self, from: d) else {
+            guard let d = defaults.data(forKey: key), var s = try? JSONDecoder().decode(ModemSettings.self, from: d) else {
                 return ModemSettings()
             }
+            var moved = false
+            for (name, path) in ModemSettings.secretKeys {
+                if !s[keyPath: path].isEmpty {
+                    // (an older version's, in the JSON: to the secrets, out of the JSON)
+                    secrets.set(name, s[keyPath: path])
+                    moved = true
+                } else {
+                    s[keyPath: path] = secrets.get(name) ?? ""
+                }
+            }
+            if moved { save(s) }
             return s
         }
         set {
-            if let d = try? JSONEncoder().encode(newValue) { defaults.set(d, forKey: key) }
+            for (name, path) in ModemSettings.secretKeys { secrets.set(name, newValue[keyPath: path]) }
+            save(newValue)
         }
+    }
+
+    /// the JSON, without the secrets
+    private func save(_ s: ModemSettings) {
+        var plain = s
+        for (_, path) in ModemSettings.secretKeys { plain[keyPath: path] = "" }
+        if let d = try? JSONEncoder().encode(plain) { defaults.set(d, forKey: key) }
     }
 }
