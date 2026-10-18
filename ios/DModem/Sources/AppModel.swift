@@ -136,13 +136,13 @@ final class AppModel: ObservableObject {
             // (the background audio first: the call keeps the app running)
             audio.begin()
             // (the line to another phone first: the modem's start commands may dial)
-            if s.peer { peer.start(s, session: session) } else { session.onLine = nil }
+            if s.peer && !s.noLine { peer.start(s, session: session) } else { session.onLine = nil }
             if !session.start(s, dns: SystemDNS.servers(), dataFile: dataFile) {
                 peer.stop()
                 audio.end()
             }
         }
-        watchPeer(s.peer)
+        watchPeer(s.peer && !s.noLine)
     }
 
     func stop() {

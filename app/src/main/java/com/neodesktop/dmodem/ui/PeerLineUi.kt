@@ -54,6 +54,7 @@ fun LineChoice(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
         ModemSettings.LINE_WIFI to "Another phone with D-Modem, on Wi-Fi",
         ModemSettings.LINE_BLUETOOTH to "Another phone with D-Modem, on Bluetooth",
         ModemSettings.LINE_CELL to "This phone's mobile calls (slow; root)",
+        ModemSettings.LINE_NONE to "No line (the modem on its own)",
     )
     var open by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded = open, onExpandedChange = { open = it }) {
@@ -73,7 +74,7 @@ fun LineChoice(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
                     onClick = {
                         open = false
                         when (line) {
-                            ModemSettings.LINE_SIP, ModemSettings.LINE_CELL -> onChange(s.copy(line = line))
+                            ModemSettings.LINE_SIP, ModemSettings.LINE_CELL, ModemSettings.LINE_NONE -> onChange(s.copy(line = line))
                             ModemSettings.LINE_WIFI -> onChange(
                                 s.copy(line = line, peerAddress = if (s.line == line) s.peerAddress else "", peerName = ""),
                             )
@@ -98,6 +99,15 @@ fun LineChoice(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
  */
 @Composable
 fun PeerLineFields(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
+    if (s.noLine) {
+        Text(
+            "The modem starts with nothing on its line: no SIP account, no network needed. It answers AT commands " +
+                "in the terminal and on the serial bridges (ATI, AT&V, its registers, its settings); a dial gets NO DIALTONE, " +
+                "as a modem with no phone cable plugged in.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        return
+    }
     if (s.line == ModemSettings.LINE_CELL) {
         CellLineFields(s, onChange)
         return

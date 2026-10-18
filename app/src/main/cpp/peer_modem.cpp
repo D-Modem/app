@@ -304,6 +304,9 @@ void PeerModem::act(const char *s)
 		m.line_answered();
 	else if (!strncmp(s, "FAILED ", 7))
 		m.line_failed(failure(atoi(s + 7)));
+	else if (!strcmp(s, "NO LINE"))
+		/* (nothing plugged in: as a modem with no phone cable) */
+		m.line_failed(dcore::Result::NoDialtone);
 	else if (!strcmp(s, "DROPPED")) {
 		if (m.started())
 			m.line_dropped();

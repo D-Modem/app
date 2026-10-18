@@ -4,6 +4,7 @@ package com.neodesktop.dmodem.ui
 
 import android.graphics.Bitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
@@ -51,6 +52,9 @@ class DashboardShotsTest {
         ModemState.setStatus(ModemState.IDLE)
         compose.waitForIdle()
         shot("home-1-first-run")
+        // no SIP account yet: set one up, or start the modem on its own
+        compose.onNodeWithText("Set up SIP").assertExists()
+        compose.onNodeWithText("Start without a line").assertExists()
     }
 
     @Test

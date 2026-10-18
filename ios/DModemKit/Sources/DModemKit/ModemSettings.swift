@@ -6,7 +6,8 @@ import Foundation
 /// a SIP account, or another phone with the app on the same Wi-Fi).
 public struct ModemSettings: Codable, Equatable, Sendable {
     public enum Line: String, Codable, Sendable {
-        case sip, wifi
+        /// a SIP account; another phone with the app on Wi-Fi; nothing at all (the modem on its own)
+        case sip, wifi, none
     }
 
     /// the SIP account
@@ -54,8 +55,11 @@ public struct ModemSettings: Codable, Equatable, Sendable {
         ("sip-password", \.password), ("peer-pin", \.peerPin), ("isp-password", \.ispPassword),
     ]
 
-    /// the line another phone's, not SIP
+    /// the line another phone's (or none), not SIP
     public var peer: Bool { line != .sip }
+
+    /// no line: the modem on its own (AT commands, the terminal); a dial gets NO DIALTONE
+    public var noLine: Bool { line == .none }
 
     /// enough to start: an account (or the line another phone's)
     public var complete: Bool { peer || (!user.isEmpty && !domain.isEmpty) }

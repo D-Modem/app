@@ -134,6 +134,27 @@ final class DModemKitTests: XCTestCase {
         session.stop()
     }
 
+    func testNoLine() {
+        signal(SIGPIPE, SIG_IGN)
+        let session = ModemSession()
+        var settings = ModemSettings()
+        settings.line = .none
+        settings.initCommands = "ATE0"
+        // (no SIP account: it starts all the same)
+        XCTAssertTrue(settings.complete)
+        XCTAssertTrue(session.start(settings))
+        XCTAssertTrue(waitFor { session.console.contains("OK") }, session.console)
+        // a dial: nothing plugged in
+        session.command("ATX3D5551234")
+        XCTAssertTrue(waitFor { session.console.contains("NO DIALTONE") }, session.console)
+        // still answering commands
+        session.command("ATI3")
+        XCTAssertTrue(waitFor { session.console.contains("peer") }, session.console)
+        session.stop()
+        // the setting kept
+        XCTAssertEqual(try JSONDecoder().decode(ModemSettings.self, from: JSONEncoder().encode(settings)).line, .none)
+    }
+
     func testIncompleteSettingsDontStart() {
         let session = ModemSession()
         XCTAssertFalse(session.start(ModemSettings()))

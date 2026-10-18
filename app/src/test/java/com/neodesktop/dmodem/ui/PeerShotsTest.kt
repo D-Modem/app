@@ -65,6 +65,18 @@ class PeerShotsTest {
     }
 
     @Test
+    fun noLine() {
+        save(ModemSettings(line = ModemSettings.LINE_SIP))
+        compose.onNodeWithText("Settings").performClick()
+        compose.onNodeWithText("A SIP account (calls over the internet)").performScrollTo().performClick()
+        compose.onNodeWithText("No line (the modem on its own)").performClick()
+        compose.onNodeWithText("a dial gets NO DIALTONE", substring = true).assertExists()
+        // (no SIP account asked for)
+        compose.onNodeWithText("SIP account (saved with the button below)").assertDoesNotExist()
+        shot("peer-4-no-line")
+    }
+
+    @Test
     fun homeOnACall() {
         save(ModemSettings(line = ModemSettings.LINE_WIFI, peerAddress = "192.168.1.20:5070", peerName = "D-Modem on Pixel 8", listen = true))
         ModemState.setRun(ModemState.Run.RUNNING)

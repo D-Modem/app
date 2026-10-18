@@ -85,7 +85,8 @@ void dmodem_stop(void);
 int dmodem_running(void);
 
 /* a peer line's event to the modem: RING, CANCEL, ANSWERED, FAILED
-   <SIP status>, DROPPED */
+   <SIP status>, DROPPED; NO LINE (a dial with nothing plugged in: NO
+   DIALTONE) */
 void dmodem_peer_event(const char *line);
 
 #ifdef __cplusplus

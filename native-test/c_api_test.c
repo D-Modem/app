@@ -127,6 +127,24 @@ int main(void)
 	if (fd >= 0)
 		close(fd);
 	CHECK(expect(dte, "BUSY", 10), "the program's FAILED 486: BUSY");
+
+	/* no line at all (the app's "no line"): NO DIALTONE */
+	pthread_mutex_lock(&mu);
+	line_fd = -1;
+	pthread_mutex_unlock(&mu);
+	fd = -1;
+	put(dte, "ATD1\r");
+	for (int i = 0; i < 50 && fd < 0; i++) {
+		usleep(100000);
+		pthread_mutex_lock(&mu);
+		fd = line_fd;
+		pthread_mutex_unlock(&mu);
+	}
+	CHECK(fd >= 0, "ATD again: the line to the program");
+	dmodem_peer_event("NO LINE");
+	if (fd >= 0)
+		close(fd);
+	CHECK(expect(dte, "NO DIALTONE", 10), "the program's NO LINE: NO DIALTONE");
 	CHECK(statuses > 0 && logs > 0, "status (%d) and log (%d) reported", statuses, logs);
 
 	/* the DTE closed: the modem ends */

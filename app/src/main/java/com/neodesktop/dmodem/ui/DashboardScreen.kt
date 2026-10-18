@@ -130,6 +130,12 @@ fun DashboardScreen(
             onHangUp = { scope.launch { Terminal.session.hangUp(status.link == NativeModem.Link.ONLINE) } },
             onTerminal = onOpenTerminal,
             onSetUp = onOpenSettings,
+            onStartNoLine = {
+                scope.launch {
+                    SettingsStore(context).save(settings.copy(line = ModemSettings.LINE_NONE))
+                    ModemService.start(context)
+                }
+            },
         )
 
         if (appearance != null && !lightsOnTop) ModemLights()
@@ -202,6 +208,7 @@ private fun HeroCard(
     onHangUp: () -> Unit,
     onTerminal: () -> Unit,
     onSetUp: () -> Unit,
+    onStartNoLine: () -> Unit = {},
 ) {
     val online = run == ModemState.Run.RUNNING && status.link == NativeModem.Link.ONLINE
     val (dot, title, sub) = when {
@@ -249,8 +256,11 @@ private fun HeroCard(
             Spacer(Modifier.height(4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 when {
-                    run == ModemState.Run.STOPPED && !configured ->
+                    run == ModemState.Run.STOPPED && !configured -> {
                         Button(onClick = onSetUp) { Text("Set up SIP") }
+                        // (the modem on its own: its AT commands, the terminal, the bridges)
+                        OutlinedButton(onClick = onStartNoLine) { Text("Start without a line") }
+                    }
                     run == ModemState.Run.STOPPED ->
                         Button(onClick = onStart) { Text("Start modem") }
                     online || status.offhook ->
@@ -288,6 +298,11 @@ private fun LineCard(s: ModemSettings, run: ModemState.Run, network: String?, on
     Card(Modifier.fillMaxWidth().clickable(onClick = onSettings)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Line", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            if (s.noLine) {
+                InfoRow("Line", "none: the modem on its own")
+                Text("AT commands answered; a dial gets NO DIALTONE", style = MaterialTheme.typography.bodySmall)
+                return@Column
+            }
             if (s.peer) {
                 PeerLineRows(s, run, network)
                 return@Column

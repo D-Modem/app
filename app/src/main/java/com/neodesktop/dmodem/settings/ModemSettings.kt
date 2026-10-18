@@ -53,8 +53,11 @@ data class ModemSettings(
      */
     val cellSpeed: String = CELL_VCVM,
 ) {
-    /** the line is another phone (or this phone's mobile calls), not SIP: the app carries its samples */
+    /** the line is another phone (or this phone's mobile calls, or none), not SIP: the app carries its samples */
     val peer: Boolean get() = line != LINE_SIP
+
+    /** no line at all: the modem on its own (AT commands, the terminal, the bridges); a dial gets NO DIALTONE */
+    val noLine: Boolean get() = line == LINE_NONE
 
     /** Enough to start: an account (or the line another phone's). */
     val complete: Boolean get() = peer || (user.isNotBlank() && domain.isNotBlank())
@@ -77,6 +80,7 @@ data class ModemSettings(
         const val LINE_WIFI = "wifi"
         const val LINE_BLUETOOTH = "bluetooth"
         const val LINE_CELL = "cell"
+        const val LINE_NONE = "none"
         /** the mobile-call line's V.cvm (D-Modem-RE's +MS=V_CVM) */
         const val CELL_VCVM = "V_CVM"
 

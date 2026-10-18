@@ -236,7 +236,7 @@ class ModemService : Service() {
             speakerSocket = s
             ModemState.speaker.start(java.io.FileInputStream(s.fileDescriptor))
         }
-        if (settings.peer) com.neodesktop.dmodem.peer.Peers.start(this, settings, ::log)
+        if (settings.peer && !settings.noLine) com.neodesktop.dmodem.peer.Peers.start(this, settings, ::log)
         val start = settings.startCommands()
         if (start.isNotBlank()) ModemState.dte.write(start + "\r")
         return true
@@ -327,6 +327,12 @@ class ModemService : Service() {
         }
 
         override fun onLine(caller: Boolean, dial: String, line: android.os.ParcelFileDescriptor) {
+            if (settings.noLine) {
+                // (nothing plugged in: a dial gets NO DIALTONE, an answer NO CARRIER)
+                NativeModem.peerEvent(if (caller) "NO LINE" else "FAILED 503")
+                runCatching { line.close() }
+                return
+            }
             com.neodesktop.dmodem.peer.Peers.lineStarted(caller, dial, line)
         }
 
@@ -425,6 +431,7 @@ class ModemService : Service() {
                 ModemSettings.LINE_WIFI -> " (line: another phone on Wi-Fi)"
                 ModemSettings.LINE_BLUETOOTH -> " (line: another phone on Bluetooth)"
                 ModemSettings.LINE_CELL -> " (line: mobile calls)"
+                ModemSettings.LINE_NONE -> " (no line)"
                 else -> ""
             }
         }

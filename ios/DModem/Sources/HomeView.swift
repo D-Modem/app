@@ -43,7 +43,10 @@ struct HomeView: View {
                 .padding(.vertical, 6)
             }
             Section("Line") {
-                if model.settings.line == .wifi {
+                if model.settings.noLine {
+                    LabeledContent("Line", value: "none: the modem on its own")
+                    Text("AT commands answered; a dial gets NO DIALTONE").foregroundStyle(.secondary)
+                } else if model.settings.line == .wifi {
                     LabeledContent("Another phone", value: model.settings.peerAddress.isEmpty ? "none chosen" : model.settings.peerAddress)
                     Text(model.peerState ?? "Starts with the modem").foregroundStyle(.secondary)
                     if let e = model.peerError {
@@ -53,7 +56,9 @@ struct HomeView: View {
                     LabeledContent("SIP account", value: model.settings.complete ? "\(model.settings.user)@\(model.settings.domain)" : "not set up")
                     LabeledContent("Fax", value: model.settings.t38 ? "audio or T.38" : "audio")
                 }
-                LabeledContent("Incoming calls", value: model.settings.listen ? "taken" : "off")
+                if !model.settings.noLine {
+                    LabeledContent("Incoming calls", value: model.settings.listen ? "taken" : "off")
+                }
             }
             if model.run == .running {
                 Section("AT command") {
@@ -86,6 +91,14 @@ struct HomeView: View {
                 Button("Start the modem") { model.start() }
                     .buttonStyle(.borderedProminent)
                     .disabled(!model.settings.complete)
+                if !model.settings.complete {
+                    // (the modem on its own: its AT commands in the terminal)
+                    Button("Start without a line") {
+                        model.settings.line = .none
+                        model.start()
+                    }
+                    .buttonStyle(.bordered)
+                }
             case .running:
                 if model.status.offHook {
                     Button("Hang up") { model.hangUp() }.buttonStyle(.borderedProminent)

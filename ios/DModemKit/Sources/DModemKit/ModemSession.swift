@@ -19,6 +19,8 @@ public final class ModemSession: EngineListener, @unchecked Sendable {
     private var dte: DTE?
     /// the job the DTE is lent to (a fax call, a transfer, dial-up): its data goes there, not to [onData]
     private var claimant: ((Data) -> Void)?
+    /// the settings' line is none: the engine's dials answered here
+    private var noLine = false
 
     /// the most of the log and the console kept
     public var logMax = 2000
@@ -63,6 +65,7 @@ public final class ModemSession: EngineListener, @unchecked Sendable {
             let d = try engine.start(settings.engineConfig(dns: dns, dataFile: dataFile), listener: self)
             lock.lock()
             dte = d
+            noLine = settings.noLine
             _run = .running
             _status = ModemStatus()
             _error = nil
@@ -181,6 +184,13 @@ public final class ModemSession: EngineListener, @unchecked Sendable {
     }
 
     public func engineLine(caller: Bool, dial: String, fd: Int32) {
+        lock.lock(); let none = noLine; lock.unlock()
+        if none {
+            // (nothing plugged in: a dial gets NO DIALTONE, an answer NO CARRIER)
+            engine.peerEvent(caller ? "NO LINE" : "FAILED 503")
+            close(fd)
+            return
+        }
         if let h = onLine { h(caller, dial, fd) } else { close(fd) }
     }
 

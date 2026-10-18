@@ -17,19 +17,24 @@ struct SettingsView: View {
                 Picker("Line", selection: $model.settings.line) {
                     Text("SIP account").tag(ModemSettings.Line.sip)
                     Text("Another phone (Wi-Fi)").tag(ModemSettings.Line.wifi)
+                    Text("No line (the modem on its own)").tag(ModemSettings.Line.none)
                 }
             } footer: {
-                Text(model.settings.line == .sip
-                     ? "The modem calls through a SIP provider to the phone network."
-                     : "The two phones' modems call each other as on a perfect phone line, no SIP account: each dials (ATD) or answers as usual. The other phone needs D-Modem (Android or iOS) on the same Wi-Fi, taking calls.")
+                switch model.settings.line {
+                case .sip: Text("The modem calls through a SIP provider to the phone network.")
+                case .wifi: Text("The two phones' modems call each other as on a perfect phone line, no SIP account: each dials (ATD) or answers as usual. The other phone needs D-Modem (Android or iOS) on the same Wi-Fi, taking calls.")
+                case .none: Text("The modem starts with nothing on its line, no SIP account or network: it answers AT commands in the terminal; a dial gets NO DIALTONE, as a modem with no phone cable plugged in.")
+                }
             }
             if model.settings.line == .wifi {
                 PeerSection(model: model)
-            } else {
+            } else if model.settings.line == .sip {
                 sipSection
             }
             Section("Calls") {
-                Toggle(model.settings.line == .sip ? "Take incoming calls" : "Take calls from the other phone", isOn: $model.settings.listen)
+                if !model.settings.noLine {
+                    Toggle(model.settings.line == .sip ? "Take incoming calls" : "Take calls from the other phone", isOn: $model.settings.listen)
+                }
                 if model.settings.line == .sip {
                     Toggle("Fax over T.38", isOn: $model.settings.t38)
                     Stepper("Local SIP port: \(model.settings.sipPort)", value: $model.settings.sipPort, in: 1024...65535)

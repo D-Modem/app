@@ -40,6 +40,11 @@ Fax doesn't get through at all (V.cvm has no fax; V.27ter's training at 2400 bit
 through AMR 12.2 with about one bit in sixteen wrong), so the app turns
 fax down on that line.
 
+Or no line at all: the modem starts on its own, no SIP account or
+network needed, and answers AT commands in the terminal and on the serial
+bridges; a dial gets NO DIALTONE, as a modem with no phone cable. Home
+offers it beside setting up SIP ("Start without a line").
+
 Two phones with the app can also be each other's line, over Wi-Fi or
 Bluetooth, with no SIP account: the modems connect as over a perfect line.
 An optional PIN, the same on both phones, keeps other callers out (a
