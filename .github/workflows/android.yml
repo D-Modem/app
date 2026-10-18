@@ -78,6 +78,16 @@ jobs:
       - name: Engine test
         run: ctest --test-dir build-host --output-on-failure
 
+      # the iOS app's DModemKit (its Swift) on this engine: Swift runs on Linux too
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.1"
+
+      - name: DModemKit (Swift) on the engine
+        run: swift test --package-path ios/DModemKit
+        env:
+          DMODEM_HOST_BUILD: ${{ github.workspace }}/build-host
+
       # (Apple's ways on Linux: the portable fallbacks the iOS build has)
       - name: Engine test, Apple's fallbacks
         run: |

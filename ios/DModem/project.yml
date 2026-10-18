@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Neo-Desktop
+#
+# The iOS app's Xcode project, as text: xcodegen generate (in ios/DModem)
+# makes DModem.xcodeproj. It needs build-apple/DModemEngine.xcframework
+# (ios/build-native.sh) and the shared Kotlin's XCFramework
+# (./gradlew :shared:assembleDModemSharedXCFramework).
+name: DModem
+options:
+  bundleIdPrefix: com.neodesktop
+  deploymentTarget:
+    iOS: "16.0"
+packages:
+  DModemKit:
+    path: ../DModemKit
+targets:
+  DModem:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    dependencies:
+      - package: DModemKit
+      - framework: ../../shared/build/XCFrameworks/release/DModemShared.xcframework
+        embed: false
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleDisplayName: D-Modem
+        CFBundleShortVersionString: "0.1"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        # the modem's call goes on in the background: its speaker (or quiet) keeps the app's audio running
+        UIBackgroundModes: [audio]
+        NSLocalNetworkUsageDescription: "D-Modem calls another phone with the app on this network, and SIP servers on it."
+        NSBonjourServices: [_dmodem._tcp]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.neodesktop.dmodem
+        PRODUCT_NAME: DModem
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        # (the engine is C++; SystemDNS.c's res_ninit is libresolv's)
+        OTHER_LDFLAGS: ["-lc++", "-lresolv"]
+        SWIFT_OBJC_BRIDGING_HEADER: Sources/DModem-Bridging-Header.h

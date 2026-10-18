@@ -12,3 +12,6 @@ captures/
 .kotlin/
 /build-apple/
 /build-fallback/
+
+# the iOS app's generated project
+ios/DModem/DModem.xcodeproj/

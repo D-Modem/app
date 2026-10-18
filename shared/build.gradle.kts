@@ -7,6 +7,8 @@
 // transfers (X/Y/ZMODEM, Kermit), PPP, fax, the line to another phone,
 // and the I/O they're on (io/). The Android app
 // has its JVM side; the iOS app its framework (iOS devices, simulator).
+import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
+
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
 }
@@ -19,10 +21,13 @@ kotlin {
     }
     // (Kotlin/Native on Linux: the common tests run native here and in CI, as on iOS)
     linuxX64()
+    // (the two as one XCFramework for the iOS app: ./gradlew :shared:assembleDModemSharedXCFramework)
+    val xcf = XCFramework("DModemShared")
     listOf(iosArm64(), iosSimulatorArm64()).forEach {
         it.binaries.framework {
             baseName = "DModemShared"
             isStatic = true
+            xcf.add(this)
         }
     }
 

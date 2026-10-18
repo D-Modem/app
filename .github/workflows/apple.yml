@@ -1,7 +1,8 @@
 # The modem for Apple's systems, and the Kotlin the apps share on iOS: the engine with D-Modem-RE, libre and
 # Mbed TLS built for iOS (devices and simulator) and macOS as an
 # XCFramework (ios/build-native.sh), and its Swift tests run on macOS
-# (ios/DModemSmoke): the modem through its C API, as the iOS app has it.
+# (ios/DModemSmoke): the modem through its C API, as the iOS app has it;
+# DModemKit's tests, and the iOS app (ios/DModem) built for the simulator.
 #
 # D-Modem-RE is a private submodule: the DMODEM_RE_TOKEN secret (as
 # android.yml's).
@@ -40,6 +41,21 @@ jobs:
 
       - name: Swift tests (macOS)
         run: swift test --package-path ios/DModemSmoke
+
+      - name: DModemKit's tests (macOS)
+        run: swift test --package-path ios/DModemKit
+
+      # the iOS app: its project from ios/DModem/project.yml, built for the simulator
+      - name: The shared Kotlin as an XCFramework
+        run: ./gradlew :shared:assembleDModemSharedReleaseXCFramework
+
+      - name: The iOS app (simulator)
+        run: |
+          brew install xcodegen
+          cd ios/DModem && xcodegen generate
+          xcodebuild -project DModem.xcodeproj -scheme DModem \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO build
 
       - uses: actions/upload-artifact@v4
         with:

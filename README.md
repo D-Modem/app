@@ -156,7 +156,7 @@ each way.
 CI (`.github/workflows/android.yml`) runs all three; it needs a
 `DMODEM_RE_TOKEN` secret that can read the private D-Modem-RE submodule.
 
-## Apple's systems (the iOS app to come)
+## Apple's systems: the iOS app
 
 The native modem builds for iOS and macOS too: the engine's C API,
 `app/src/main/cpp/dmodem_engine.h` (what Swift calls in place of
@@ -174,11 +174,31 @@ layer (`shared/.../io`). What stays each app's own: the UI, the modem
 service, sockets and Bluetooth, Android's VPN and files. Its tests run on
 the JVM and natively: `./gradlew :shared:allTests`.
 
+The iOS app (`ios/DModem`, SwiftUI, iOS 16) is the modem on a SIP
+account: Home (its state, the rates and what the CONNECT was, start, hang
+up, stop, an AT command line), the terminal (the shared emulator drawn in
+SwiftUI, CP437 and the VGA colours, Esc/Ctrl/Tab/arrows), the log and the
+settings. Its modem keeps going in the background on the audio session
+(its speaker, or quiet). The modem apart from the views is the
+`ios/DModemKit` Swift package (the engine from Swift, its DTE, the
+settings, the session), whose tests run on Linux too, against the host
+build:
+
+    ./gradlew :shared:assembleDModemSharedReleaseXCFramework
+    ios/build-native.sh
+    cd ios/DModem && xcodegen generate && open DModem.xcodeproj
+
+    DMODEM_HOST_BUILD=$PWD/build-host swift test --package-path ios/DModemKit   # Linux or macOS
+
+Still to come on iOS: the line to another phone (Bonjour), CallKit, the
+Keychain for the password, fax, transfers and PPP's screens.
+
 D-Modem-RE's `portable.h` has Apple's ways where Linux has its own
 (close-on-exec sockets, SIGPIPE, a monotonic sleep, a peer's hang-up);
 the Linux build tests them too with `-DDMODEM_PORTABLE_FALLBACKS`. CI
-(`.github/workflows/apple.yml`) builds the XCFramework and runs the Swift
-tests on macOS.
+(`.github/workflows/apple.yml`) builds the XCFramework, runs the Swift
+tests on macOS and builds the app for the simulator; the Linux job runs
+DModemKit's tests on the host engine.
 
 ## License
 
