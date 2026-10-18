@@ -15,6 +15,7 @@
  *      the app's tests' cellular "network")
  *      codec: none, gsm (GSM full rate, 13 kbit/s), amr122 .. amr475
  *      (AMR-NB at 12.2, 10.2, 7.95, 7.4, 6.7, 5.9, 5.15, 4.75 kbit/s)
+ *    MODEM_REC=<prefix>: the line as each modem has it, recorded
  *
  *    The modems' ptys on stderr, as modem_test has them ("created
  *    modemA: <pty>").  At the sample clock (MODEM_REALTIME=0: as fast
@@ -188,6 +189,16 @@ int main(int argc, char *argv[])
 	dmd::PipeModem b("modemB", 8000, opt.country, b_in[0], b_out[1]);
 	line_speed(a);
 	line_speed(b);
+	/* MODEM_REC=<prefix>: each modem's line while off hook, <prefix>A.in
+	   (what came to it, through the codec) and .out (what it sent), raw
+	   16 bit at 8000 Hz */
+	static std::string rec_a, rec_b;
+	if (const char *r = getenv("MODEM_REC")) {
+		rec_a = std::string(r) + "A";
+		rec_b = std::string(r) + "B";
+		a.set_record(rec_a.c_str());
+		b.set_record(rec_b.c_str());
+	}
 	fprintf(stderr, "codec: %s\ncreated modemA: %s\ncreated modemB: %s\n",
 		codec.c_str(), a.pty().name(), b.pty().name());
 	dmd::PipeModem *modems[] = { &a, &b };
