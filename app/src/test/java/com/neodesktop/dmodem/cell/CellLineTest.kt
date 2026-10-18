@@ -82,6 +82,41 @@ class CellLineTest {
     }
 
     @Test
+    fun throughAmrInVcvm() {
+        assumeTrue("codec_line isn't built (native-test)", FakeNetwork.codecLine() != null)
+        val net = FakeNetwork("amr122", closers)
+        val a = CellModem("cvmA", net.phone("5550001"), listen = false)
+        val b = CellModem("cvmB", net.phone("5550002"), listen = true)
+        // V.cvm (D-Modem-RE's, for speech codecs): V.8, then 15 to 21 s probing the codec and
+        // loading a mode for it; S7 long enough for that
+        a.command("ATE0\\V1+MS=V_CVM;S7=90")
+        b.command("ATE0\\V1S0=1+MS=V_CVM;S7=90")
+        a.send("ATD5550002\r")
+        val ca = a.connectLine()
+        val cb = b.connectLine()
+        println("V.cvm through AMR 12.2: A ${ca.trim()}, B ${cb.trim()}")
+        assertTrue(ca, ca.contains("/CVM"))
+        assertTrue(cb, cb.contains("/CVM"))
+        // through AMR 12.2 about 1200 bit/s, coded (V.21's four times)
+        assertTrue(ca, rate(ca) >= 600)
+        // LAPM over it: the data whole, each way
+        val r = kotlin.random.Random(4)
+        val data = (1..600).joinToString("") { ('a' + r.nextInt(26)).toString() }
+        a.send(data + "\r\n")
+        assertTrue(b.expect(data.takeLast(40), 60).contains(data))
+        b.send("and back over V.cvm\r\n")
+        a.expect("and back over V.cvm", 30)
+        // the call's figures (+CVM?: the modes, then raw and coded rates each way, ...)
+        Thread.sleep(1200)
+        a.send("+++")
+        a.expect("OK", 10)
+        a.send("AT+CVM?\r")
+        val fig = a.expect("OK", 10)
+        println("A's figures: " + fig.lines().filter { it.startsWith("+CVM") })
+        assertTrue(fig, Regex("\\+CVM: \\d+,\\d+,\\d+,\\d+,").containsMatchIn(fig))
+    }
+
+    @Test
     fun nobodyAndNotForTheModem() {
         val net = FakeNetwork(closers = closers)
         val a = CellModem("noA", net.phone("5550001"), listen = false)

@@ -282,7 +282,9 @@ fun CellLineFields(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
         result?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
         Text("Speed", style = MaterialTheme.typography.bodyMedium)
         for ((ms, label) in listOf(
-            "V21" to "300 bit/s (V.21): what mobile calls carry",
+            ModemSettings.CELL_VCVM to "About 1200 bit/s (V.cvm, made for mobile calls), to another phone with D-Modem: " +
+                "15 to 20 s to connect. Other modems get V.22, which a mobile call garbles: V.21 for those",
+            "V21" to "300 bit/s (V.21): what any modem's call carries",
             "V22" to "1200 bit/s (V.22): a good signal, may lose data",
             "V22B" to "2400 bit/s (V.22bis): a good signal, may lose data",
         )) {

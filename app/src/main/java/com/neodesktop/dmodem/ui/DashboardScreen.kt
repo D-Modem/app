@@ -236,6 +236,10 @@ private fun HeroCard(
                     Rate("↓ down", status.rxRate)
                     Rate("↑ up", status.txRate)
                 }
+                // (what the CONNECT said: "V.cvm · LAPM", "V.92 · LAPM · V.44")
+                val console by ModemState.console.flow.collectAsStateWithLifecycle()
+                val how = com.neodesktop.dmodem.modem.ConnectInfo.label(console)
+                if (how.isNotEmpty()) Text(how, style = MaterialTheme.typography.bodyMedium)
             } else if (sub.isNotEmpty()) {
                 Text(sub, style = MaterialTheme.typography.bodyLarge)
             }

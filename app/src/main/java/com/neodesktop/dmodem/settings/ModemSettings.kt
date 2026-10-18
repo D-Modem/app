@@ -45,8 +45,11 @@ data class ModemSettings(
     val peerPin: String = "",
     /** the modem's speaker on the phone's: the dialling and the handshake heard (as ATM and ATL have it) */
     val speaker: Boolean = true,
-    /** the modulation on mobile calls (+MS): V21 (300 bit/s, what a speech codec carries), V22, V22B */
-    val cellSpeed: String = "V21",
+    /**
+     * the modulation on mobile calls (+MS): V_CVM (V.cvm, made for speech codecs: about 1200 bit/s
+     * through AMR 12.2, to another D-Modem; V.22 or V.21 to other modems), V21 (300 bit/s), V22, V22B
+     */
+    val cellSpeed: String = CELL_VCVM,
 ) {
     /** the line is another phone (or this phone's mobile calls), not SIP: the app carries its samples */
     val peer: Boolean get() = line != LINE_SIP
@@ -58,7 +61,8 @@ data class ModemSettings(
     fun startCommands(): String {
         val init = initCommands.trim()
         if (line != LINE_CELL) return init
-        val ms = "AT+MS=$cellSpeed"
+        // (V.cvm's start-up, probing the codec, takes 15 to 21 s after V.8: S7 has room for it)
+        val ms = "AT+MS=$cellSpeed" + if (cellSpeed == CELL_VCVM) ";S7=90" else ""
         return when {
             init.isEmpty() -> ms
             init.startsWith("AT", ignoreCase = true) -> "$ms;" + init.substring(2)
@@ -71,6 +75,8 @@ data class ModemSettings(
         const val LINE_WIFI = "wifi"
         const val LINE_BLUETOOTH = "bluetooth"
         const val LINE_CELL = "cell"
+        /** the mobile-call line's V.cvm (D-Modem-RE's +MS=V_CVM) */
+        const val CELL_VCVM = "V_CVM"
 
         /**
          * An account as `user:password@host[:port]` (dmodemd's SIP_LOGIN): null if it isn't one.

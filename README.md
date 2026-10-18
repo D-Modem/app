@@ -26,9 +26,17 @@ speech through codecs that wreck modem signals; native-test's
 | AMR-NB 7.95, 5.9 kbit/s (a busy network) | V.21 only |
 | AMR-NB 4.75 kbit/s, GSM full rate (2G) | nothing reliable |
 
-So the mobile-call line starts the modem at V.21 (+MS=V21), with 1200 and
-2400 bit/s as settings to try.
-Fax doesn't get through at all (V.27ter's training at 2400 bit/s comes
+Between two D-Modems, V.cvm (D-Modem-RE's modem for speech codecs,
+`+MS=V_CVM`) does better: after V.8 it spends 15 to 20 s probing the
+codec, then loads a mode for it, with LAPM over it. Through AMR-NB 12.2
+the app's engines connect at about 1200 bit/s coded (750 to 1200 each
+way, `CONNECT 1200/CVM/LAPM/V44`; D-Modem-RE measured 175 to 350 through
+AMR 7.4). So the mobile-call line starts the modem in V.cvm, which offers
+V.22 and V.21 to modems without it; V.21 (and 1200 and 2400 bit/s) are
+settings for those. The dashboard says what the connection is ("V.cvm ·
+LAPM · V.44").
+
+Fax doesn't get through at all (V.cvm has no fax; V.27ter's training at 2400 bit/s comes
 through AMR 12.2 with about one bit in sixteen wrong), so the app turns
 fax down on that line.
 
