@@ -46,6 +46,20 @@ final class ModemAudio: @unchecked Sendable {
         }
     }
 
+    /// the session given back (CallKit's call activated it): the engine playing again
+    func resume() {
+        lock.lock(); defer { lock.unlock() }
+        guard running, !engine.isRunning else { return }
+        do {
+            try engine.start()
+            // (the quiet re-queued itself as the engine stopped: it plays on)
+            player.play()
+            quiet.play()
+        } catch {
+            NSLog("modem audio: \(error)")
+        }
+    }
+
     func end() {
         lock.lock(); defer { lock.unlock() }
         if !running { return }

@@ -15,3 +15,11 @@ captures/
 
 # the iOS app's generated project
 ios/DModem/DModem.xcodeproj/
+# (xcodegen writes these from project.yml)
+ios/DModem/Sources/Info.plist
+ios/DModem/Sources/DModem.entitlements
+ios/DModem/Tunnel/Info.plist
+ios/DModem/Tunnel/DModemTunnel.entitlements
+
+# Swift packages build here
+.build/

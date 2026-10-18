@@ -24,8 +24,8 @@ final class PeerLineController: NSObject, NetServiceDelegate, @unchecked Sendabl
             port: Int32(settings.peerPort),
             callTo: settings.peerAddress,
             pin: settings.peerPin,
-            events: { e in Engine.shared.peerEvent(e) },
-            log: { [weak session] l in session?.engineLog("line: " + l) },
+            events: LogLink { e in Engine.shared.peerEvent(e) },
+            log: LogLink { [weak session] l in session?.engineLog("line: " + l) },
             ringMs: 3000)
         let err = h.start(listen: settings.listen)
         lock.lock()

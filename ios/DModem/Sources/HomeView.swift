@@ -71,6 +71,12 @@ struct HomeView: View {
             }
         }
         .navigationTitle("D-Modem")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                NavigationLink { LogView(model: model) } label: { Image(systemName: "list.bullet.rectangle") }
+                    .accessibilityLabel("Log")
+            }
+        }
     }
 
     @ViewBuilder private var actions: some View {

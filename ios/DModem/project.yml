@@ -22,6 +22,10 @@ targets:
       - package: DModemKit
       - framework: ../../shared/build/XCFrameworks/release/DModemShared.xcframework
         embed: false
+      # the dial-up link's VPN (embedded in the app's PlugIns)
+      - target: DModemTunnel
+      - sdk: NetworkExtension.framework
+      - sdk: CallKit.framework
     info:
       path: Sources/Info.plist
       properties:
@@ -33,6 +37,13 @@ targets:
         UIBackgroundModes: [audio]
         NSLocalNetworkUsageDescription: "D-Modem calls another phone with the app on this network, and SIP servers on it."
         NSBonjourServices: [_dmodem._tcp]
+        # received files and faxes in the Files app (On My iPhone › D-Modem)
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+    entitlements:
+      path: Sources/DModem.entitlements
+      properties:
+        com.apple.developer.networking.networkextension: [packet-tunnel-provider]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.neodesktop.dmodem
@@ -42,3 +53,28 @@ targets:
         # (the engine is C++; SystemDNS.c's res_ninit is libresolv's)
         OTHER_LDFLAGS: ["-lc++", "-lresolv"]
         SWIFT_OBJC_BRIDGING_HEADER: Sources/DModem-Bridging-Header.h
+  # the dial-up link as the phone's VPN: a packet tunnel, its packets to the app on the loopback
+  DModemTunnel:
+    type: app-extension
+    platform: iOS
+    sources: [Tunnel]
+    dependencies:
+      - sdk: NetworkExtension.framework
+    info:
+      path: Tunnel/Info.plist
+      properties:
+        CFBundleDisplayName: D-Modem dial-up
+        CFBundleShortVersionString: "0.1"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.networkextension.packet-tunnel
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).PacketTunnelProvider
+    entitlements:
+      path: Tunnel/DModemTunnel.entitlements
+      properties:
+        com.apple.developer.networking.networkextension: [packet-tunnel-provider]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.neodesktop.dmodem.tunnel
+        PRODUCT_NAME: DModemTunnel
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1,2"
