@@ -56,7 +56,8 @@ class FaxShotsTest {
         h.put(FaxRecord("2", now - 7_200_000, false, "", "+44 20 7946 0958", 2, "", "fax-20261016-101500.pdf"))
         h.put(FaxRecord("3", now - 600_000, true, "5550100", "", 0, "busy"))
         Fax.show(Fax.State(true, FaxProgress("Sending page 2 of 3", pages = 1, total = 3, bps = 14400, remote = "+1 800 555 0142"), number = "18005550142"))
-        compose.onNodeWithText("Answer as fax").performScrollTo()
+        // (adaptive answer: no "Answer as fax", a fax call is one by itself)
+        compose.onNodeWithText("Send a fax…").performScrollTo()
         shot("fax-1-home")
         Fax.show(null)
     }
