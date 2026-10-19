@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 Neo-Desktop
 #
@@ -44,10 +43,13 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 COPY docker/java-proxy.sh /etc/java-proxy.sh
 
-# the CA, if one's given, first: everything after fetches through it
+# the CA, if one's given, first: everything after fetches through it (one
+# file for each certificate in it: Java's keystore takes a file's first)
 RUN --mount=type=secret,id=ca,required=false \
     if [ -s /run/secrets/ca ]; then \
-      mkdir -p /usr/local/share/ca-certificates && cp /run/secrets/ca /usr/local/share/ca-certificates/build-ca.crt; \
+      mkdir -p /usr/local/share/ca-certificates/build \
+      && awk '/BEGIN CERTIFICATE/ { if (f) close(f); f = sprintf("/usr/local/share/ca-certificates/build/ca-%03d.crt", ++n) } \
+             f { print > f }' /run/secrets/ca; \
     fi \
  && apt-get update \
  && apt-get install -y --no-install-recommends \
