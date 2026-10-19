@@ -44,6 +44,9 @@ import androidx.core.view.WindowInsetsControllerCompat
 
 class MainActivity : ComponentActivity() {
 
+    /** a tab to go to, from outside the content (a call answered from its notification) */
+    private val goTo = kotlinx.coroutines.flow.MutableStateFlow<Int?>(null)
+
     private val askNotifications =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
@@ -62,6 +65,16 @@ class MainActivity : ComponentActivity() {
             if (b.internet && b.anyOn) runCatching { com.neodesktop.dmodem.bridge.HostService.update(applicationContext) }
         }
         val appearanceStore = AppearanceStore(applicationContext)
+        handleCall(intent)
+        // over the lock screen while a call rings (its full-screen notification), not after
+        lifecycleScope.launch {
+            com.neodesktop.dmodem.modem.ModemState.incoming.state.collect { c ->
+                if (Build.VERSION.SDK_INT >= 27 && c == null) {
+                    setShowWhenLocked(false)
+                    setTurnScreenOn(false)
+                }
+            }
+        }
         setContent {
             val appearance by appearanceStore.appearance.collectAsStateWithLifecycle(initialValue = null)
             val a = appearance ?: return@setContent
@@ -78,6 +91,28 @@ class MainActivity : ComponentActivity() {
                 val full = fullscreen && tab == TAB_TERMINAL
 
                 LaunchedEffect(full) { setSystemBars(!full) }
+                LaunchedEffect(Unit) {
+                    goTo.collect { t ->
+                        if (t != null) {
+                            tab = t
+                            goTo.value = null
+                        }
+                    }
+                }
+                // a call ringing in: the popup, over any tab
+                val call by com.neodesktop.dmodem.modem.ModemState.incoming.state.collectAsStateWithLifecycle()
+                call?.takeIf { !it.ignored }?.let { c ->
+                    IncomingCallDialog(
+                        c,
+                        caller = callerOfLine(),
+                        onAnswer = {
+                            com.neodesktop.dmodem.modem.ModemState.answer()
+                            tab = TAB_TERMINAL
+                        },
+                        onFax = { answerAsFax() },
+                        onIgnore = { com.neodesktop.dmodem.modem.ModemState.incoming.ignore() },
+                    )
+                }
                 BackHandler(enabled = full) { fullscreen = false }
 
                 PromptHost()
@@ -112,6 +147,48 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        handleCall(intent)
+    }
+
+    /** the incoming call's notification: opened (the popup), answered, or answered as a fax */
+    private fun handleCall(i: android.content.Intent?) {
+        when (i?.action) {
+            ACTION_INCOMING, ACTION_ANSWER, ACTION_ANSWER_FAX -> {
+                // (over the lock screen, screen on: as a phone's incoming call)
+                if (Build.VERSION.SDK_INT >= 27 && com.neodesktop.dmodem.modem.ModemState.incoming.state.value != null) {
+                    setShowWhenLocked(true)
+                    setTurnScreenOn(true)
+                }
+            }
+            else -> return
+        }
+        when (i.action) {
+            ACTION_ANSWER -> {
+                com.neodesktop.dmodem.modem.ModemState.answer()
+                goTo.value = TAB_TERMINAL
+            }
+            ACTION_ANSWER_FAX -> answerAsFax()
+        }
+        // (once: a rotation's re-creation doesn't answer again)
+        i.action = null
+    }
+
+    private fun answerAsFax() {
+        com.neodesktop.dmodem.modem.ModemState.incoming.end()
+        val why = com.neodesktop.dmodem.fax.Fax.answer(this)
+        if (why != null) android.widget.Toast.makeText(this, "Fax: $why", android.widget.Toast.LENGTH_LONG).show()
+        goTo.value = TAB_MODEM
+    }
+
+    /** the line's word for a caller it doesn't name */
+    private fun callerOfLine(): String = when (com.neodesktop.dmodem.modem.ModemState.line) {
+        com.neodesktop.dmodem.settings.ModemSettings.LINE_WIFI, com.neodesktop.dmodem.settings.ModemSettings.LINE_BLUETOOTH -> "The other phone"
+        com.neodesktop.dmodem.settings.ModemSettings.LINE_CELL -> "A mobile call"
+        else -> "A SIP call"
+    }
+
     /** the system's own UI for the app (its splash screen, its dialogs) in the app's mode, from Android 12 */
     private fun applyNightMode(mode: DarkMode) {
         if (Build.VERSION.SDK_INT < 31) return
@@ -135,6 +212,11 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
+        /** the incoming call's notification: opened, answered, answered as a fax */
+        const val ACTION_INCOMING = "com.neodesktop.dmodem.INCOMING_CALL"
+        const val ACTION_ANSWER = "com.neodesktop.dmodem.ANSWER"
+        const val ACTION_ANSWER_FAX = "com.neodesktop.dmodem.ANSWER_FAX"
+
         private const val TAB_MODEM = 0
         private const val TAB_TERMINAL = 1
         private const val TAB_DIRECTORY = 2

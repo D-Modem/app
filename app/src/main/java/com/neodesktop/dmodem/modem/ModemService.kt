@@ -31,6 +31,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.io.File
@@ -53,6 +55,9 @@ class ModemService : Service() {
         private const val TAG = "ModemService"
         private const val ACTION_START = "com.neodesktop.dmodem.START"
         private const val ACTION_STOP = "com.neodesktop.dmodem.STOP"
+        /** the ringing call put out of sight (its notification's Ignore) */
+        const val ACTION_IGNORE = "com.neodesktop.dmodem.IGNORE_CALL"
+        private const val CALL_NOTIFICATION_ID = 3
         private const val NOTIFICATION_ID = 1
         private const val DATA_FILE = "dsp_data"
         /** the speaker's sound socket, kept open for the process's life */
@@ -119,6 +124,10 @@ class ModemService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
+            ACTION_IGNORE -> {
+                ModemState.incoming.ignore()
+                return START_NOT_STICKY
+            }
             ACTION_STOP -> {
                 scope.launch { stopModem() }
                 return START_NOT_STICKY
@@ -244,7 +253,9 @@ class ModemService : Service() {
 
     private var progressJob: kotlinx.coroutines.Job? = null
     private val progressText = com.neodesktop.dmodem.terminal.TerminalLink.Listener { d, n ->
-        ModemState.progress.modemText(String(d, 0, n, Charsets.ISO_8859_1))
+        val text = String(d, 0, n, Charsets.ISO_8859_1)
+        ModemState.progress.modemText(text)
+        ModemState.incoming.modemText(text)
     }
 
     /** the call progress tones' watch: what the modem says, its state, the other phone ringing */
@@ -256,12 +267,28 @@ class ModemService : Service() {
             launch {
                 ModemState.status.collect { st ->
                     ModemState.progress.status(st.offhook, st.link == NativeModem.Link.CONNECTING || st.link == NativeModem.Link.ONLINE)
+                    ModemState.incoming.hook(st.offhook)
                 }
             }
             launch {
                 com.neodesktop.dmodem.peer.Peers.state.collect { st ->
                     ModemState.progress.ringingThere(st is com.neodesktop.dmodem.peer.PeerLine.State.Calling)
+                    ModemState.incoming.caller((st as? com.neodesktop.dmodem.peer.PeerLine.State.Ringing)?.from)
                 }
+            }
+            // (the RINGs stopped: the caller gave up)
+            launch {
+                while (true) {
+                    kotlinx.coroutines.delay(1000)
+                    ModemState.incoming.tick()
+                }
+            }
+            // a call ringing in: the phone's incoming call notification while it rings
+            launch {
+                ModemState.incoming.state
+                    .map { c -> c?.takeIf { !it.ignored }?.let { it.since to it.from } }
+                    .distinctUntilChanged()
+                    .collect { callNotification(ModemState.incoming.state.value?.takeIf { !it.ignored }) }
             }
         }
     }
@@ -273,6 +300,8 @@ class ModemService : Service() {
         progressJob = null
         ModemState.dte.removeListener(progressText)
         ModemState.tones.stop()
+        ModemState.incoming.end()
+        callNotification(null)
         ModemState.speaker.setLevel(0)
         com.neodesktop.dmodem.peer.Peers.stop()
         NativeModem.stop()
@@ -452,6 +481,58 @@ class ModemService : Service() {
             .setContentIntent(open)
             .addAction(0, getString(R.string.notif_stop), stop)
             .build()
+    }
+
+    /** the line's word for a caller it doesn't name */
+    private fun callerOfLine(): String = when (settings.line) {
+        ModemSettings.LINE_WIFI, ModemSettings.LINE_BLUETOOTH -> "The other phone"
+        ModemSettings.LINE_CELL -> "A mobile call"
+        else -> "A SIP call"
+    }
+
+    /**
+     * [c] ringing: the phone's incoming call notification (heads-up, full
+     * screen when the phone's locked), with Answer, Answer as fax and
+     * Ignore; null: none
+     */
+    private fun callNotification(c: IncomingCalls.Call?) {
+        val nm = getSystemService(android.app.NotificationManager::class.java)
+        if (c == null) {
+            nm.cancel(CALL_NOTIFICATION_ID)
+            return
+        }
+        fun activity(code: Int, action: String) = PendingIntent.getActivity(
+            this, code,
+            Intent(this, MainActivity::class.java).setAction(action)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val open = activity(2, MainActivity.ACTION_INCOMING)
+        val answer = activity(3, MainActivity.ACTION_ANSWER)
+        val fax = activity(4, MainActivity.ACTION_ANSWER_FAX)
+        val ignore = PendingIntent.getService(
+            this, 5, Intent(this, ModemService::class.java).setAction(ACTION_IGNORE), PendingIntent.FLAG_IMMUTABLE,
+        )
+        val who = c.from ?: callerOfLine()
+        val person = androidx.core.app.Person.Builder().setName(who).setImportant(true).build()
+        val n = NotificationCompat.Builder(this, DModemApp.CHANNEL_CALLS)
+            .setSmallIcon(R.drawable.ic_modem)
+            .setStyle(NotificationCompat.CallStyle.forIncomingCall(person, ignore, answer))
+            .setContentTitle(who)
+            .setContentText("Calling the modem")
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setContentIntent(open)
+            .setFullScreenIntent(open, true)
+            .addAction(0, "Answer as fax", fax)
+            .build()
+        try {
+            nm.notify(CALL_NOTIFICATION_ID, n)
+        } catch (e: SecurityException) {
+            Log.w(TAG, "call notification: $e")
+        }
     }
 
     private fun notify(n: Notification) {

@@ -89,6 +89,12 @@ too, so the computer dropping DTR hangs up there as well.
   incoming calls, the network, fax); quick dial of the systems last
   dialled; the terminal and the directory; the modem's console (folded,
   with an AT command line).
+- **A call ringing in** (SIP, the other phone, a mobile call): the
+  phone's incoming call notification (heads-up, over the lock screen,
+  the ringtone) and a popup over the app, with who's calling when the
+  line says (the other phone's name): Answer (the terminal, ATA), Answer
+  as fax, or Ignore (it rings on, out of sight). Gone when the modem
+  answers (here, a computer on a bridge, S0) or the caller gives up.
 - **Settings**: the SIP account (or paste `user:password@host`, as
   dmodemd's `SIP_LOGIN`), taking incoming calls, T.38, the AT commands
   sent at start (`ATX3` by default: SIP has no dial tone), the log levels;

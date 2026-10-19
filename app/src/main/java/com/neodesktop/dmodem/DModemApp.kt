@@ -12,6 +12,7 @@ class DModemApp : Application() {
 
     companion object {
         const val CHANNEL_MODEM = "modem"
+        const val CHANNEL_CALLS = "calls"
     }
 
     override fun onCreate() {
@@ -20,6 +21,20 @@ class DModemApp : Application() {
             CHANNEL_MODEM, getString(R.string.channel_modem), NotificationManager.IMPORTANCE_LOW,
         ).apply { description = getString(R.string.channel_modem_desc) }
         getSystemService(NotificationManager::class.java).createNotificationChannel(ch)
+        // (a call ringing in: heads-up, the phone's ringtone)
+        val calls = NotificationChannel(
+            CHANNEL_CALLS, getString(R.string.channel_calls), NotificationManager.IMPORTANCE_HIGH,
+        ).apply {
+            description = getString(R.string.channel_calls_desc)
+            setSound(
+                android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE),
+                android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build(),
+            )
+        }
+        getSystemService(NotificationManager::class.java).createNotificationChannel(calls)
 
         Terminal.init(this)
         // fax calls: their settings and files, and calls that ring answered as faxes when they say so

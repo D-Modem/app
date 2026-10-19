@@ -42,6 +42,15 @@ object ModemState {
     val tones = CallTones()
     val progress = CallProgress(tones)
 
+    /** a call ringing in, for the notification and the popup */
+    val incoming = IncomingCalls()
+
+    /** the ringing call answered (ATA): false if the modem isn't there to take it */
+    fun answer(): Boolean {
+        incoming.end()
+        return dte.write("ATA\r")
+    }
+
     /** The log's last lines (the modem's and SIP's). */
     val log = LineBuffer(MAX_LOG)
 

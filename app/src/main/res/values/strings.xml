@@ -3,5 +3,7 @@
     <string name="app_name">D-Modem</string>
     <string name="channel_modem">Modem</string>
     <string name="channel_modem_desc">The modem while it is on: its line and its calls</string>
+    <string name="channel_calls">Calls</string>
+    <string name="channel_calls_desc">A call ringing in on the modem\'s line</string>
     <string name="notif_stop">Stop</string>
 </resources>
