@@ -23,7 +23,9 @@
 #   Behind a proxy that re-signs TLS, its CA:
 #     --secret id=ca,src=/path/to/ca.crt  (and --network host if it's local)
 
-ARG UBUNTU=24.04
+# (by digest: the same image each time; a newer one's digest from
+# `docker buildx imagetools inspect ubuntu:24.04`)
+ARG UBUNTU=24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
 
 FROM ubuntu:${UBUNTU} AS toolchain
 
