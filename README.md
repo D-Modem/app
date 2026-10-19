@@ -172,6 +172,15 @@ for each ABI. `./gradlew connectedDebugAndroidTest` runs the instrumented
 tests on a device or emulator (the native library loads and answers AT
 commands).
 
+Or in Docker, with the same toolchain as CI (the submodules checked out
+first: the build takes them from the tree), the debug APK into `out/`:
+
+    docker build --target apk --output out .
+
+`docker build -t dmodem-android .` makes an image with the toolchain and
+the source to run Gradle in; the `Dockerfile` has the rest (a release
+build, the unit tests, a proxy's CA).
+
 The native library alone, without Gradle:
 
     cmake -S app/src/main/cpp -B build-arm64 -G Ninja \

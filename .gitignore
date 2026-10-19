@@ -25,3 +25,6 @@ ios/DModem/Tunnel/DModemTunnel.entitlements
 .build/
 # the native host build (cmake -S native-test -B build-host), or a link to one
 /build-host
+
+# the Dockerfile's APKs (docker build --target apk --output out .)
+/out/

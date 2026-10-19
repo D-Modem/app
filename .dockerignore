@@ -1,0 +1,15 @@
+# what the Dockerfile's build doesn't need from the tree
+.git
+**/.git
+.gradle
+**/build
+/build-host*
+/build-fallback
+/build-apple
+**/.cxx
+**/.kotlin
+**/.build
+.idea
+local.properties
+/out
+ios/DModem/DModem.xcodeproj
