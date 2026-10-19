@@ -132,19 +132,42 @@ object Fax {
             update(FaxProgress("Answering"))
             val r = c.command("A", 30_000)
             if (r != "CONNECT") throw FaxException(if (r == null) "no fax answered" else "no fax: $r")
-            val got = ArrayList<FaxPage>()
-            val p = try {
-                T30.receive(c, s.ident, rates, { update(it) }, ecm = s.ecm) { pg, _ -> got.add(pg) }
-            } catch (e: IOException) {
-                // the pages that came are kept
-                if (got.isEmpty()) throw e
-                FaxProgress("Received part", pages = got.size)
-            }
-            val name = save(app, got)
-            record(app, false, "", p, "", name)
-            p to name
+            receive(app, c, s)
         }
         return null
+    }
+
+    /**
+     * a call the modem answered and found to be a fax machine's (adaptive
+     * answer, AT+FAA=1: its FAX, +FCLASS=1, then CONNECT as after +FTH=3,
+     * for our first frames): the DTE taken now (on its reader's thread,
+     * before the CONNECT goes elsewhere), [first] what came after FAX, and
+     * the pages received
+     */
+    fun answeredAdaptively(first: ByteArray) {
+        if (running) return
+        val app = contextOrNull() ?: return
+        start(sending = false, number = "", setUp = false, first = first) { c, s ->
+            update(FaxProgress("Answering"))
+            val r = c.result(10_000)
+            if (r != "CONNECT") throw FaxException(if (r == null) "the fax didn't start" else "no fax: $r")
+            receive(app, c, s)
+        }
+    }
+
+    /** the pages received (on a call answered, the modem sending our frames), saved as a PDF and recorded */
+    private fun receive(app: Context, c: Class1, s: FaxSettings): Pair<FaxProgress, String> {
+        val got = ArrayList<FaxPage>()
+        val p = try {
+            T30.receive(c, s.ident, rates, { update(it) }, ecm = s.ecm) { pg, _ -> got.add(pg) }
+        } catch (e: IOException) {
+            // the pages that came are kept
+            if (got.isEmpty()) throw e
+            FaxProgress("Received part", pages = got.size)
+        }
+        val name = save(app, got)
+        record(app, false, "", p, "", name)
+        return p to name
     }
 
     /** the call stopped (hung up) */
@@ -177,7 +200,15 @@ object Fax {
     }
 
     /** a call on the modem, its DTE ours while it lasts: [body] given the class 1 modem, set up */
-    private fun start(sending: Boolean, number: String, body: (Class1, FaxSettings) -> Pair<FaxProgress, String>) {
+    private fun start(
+        sending: Boolean,
+        number: String,
+        /** the modem set up for fax first (false: it's in class 1 already, answering) */
+        setUp: Boolean = true,
+        /** what the modem said before the line was ours */
+        first: ByteArray? = null,
+        body: (Class1, FaxSettings) -> Pair<FaxProgress, String>,
+    ) {
         val hub = ModemState.dte
         lateinit var listener: TerminalLink.Listener
         val line = TransferIo { b -> if (!hub.writeAs(listener, b)) throw IOException("the modem has gone") }
@@ -187,6 +218,7 @@ object Fax {
             return
         }
         io = line
+        first?.let { if (it.isNotEmpty()) line.feed(it, 0, it.size) }
         _state.value = State(sending, FaxProgress("Starting"), number = number)
         thread = Thread({
             var result = ""
@@ -196,8 +228,13 @@ object Fax {
             try {
                 val s = runBlocking { FaxSettingsStore(contextOrThrow()).current() }
                 // (X3: a SIP line has no dial tone to wait for)
-                if (c.command("E0V1X3") != "OK" || c.command("+FCLASS=1") != "OK") throw FaxException("the modem has no fax mode")
-                rates = T30.modemRates(c, s.maxBps)
+                if (setUp) {
+                    if (c.command("E0V1X3") != "OK" || c.command("+FCLASS=1") != "OK") throw FaxException("the modem has no fax mode")
+                    rates = T30.modemRates(c, s.maxBps)
+                } else {
+                    // (no commands now: the modem's waiting for our frames. D-Modem-RE has every rate)
+                    rates = T30.RATES.filter { it.bps <= s.maxBps }
+                }
                 val (p, f) = body(c, s)
                 last = p
                 file = f
@@ -234,16 +271,26 @@ object Fax {
     private fun contextOrThrow(): Context = app ?: throw FaxException("not set up")
     private fun contextOrNull(): Context? = app
 
+    /** adaptive answer's word for a fax call (ATV1), its line alone */
+    private val FAX_RESULT = Regex("(?:^|[\\r\\n])FAX\\r\\n")
+
     /** the application's context; ringing calls watched for (answered as faxes when the settings say so) */
     fun init(context: Context) {
         app = context.applicationContext
         if (watching) return
         watching = true
         ModemState.dte.addListener(TerminalLink.Listener { data, n ->
-            if (String(data, 0, n, Charsets.ISO_8859_1).contains("RING") && !running) {
+            val text = String(data, 0, n, Charsets.ISO_8859_1)
+            // a call answered adaptively that's a fax machine's: ours, before its CONNECT goes to the terminal
+            FAX_RESULT.find(text)?.let { m ->
+                if (!running) answeredAdaptively(data.copyOfRange(m.range.last + 1, n))
+                return@Listener
+            }
+            if (text.contains("RING") && !running) {
                 val a = app ?: return@Listener
                 val s = runCatching { runBlocking { FaxSettingsStore(a).current() } }.getOrNull() ?: return@Listener
-                if (s.answer) Thread { answer(a) }.start()
+                // (every call answered: adaptively, fax or data as it turns out; else as a fax)
+                if (s.answer) Thread { if (ModemState.adaptiveAnswer) ModemState.answer() else answer(a) }.start()
             }
         })
     }

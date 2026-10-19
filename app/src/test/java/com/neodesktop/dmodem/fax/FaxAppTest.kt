@@ -185,4 +185,69 @@ class FaxAppTest {
         assertTrue(!h.sending)
         assertEquals(st.file, h.file)
     }
+
+    /** text from the app's modem (its DTE hub), as the terminal sees it */
+    private fun hubText(): () -> String {
+        val sb = StringBuffer()
+        val l = com.neodesktop.dmodem.terminal.TerminalLink.Listener { d, n -> sb.append(String(d, 0, n, Charsets.ISO_8859_1)) }
+        ModemState.dte.addListener(l)
+        closers.add { ModemState.dte.removeListener(l) }
+        return { sb.toString() }
+    }
+
+    private fun waitFor(what: String, secs: Int = 30, cond: () -> Boolean) {
+        val end = System.currentTimeMillis() + secs * 1000L
+        while (!cond()) {
+            if (System.currentTimeMillis() > end) throw AssertionError("no $what\n" + log.takeLast(40).joinToString("\n"))
+            Thread.sleep(20)
+        }
+    }
+
+    @Test
+    fun aFaxMachinesCallAnsweredAdaptively() {
+        // the service's start: adaptive answer on (in data mode, as the terminal has it)
+        val seen = hubText()
+        ModemState.adaptiveAnswer = true
+        ModemState.dte.write("ATE0X3+FAA=1\r")
+        waitFor("OK to +FAA=1") { seen().contains("OK") }
+        val c = other()
+        assertEquals("OK", c.command("E0"))
+        assertEquals("OK", c.command("X3+FCLASS=1"))
+        val rates = T30.modemRates(c)
+        val pages = listOf(FaxTestPage.of(true, rows = 600, seed = 3))
+        // a fax machine dials (its modem's CNG as it waits); the app's plain answer, as the popup's
+        c.send("D5550100")
+        // (fax_line's line doesn't ring: answered at once, as aFaxAnsweredAndSaved)
+        assertTrue(ModemState.answer())
+        // FAX: the fax receiver takes it by itself
+        assertEquals("CONNECT", c.result(60_000))
+        val sent = T30.send(c, pages, "+1 555 0199", rates)
+        assertEquals(1, sent.pages)
+        val st = waitDone(30)
+        assertEquals(st.toString(), "", st.result)
+        assertTrue(!st.sending)
+        assertEquals(1, st.progress.pages)
+        assertEquals("+1 555 0199", st.progress.remote)
+        assertTrue(seen().contains("FAX"))
+        assertTrue(File(ctx.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), st.file).isFile)
+        assertTrue(!ModemState.dte.claimed)
+    }
+
+    @Test
+    fun aDataCallAnsweredAdaptively() {
+        val seen = hubText()
+        ModemState.adaptiveAnswer = true
+        ModemState.dte.write("ATE0X3+FAA=1\r")
+        waitFor("OK to +FAA=1") { seen().contains("OK") }
+        val c = other()
+        assertEquals("OK", c.command("E0X3"))
+        // a modem dials: DATA, its CONNECT, the terminal's call; no fax
+        c.send("D5550100")
+        // (fax_line's line doesn't ring: answered at once, as aFaxAnsweredAndSaved)
+        assertTrue(ModemState.answer())
+        waitFor("DATA and CONNECT", 60) { seen().contains("DATA") && seen().contains("CONNECT") }
+        assertTrue(c.result(30_000)!!.startsWith("CONNECT"))
+        assertEquals(null, Fax.state.value?.takeIf { it.running })
+        assertTrue(!ModemState.dte.claimed)
+    }
 }

@@ -22,8 +22,10 @@ import com.neodesktop.dmodem.modem.IncomingCalls
 
 /**
  * A call ringing in, over whatever the app shows: who's calling (when the
- * line says), and what to do: answer it (the terminal, ATA), answer it as a
- * fax, or let it ring (out of sight until it's over).
+ * line says), and what to do: answer it (the terminal, ATA: with adaptive
+ * answer a fax machine's call goes to the fax receiver by itself), answer
+ * it as a fax (without adaptive answer), or let it ring (out of sight
+ * until it's over).
  */
 @Composable
 fun IncomingCallDialog(
@@ -33,6 +35,8 @@ fun IncomingCallDialog(
     onAnswer: () -> Unit,
     onFax: () -> Unit,
     onIgnore: () -> Unit,
+    /** answer as fax offered (adaptive answer off: a plain answer is a data call's) */
+    offerFax: Boolean = true,
 ) {
     AlertDialog(
         onDismissRequest = onIgnore,
@@ -45,12 +49,15 @@ fun IncomingCallDialog(
                     "Calling the modem" + if (call.rings > 1) " (${call.rings} rings)" else "",
                     style = MaterialTheme.typography.bodyMedium,
                 )
+                if (!offerFax) {
+                    Text("A fax machine's call goes to the fax receiver by itself", style = MaterialTheme.typography.bodySmall)
+                }
             }
         },
         confirmButton = {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Button(onClick = onAnswer, Modifier.fillMaxWidth()) { Text("Answer") }
-                OutlinedButton(onClick = onFax, Modifier.fillMaxWidth()) { Text("Answer as fax") }
+                if (offerFax) OutlinedButton(onClick = onFax, Modifier.fillMaxWidth()) { Text("Answer as fax") }
                 TextButton(
                     onClick = onIgnore,
                     Modifier.fillMaxWidth(),

@@ -111,6 +111,7 @@ class MainActivity : ComponentActivity() {
                         },
                         onFax = { answerAsFax() },
                         onIgnore = { com.neodesktop.dmodem.modem.ModemState.incoming.ignore() },
+                        offerFax = !com.neodesktop.dmodem.modem.ModemState.adaptiveAnswer,
                     )
                 }
                 BackHandler(enabled = full) { fullscreen = false }

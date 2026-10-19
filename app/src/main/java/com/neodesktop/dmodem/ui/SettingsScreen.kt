@@ -98,6 +98,12 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
 
         Text("Modem", style = MaterialTheme.typography.titleMedium)
         Toggle("Speaker: hear the dialling and the handshake", s.speaker) { s = s.copy(speaker = it) }
+        Toggle("Fax or data, as each call turns out", s.adaptiveAnswer) { s = s.copy(adaptiveAnswer = it) }
+        Text(
+            "A call answered (ATA) is a fax machine's or a modem's by what it sends (adaptive answer, AT+FAA=1): " +
+                "a fax goes to the fax receiver by itself, a modem's call to the terminal.",
+            style = MaterialTheme.typography.bodySmall,
+        )
         Text(
             "As a modem's speaker: on from off hook until CONNECT (ATM1). ATM0 keeps it quiet, ATM2 on all the call; " +
                 "ATL1-3 its volume, on top of the phone's media volume.",

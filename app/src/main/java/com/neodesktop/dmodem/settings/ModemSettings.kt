@@ -48,6 +48,11 @@ data class ModemSettings(
     /** the country's call progress tones (dial, ringing, busy, congestion) where the line has none of its own */
     val callTones: Boolean = true,
     /**
+     * calls answered as fax or data by what they turn out to be (D-Modem-RE's adaptive answer, AT+FAA=1):
+     * a fax machine's to the fax receiver, a modem's to the terminal
+     */
+    val adaptiveAnswer: Boolean = true,
+    /**
      * the modulation on mobile calls (+MS): V_CVM (V.cvm, made for speech codecs: about 1200 bit/s
      * through AMR 12.2, to another D-Modem; V.22 or V.21 to other modems), V21 (300 bit/s), V22, V22B
      */
@@ -123,6 +128,7 @@ class SettingsStore(private val context: Context) {
         val peerPin = stringPreferencesKey("peer_pin")
         val speaker = booleanPreferencesKey("speaker")
         val callTones = booleanPreferencesKey("callTones")
+        val adaptiveAnswer = booleanPreferencesKey("adaptiveAnswer")
         val cellSpeed = stringPreferencesKey("cell_speed")
     }
 
@@ -146,6 +152,7 @@ class SettingsStore(private val context: Context) {
             peerPin = p[Keys.peerPin] ?: d.peerPin,
             speaker = p[Keys.speaker] ?: d.speaker,
             callTones = p[Keys.callTones] ?: d.callTones,
+            adaptiveAnswer = p[Keys.adaptiveAnswer] ?: d.adaptiveAnswer,
             cellSpeed = p[Keys.cellSpeed] ?: d.cellSpeed,
         )
     }
@@ -171,6 +178,7 @@ class SettingsStore(private val context: Context) {
             p[Keys.peerPin] = s.peerPin.trim()
             p[Keys.speaker] = s.speaker
             p[Keys.callTones] = s.callTones
+            p[Keys.adaptiveAnswer] = s.adaptiveAnswer
             p[Keys.cellSpeed] = s.cellSpeed
         }
     }

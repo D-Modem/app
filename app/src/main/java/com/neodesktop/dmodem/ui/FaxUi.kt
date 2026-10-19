@@ -65,9 +65,12 @@ fun FaxSection() {
         state?.let { st -> FaxCallCard(st) }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { sendDialog = true }, enabled = on && state?.running != true) { Text("Send a fax…") }
-            OutlinedButton(onClick = {
-                Fax.answer(context)?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
-            }, enabled = on && state?.running != true) { Text("Answer as fax") }
+            // (with adaptive answer, a call answered is a fax by itself when a fax machine calls)
+            if (!ModemState.adaptiveAnswer) {
+                OutlinedButton(onClick = {
+                    Fax.answer(context)?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+                }, enabled = on && state?.running != true) { Text("Answer as fax") }
+            }
         }
         if (!on) Text("The modem is off: start it to fax", style = MaterialTheme.typography.bodySmall)
         for (r in history.sortedByDescending { it.time }.take(3)) FaxRow(r)
@@ -201,7 +204,10 @@ fun FaxSettingsSection() {
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth(),
         )
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Answer calls that ring as faxes", Modifier.weight(1f))
+            Text(
+                if (ModemState.adaptiveAnswer) "Answer every call that rings (a fax machine's as a fax)" else "Answer calls that ring as faxes",
+                Modifier.weight(1f),
+            )
             Switch(checked = s.answer, onCheckedChange = { v -> scope.launch { store.update { it.copy(answer = v) } } })
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

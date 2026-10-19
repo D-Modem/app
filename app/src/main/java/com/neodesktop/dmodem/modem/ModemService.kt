@@ -248,6 +248,9 @@ class ModemService : Service() {
         if (settings.peer && !settings.noLine) com.neodesktop.dmodem.peer.Peers.start(this, settings, ::log)
         val start = settings.startCommands()
         if (start.isNotBlank()) ModemState.dte.write(start + "\r")
+        // (each call answered as fax or data by what it turns out to be: FAX, then the fax receiver)
+        ModemState.adaptiveAnswer = settings.adaptiveAnswer
+        if (settings.adaptiveAnswer) ModemState.dte.write("AT+FAA=1\r")
         return true
     }
 
@@ -515,7 +518,7 @@ class ModemService : Service() {
         )
         val who = c.from ?: callerOfLine()
         val person = androidx.core.app.Person.Builder().setName(who).setImportant(true).build()
-        val n = NotificationCompat.Builder(this, DModemApp.CHANNEL_CALLS)
+        val b = NotificationCompat.Builder(this, DModemApp.CHANNEL_CALLS)
             .setSmallIcon(R.drawable.ic_modem)
             .setStyle(NotificationCompat.CallStyle.forIncomingCall(person, ignore, answer))
             .setContentTitle(who)
@@ -526,8 +529,9 @@ class ModemService : Service() {
             .setOnlyAlertOnce(true)
             .setContentIntent(open)
             .setFullScreenIntent(open, true)
-            .addAction(0, "Answer as fax", fax)
-            .build()
+        // (with adaptive answer, Answer takes a fax machine's call to the fax receiver by itself)
+        if (!settings.adaptiveAnswer) b.addAction(0, "Answer as fax", fax)
+        val n = b.build()
         try {
             nm.notify(CALL_NOTIFICATION_ID, n)
         } catch (e: SecurityException) {

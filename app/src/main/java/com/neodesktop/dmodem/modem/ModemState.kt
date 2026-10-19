@@ -42,6 +42,9 @@ object ModemState {
     val tones = CallTones()
     val progress = CallProgress(tones)
 
+    /** calls answered as fax or data alike (AT+FAA=1): no "answer as fax" to offer */
+    @Volatile var adaptiveAnswer = true
+
     /** a call ringing in, for the notification and the popup */
     val incoming = IncomingCalls()
 
