@@ -53,6 +53,9 @@ class ModemService : Service() {
 
     companion object {
         private const val TAG = "ModemService"
+        private const val NO_LOCAL_NETWORK = "Android hasn't allowed D-Modem on the local network, so a SIP server " +
+            "there can't be reached (\"Operation not permitted\"): allow it in Android's settings, " +
+            "Apps > D-Modem > Permissions, then start the modem again"
         private const val ACTION_START = "com.neodesktop.dmodem.START"
         private const val ACTION_STOP = "com.neodesktop.dmodem.STOP"
         /** the ringing call put out of sight (its notification's Ignore) */
@@ -182,6 +185,8 @@ class ModemService : Service() {
             return
         }
         ModemState.setError(null)
+        // (not a failure: the SIP server may be on the internet, which needs no leave)
+        if (!settings.peer && !localNetworkAllowed()) log(NO_LOCAL_NETWORK)
         ModemState.setRun(ModemState.Run.STARTING)
         if (!startNative()) {
             fail(ModemState.error.value ?: "the modem didn't start")
@@ -348,6 +353,8 @@ class ModemService : Service() {
     private val nativeListener = object : NativeModem.Listener {
         override fun onLog(line: String) {
             ModemState.log.add(line)
+            // (what Android says when the LAN isn't the app's to reach)
+            if (line.endsWith("Operation not permitted") && !localNetworkAllowed()) log(NO_LOCAL_NETWORK)
         }
 
         override fun onStatus(status: NativeModem.Status) {
@@ -547,6 +554,12 @@ class ModemService : Service() {
             Log.w(TAG, "notify: $e")
         }
     }
+
+    /** whether the LAN may be reached: Android 17 asks the user (ACCESS_LOCAL_NETWORK); before, any app may */
+    private fun localNetworkAllowed(): Boolean =
+        android.os.Build.VERSION.SDK_INT < 37 ||
+            checkSelfPermission(android.Manifest.permission.ACCESS_LOCAL_NETWORK) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
 
     private fun log(line: String) {
         Log.i(TAG, line)

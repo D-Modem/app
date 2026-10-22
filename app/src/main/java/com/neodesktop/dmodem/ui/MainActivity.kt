@@ -47,18 +47,18 @@ class MainActivity : ComponentActivity() {
     /** a tab to go to, from outside the content (a call answered from its notification) */
     private val goTo = kotlinx.coroutines.flow.MutableStateFlow<Int?>(null)
 
-    private val askNotifications =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    private val askPermissions =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        if (Build.VERSION.SDK_INT >= 33 &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
-            PackageManager.PERMISSION_GRANTED
-        ) {
-            askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
+        // notifications, and the LAN (a SIP server, an SSH host, a bridge's client there: Android 17 asks)
+        val wanted = buildList {
+            if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
+            if (Build.VERSION.SDK_INT >= 37) add(Manifest.permission.ACCESS_LOCAL_NETWORK)
+        }.filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
+        if (wanted.isNotEmpty()) askPermissions.launch(wanted.toTypedArray())
         // the internet host's service, if it was on (the app in the foreground now: it may start)
         lifecycleScope.launch {
             val b = com.neodesktop.dmodem.settings.BridgeSettingsStore(applicationContext).current()
