@@ -87,6 +87,8 @@ class ModemService : Service() {
     /** we are stopping the modem (its exit is ours, not an error) */
     @Volatile
     private var stopping = false
+    /** the USB modem that's the line (LINE_USB), open while the modem runs */
+    private var usbModem: UsbModems.Opened.Device? = null
 
     /** the network changed during a call: start again once on hook */
     @Volatile
@@ -186,7 +188,20 @@ class ModemService : Service() {
         }
         ModemState.setError(null)
         // (not a failure: the SIP server may be on the internet, which needs no leave)
-        if (!settings.peer && !localNetworkAllowed()) log(NO_LOCAL_NETWORK)
+        if (settings.sip && !localNetworkAllowed()) log(NO_LOCAL_NETWORK)
+        // a USB modem: Android's leave to use it (asked now if need be), the device opened while the modem runs
+        if (settings.usb) {
+            when (val o = UsbModems.open(this)) {
+                is UsbModems.Opened.Failed -> {
+                    fail(o.why)
+                    return
+                }
+                is UsbModems.Opened.Device -> {
+                    usbModem = o
+                    log("line: the ${o.kind.described}")
+                }
+            }
+        }
         ModemState.setRun(ModemState.Run.STARTING)
         if (!startNative()) {
             fail(ModemState.error.value ?: "the modem didn't start")
@@ -194,7 +209,7 @@ class ModemService : Service() {
         }
         acquireLocks()
         // (a line to another phone doesn't care which network: nothing to start again for)
-        if (!settings.peer) watchNetwork()
+        if (settings.sip) watchNetwork()
         ModemState.setRun(ModemState.Run.RUNNING)
     }
 
@@ -203,7 +218,7 @@ class ModemService : Service() {
         val cm = getSystemService(ConnectivityManager::class.java)
         val net = cm.activeNetwork
         val lp = net?.let { cm.getLinkProperties(it) }
-        if (lp == null && !settings.peer) {
+        if (lp == null && settings.sip) {
             ModemState.setError("no network")
             return false
         }
@@ -224,6 +239,8 @@ class ModemService : Service() {
             logLevel = settings.logLevel,
             sipLogLevel = settings.sipLogLevel,
             peer = settings.peer,
+            usbFd = usbModem?.connection?.fileDescriptor ?: -1,
+            usbRate = UsbModems.RATE,
             // (Bluetooth's way is slower: more room for the samples on it)
             peerLeadMs = when (settings.line) {
                 ModemSettings.LINE_BLUETOOTH -> 200
@@ -313,6 +330,9 @@ class ModemService : Service() {
         ModemState.speaker.setLevel(0)
         com.neodesktop.dmodem.peer.Peers.stop()
         NativeModem.stop()
+        // (the device let go once the modem has)
+        usbModem?.connection?.close()
+        usbModem = null
         ModemState.dte.detach()
         ModemState.setStatus(ModemState.IDLE)
     }
@@ -471,6 +491,7 @@ class ModemService : Service() {
                 ModemSettings.LINE_BLUETOOTH -> " (line: another phone on Bluetooth)"
                 ModemSettings.LINE_CELL -> " (line: mobile calls)"
                 ModemSettings.LINE_NONE -> " (no line)"
+                ModemSettings.LINE_USB -> " (line: the ${usbModem?.kind?.label ?: "USB modem"})"
                 else -> ""
             }
         }
@@ -497,6 +518,7 @@ class ModemService : Service() {
     private fun callerOfLine(): String = when (settings.line) {
         ModemSettings.LINE_WIFI, ModemSettings.LINE_BLUETOOTH -> "The other phone"
         ModemSettings.LINE_CELL -> "A mobile call"
+        ModemSettings.LINE_USB -> "A call on the phone line"
         else -> "A SIP call"
     }
 

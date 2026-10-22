@@ -78,3 +78,35 @@ target_compile_options(c_api_test PRIVATE -Wall -Wextra)
 set_target_properties(c_api_test PROPERTIES LINKER_LANGUAGE CXX)
 add_test(NAME c_api COMMAND c_api_test)
 set_tests_properties(c_api PROPERTIES TIMEOUT 120)
+
+# usb_line_test: the engine on a USB modem's line (usb/usb_modem.h), two
+# of them on D-Modem-RE's fake pico-serial Line sticks (its
+# test/fake_pico_line.cpp linked in as libusb, so usb_line.cpp finds the
+# stick by libusb's own calls: usb_fake_device.cpp) calling each other
+# through its simulated exchange (test/line_exchange.cpp); libusb.h from
+# the release the app builds
+include(${CMAKE_CURRENT_SOURCE_DIR}/../app/src/main/cpp/usb/libusb.cmake)
+set(_app ${CMAKE_CURRENT_SOURCE_DIR}/../app/src/main/cpp)
+set(_dmd ${DMODEM_RE_DIR}/dmodemd)
+add_library(dmodem_engine_usb STATIC ${_app}/engine.cpp
+	${_app}/peer_modem.cpp ${_app}/dmodem_engine.cpp
+	${_app}/usb/usb_modem.cpp ${_dmd}/usb_line.cpp ${_dmd}/si3056.cpp
+	usb_fake_device.cpp ${_dmd}/test/fake_pico_line.cpp)
+target_include_directories(dmodem_engine_usb PUBLIC ${_app})
+target_include_directories(dmodem_engine_usb SYSTEM PUBLIC
+	${DMODEM_LIBUSB_SRC}/libusb)
+target_compile_definitions(dmodem_engine_usb PUBLIC DMODEM_ENGINE_USB)
+target_link_libraries(dmodem_engine_usb PUBLIC dmodem_sip)
+
+add_executable(usb_host usb_host.cpp)
+target_link_libraries(usb_host PRIVATE dmodem_engine_usb Threads::Threads)
+target_compile_options(usb_host PRIVATE -Wall -Wextra)
+
+add_executable(usb_exchange ${_dmd}/test/line_exchange.cpp)
+target_link_libraries(usb_exchange PRIVATE dmodem_core dmodem_dsp
+	dmodem_link m Threads::Threads)
+
+add_test(NAME usb_line COMMAND python3
+	${CMAKE_CURRENT_SOURCE_DIR}/usb_line_test.py $<TARGET_FILE:usb_host>
+	$<TARGET_FILE:usb_exchange>)
+set_tests_properties(usb_line PROPERTIES TIMEOUT 300)

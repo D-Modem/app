@@ -187,6 +187,7 @@ class MainActivity : ComponentActivity() {
     private fun callerOfLine(): String = when (com.neodesktop.dmodem.modem.ModemState.line) {
         com.neodesktop.dmodem.settings.ModemSettings.LINE_WIFI, com.neodesktop.dmodem.settings.ModemSettings.LINE_BLUETOOTH -> "The other phone"
         com.neodesktop.dmodem.settings.ModemSettings.LINE_CELL -> "A mobile call"
+        com.neodesktop.dmodem.settings.ModemSettings.LINE_USB -> "A call on the phone line"
         else -> "A SIP call"
     }
 

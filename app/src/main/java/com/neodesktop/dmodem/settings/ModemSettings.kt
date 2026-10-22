@@ -59,13 +59,19 @@ data class ModemSettings(
     val cellSpeed: String = CELL_VCVM,
 ) {
     /** the line is another phone (or this phone's mobile calls, or none), not SIP: the app carries its samples */
-    val peer: Boolean get() = line != LINE_SIP
+    val peer: Boolean get() = line != LINE_SIP && line != LINE_USB
+
+    /** the line is a SIP account's */
+    val sip: Boolean get() = line == LINE_SIP
+
+    /** the line is a phone line, through a USB modem (UsbModems): the modem dials it itself */
+    val usb: Boolean get() = line == LINE_USB
 
     /** no line at all: the modem on its own (AT commands, the terminal, the bridges); a dial gets NO DIALTONE */
     val noLine: Boolean get() = line == LINE_NONE
 
     /** Enough to start: an account (or the line another phone's). */
-    val complete: Boolean get() = peer || (user.isNotBlank() && domain.isNotBlank())
+    val complete: Boolean get() = !sip || (user.isNotBlank() && domain.isNotBlank())
 
     /** the commands sent as the modem starts: the init commands, on mobile calls the modulation first */
     fun startCommands(): String {
@@ -86,6 +92,7 @@ data class ModemSettings(
         const val LINE_BLUETOOTH = "bluetooth"
         const val LINE_CELL = "cell"
         const val LINE_NONE = "none"
+        const val LINE_USB = "usb"
         /** the mobile-call line's V.cvm (D-Modem-RE's +MS=V_CVM) */
         const val CELL_VCVM = "V_CVM"
 

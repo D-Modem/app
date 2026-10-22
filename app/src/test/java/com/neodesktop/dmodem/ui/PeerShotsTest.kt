@@ -77,6 +77,19 @@ class PeerShotsTest {
     }
 
     @Test
+    fun aUsbModem() {
+        save(ModemSettings(line = ModemSettings.LINE_SIP))
+        compose.onNodeWithText("Settings").performClick()
+        compose.onNodeWithText("A SIP account (calls over the internet)").performScrollTo().performClick()
+        compose.onNodeWithText("A phone line, through a USB modem").performClick()
+        compose.onNodeWithText("pico-serial Line stick", substring = true).assertExists()
+        // (none on Robolectric's bus)
+        compose.onNodeWithText("Plugged in: none").assertExists()
+        compose.onNodeWithText("SIP account (saved with the button below)").assertDoesNotExist()
+        shot("peer-5-usb-modem")
+    }
+
+    @Test
     fun homeOnACall() {
         save(ModemSettings(line = ModemSettings.LINE_WIFI, peerAddress = "192.168.1.20:5070", peerName = "D-Modem on Pixel 8", listen = true))
         ModemState.setRun(ModemState.Run.RUNNING)

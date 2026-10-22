@@ -66,6 +66,8 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
         LineChoice(s) { s = it }
         if (s.peer) {
             PeerLineFields(s) { s = it }
+        } else if (s.usb) {
+            UsbLineFields()
         } else {
             Text("SIP account (saved with the button below)", style = MaterialTheme.typography.titleSmall)
             OutlinedTextField(
@@ -118,7 +120,7 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
             style = MaterialTheme.typography.bodySmall,
         )
         NumberField("Modem log level (0-5)", s.logLevel) { s = s.copy(logLevel = it.coerceIn(0, 5)) }
-        if (!s.peer) NumberField("SIP log level (0-4)", s.sipLogLevel) { s = s.copy(sipLogLevel = it.coerceIn(0, 4)) }
+        if (s.sip) NumberField("SIP log level (0-4)", s.sipLogLevel) { s = s.copy(sipLogLevel = it.coerceIn(0, 4)) }
 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(onClick = {

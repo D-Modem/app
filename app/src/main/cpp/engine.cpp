@@ -23,6 +23,9 @@
 
 #include "engine.h"
 #include "peer_modem.h"
+#ifdef DMODEM_ENGINE_USB
+#include "usb/usb_modem.h"
+#endif
 
 namespace dmodem_android {
 
@@ -115,6 +118,10 @@ void Engine::stop()
 		modem_->stop();
 	if (peer_)
 		peer_->stop();
+#ifdef DMODEM_ENGINE_USB
+	if (usb_)
+		usb_->stop();
+#endif
 	std::thread t = std::move(thread_);
 	lk.unlock();
 	t.join();
@@ -223,7 +230,27 @@ void Engine::run(Config cfg, int dte_fd, StatusFn status, ExitFn done,
 	{
 		dmd::FdDte dte(dte_fd);
 
-		if (cfg.peer) {
+		if (cfg.usb_fd >= 0) {
+#ifdef DMODEM_ENGINE_USB
+			mo.rate = cfg.usb_rate;
+			UsbModem um(dte, mo, cfg.usb_fd);
+			if (um.ok()) {
+				if (status)
+					um.on_status(report);
+				{
+					std::lock_guard<std::mutex> lk(mu_);
+					usb_ = &um;
+					if (stopping_)
+						um.stop();
+				}
+				serve(um.modem(), [&um] { return um.run(); });
+				std::lock_guard<std::mutex> lk(mu_);
+				usb_ = nullptr;
+			}
+#else
+			dcore::log_printf(0, "error: a USB modem: not in this build\n");
+#endif
+		} else if (cfg.peer) {
 			PeerModem pm(dte, mo, cfg.peer_lead_ms);
 			if (pm.ok()) {
 				if (status)

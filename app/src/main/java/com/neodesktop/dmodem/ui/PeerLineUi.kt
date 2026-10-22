@@ -54,6 +54,7 @@ fun LineChoice(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
         ModemSettings.LINE_WIFI to "Another phone with D-Modem, on Wi-Fi",
         ModemSettings.LINE_BLUETOOTH to "Another phone with D-Modem, on Bluetooth",
         ModemSettings.LINE_CELL to "This phone's mobile calls (slow; root)",
+        ModemSettings.LINE_USB to "A phone line, through a USB modem",
         ModemSettings.LINE_NONE to "No line (the modem on its own)",
     )
     var open by remember { mutableStateOf(false) }
@@ -74,7 +75,8 @@ fun LineChoice(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
                     onClick = {
                         open = false
                         when (line) {
-                            ModemSettings.LINE_SIP, ModemSettings.LINE_CELL, ModemSettings.LINE_NONE -> onChange(s.copy(line = line))
+                            ModemSettings.LINE_SIP, ModemSettings.LINE_CELL, ModemSettings.LINE_NONE, ModemSettings.LINE_USB ->
+                                onChange(s.copy(line = line))
                             ModemSettings.LINE_WIFI -> onChange(
                                 s.copy(line = line, peerAddress = if (s.line == line) s.peerAddress else "", peerName = ""),
                             )
@@ -89,6 +91,28 @@ fun LineChoice(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
                 )
             }
         }
+    }
+}
+
+/** A phone line through a USB modem: which ones there are, what's plugged in */
+@Composable
+fun UsbLineFields() {
+    val context = LocalContext.current
+    // (looked at again when the screen is: plugging one in brings the app up)
+    val plugged = remember { com.neodesktop.dmodem.modem.UsbModems.describe(context) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            "The modem dials and answers a real phone line through a USB modem: a Smart Link SmartUSB56, or a " +
+                "pico-serial Line stick (with caller ID, and the country's line settings). The phone runs the modem; " +
+                "the USB one is its line. No SIP account or network needed. Android asks once whether D-Modem may use it.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Text("Plugged in: $plugged", style = MaterialTheme.typography.bodyMedium)
+        Text(
+            "Incoming calls ring in the terminal (RING); ATS0=1 answers them. The modem's country (below) sets " +
+                "the tones it listens for and, on the pico-serial Line, the line's electrical settings. The phone's speaker stays quiet on this line.",
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 

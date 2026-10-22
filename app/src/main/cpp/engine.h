@@ -28,6 +28,7 @@ namespace dmd { class SipModem; }
 namespace dmodem_android {
 
 class PeerModem;
+class UsbModem;
 
 struct Config {
 	/* the SIP account: user, password, the registrar's or proxy's
@@ -54,6 +55,12 @@ struct Config {
 	   not SIP: the account above unused; its lead silence (ms) */
 	bool peer = false;
 	int peer_lead_ms = 100;
+	/* the line a USB modem's (usb/usb_modem.h: a SmartUSB56 or a
+	   pico-serial Line stick), the device Android opened for the app
+	   (its descriptor, the caller's: open while the modem runs), not
+	   SIP or a peer; its rate (8000 or 9600 Hz).  -1: none */
+	int usb_fd = -1;
+	int usb_rate = 9600;
 };
 
 /* what the modem's call is doing (dmd::SipModem::Status) */
@@ -114,6 +121,7 @@ private:
 	std::thread thread_;
 	dmd::SipModem *modem_ = nullptr;        /* while run() has one */
 	PeerModem *peer_ = nullptr;             /* or this one */
+	UsbModem *usb_ = nullptr;               /* or this one */
 	SpeakerFn speaker_;
 	SoundFn sound_;
 	bool active_ = false;                   /* run() hasn't ended */

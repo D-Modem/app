@@ -58,6 +58,12 @@ object NativeModem {
         val peer: Boolean = false,
         /** a peer line's silence ahead of our samples (ms): their room on the way */
         val peerLeadMs: Int = 100,
+        /**
+         * The line a USB modem's (a SmartUSB56 or a pico-serial Line stick): its descriptor from
+         * the device's UsbDeviceConnection, open while the modem runs (-1: none); its rate (Hz)
+         */
+        val usbFd: Int = -1,
+        val usbRate: Int = 9600,
     )
 
     interface Listener {
@@ -84,7 +90,7 @@ object NativeModem {
             config.user, config.password, config.domain, config.sipPort,
             config.listen, config.t38, config.dns.joinToString(","),
             config.country, config.dataFile, config.logLevel, config.sipLogLevel,
-            config.peer, config.peerLeadMs,
+            config.peer, config.peerLeadMs, config.usbFd, config.usbRate,
         )
         return if (fd >= 0) ParcelFileDescriptor.adoptFd(fd) else null
     }
@@ -109,7 +115,7 @@ object NativeModem {
         user: String, password: String, domain: String, sipPort: Int,
         listen: Boolean, t38: Boolean, dns: String, country: String,
         dataFile: String, logLevel: Int, sipLogLevel: Int,
-        peer: Boolean, peerLeadMs: Int,
+        peer: Boolean, peerLeadMs: Int, usbFd: Int, usbRate: Int,
     ): Int
 
     @JvmStatic

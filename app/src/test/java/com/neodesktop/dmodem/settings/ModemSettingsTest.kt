@@ -27,4 +27,19 @@ class ModemSettingsTest {
         assertFalse(ModemSettings(user = "u").complete)
         assertTrue(ModemSettings(user = "u", domain = "h").complete)
     }
+
+    @Test
+    fun aUsbModemNeedsNoAccountAndIsNoPeer() {
+        val s = ModemSettings(line = ModemSettings.LINE_USB)
+        assertTrue(s.complete)
+        assertTrue(s.usb)
+        assertFalse(s.peer)
+        assertFalse(s.sip)
+        assertFalse(s.noLine)
+        // (the others as they were)
+        assertTrue(ModemSettings(line = ModemSettings.LINE_WIFI).peer)
+        assertTrue(ModemSettings(line = ModemSettings.LINE_NONE).peer)
+        assertTrue(ModemSettings().sip)
+        assertFalse(ModemSettings().usb)
+    }
 }

@@ -87,6 +87,30 @@ and uses its lines and settings (its firmware/PROTOCOL.md):
 Any other CDC-ACM adapter's line notifications (`SERIAL_STATE`) are read
 too, so the computer dropping DTR hangs up there as well.
 
+## A real phone line: USB modems
+
+The modem's line can also be a telephone line, through a USB modem that
+carries the modem's sound (D-Modem-RE's `usb_line.cpp`, as
+`dmodemd --usb` drives them): a Smart Link SmartUSB56 (USB 0483:7554), or
+a [pico-serial](https://github.com/Neo-Desktop/pico-serial) Line stick
+(1209:0002, a Si3056 DAA: caller ID on hook, and the country's line
+settings in its registers). The phone runs the modem; plugged into it
+(USB OTG) the stick is its line, with no SIP account or network. Settings,
+Line, "A phone line, through a USB modem"; Android asks once whether
+D-Modem may use it, and offers the app when one is plugged in.
+
+An app can't list the USB devices itself: Android opens the one the user
+allowed and gives its descriptor. libusb is built for Android in the app
+(`app/src/main/cpp/usb/libusb.cmake`, D-Modem-RE's pinned release) and
+`usb_line.cpp` built with its three calls that look for the device
+renamed to `usb/usb_android.cpp`'s, which start libusb without its device
+discovery and give it that descriptor, wrapped, as the only device on the
+bus. Tested on the build host on D-Modem-RE's fake pico-serial Line
+sticks and simulated exchange (`native-test/usb_line_test.py`: dialling,
+caller ID, answering, CONNECT 33600, data each way, hanging up, unplugged);
+not yet on a phone with a real stick. The phone's speaker isn't fed on
+this line.
+
 ## The app
 
 - **Home**: what the modem is doing (off, ready, connecting, online with
@@ -146,7 +170,8 @@ no `/etc/resolv.conf` for libre to read.
   `libdmodem_sip`, the modem on a SIP line as a library.
 - `app/src/main/cpp`: the native library, `libdmodem_jni.so`:
   `engine.cpp` runs the modem in a thread of its own with its DTE on a
-  socket pair whose other end is the app's; `jni.cpp` binds it to
+  socket pair whose other end is the app's, on SIP, a peer line
+  (`peer_modem.cpp`) or a USB modem (`usb/`); `jni.cpp` binds it to
   `com.neodesktop.dmodem.NativeModem`.
 - `app/src/main/java/com/neodesktop/dmodem`: `modem/` the service, the
   state the UI observes and `DteHub`, the modem's DTE shared by the
@@ -157,7 +182,7 @@ no `/etc/resolv.conf` for libre to read.
   `BoxDrawing`, `Themes`, the directory and snippets.
 - `native-test`: the engine on the build host, against a dmodemd over
   loopback SIP (dialling out, data both ways, restarting, a call coming
-  in, the app closing its end).
+  in, the app closing its end), and on fake USB modems (`usb_line_test.py`).
 
 ## Building
 

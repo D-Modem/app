@@ -173,7 +173,7 @@ jint native_start(JNIEnv *env, jclass, jstring user, jstring password,
 		  jstring domain, jint sip_port, jboolean listen, jboolean t38,
 		  jstring dns, jstring country, jstring data_file,
 		  jint log_level, jint sip_log_level, jboolean peer,
-		  jint peer_lead_ms)
+		  jint peer_lead_ms, jint usb_fd, jint usb_rate)
 {
 	Config cfg;
 
@@ -190,6 +190,8 @@ jint native_start(JNIEnv *env, jclass, jstring user, jstring password,
 	cfg.sip_log_level = sip_log_level;
 	cfg.peer = peer;
 	cfg.peer_lead_ms = peer_lead_ms;
+	cfg.usb_fd = usb_fd;
+	cfg.usb_rate = usb_rate;
 	return Engine::instance().start(cfg, status_changed, exited,
 					line_started);
 }
@@ -221,7 +223,7 @@ jboolean native_running(JNIEnv *, jclass)
 const JNINativeMethod methods[] = {
 	{ "nativeStart", "(Ljava/lang/String;Ljava/lang/String;"
 	  "Ljava/lang/String;IZZLjava/lang/String;Ljava/lang/String;"
-	  "Ljava/lang/String;IIZI)I",
+	  "Ljava/lang/String;IIZIII)I",
 	  reinterpret_cast<void *>(native_start) },
 	{ "nativeStop", "()V", reinterpret_cast<void *>(native_stop) },
 	{ "nativeRunning", "()Z", reinterpret_cast<void *>(native_running) },

@@ -307,6 +307,15 @@ private fun LineCard(s: ModemSettings, run: ModemState.Run, network: String?, on
                 PeerLineRows(s, run, network)
                 return@Column
             }
+            if (s.usb) {
+                val context = androidx.compose.ui.platform.LocalContext.current
+                InfoRow("Via", "a phone line, through a USB modem")
+                InfoRow("Plugged in", remember(run) { com.neodesktop.dmodem.modem.UsbModems.describe(context) })
+                if (run == ModemState.Run.RUNNING) {
+                    Text("Calls ring in the terminal (RING); ATS0=1 answers them", style = MaterialTheme.typography.bodySmall)
+                }
+                return@Column
+            }
             InfoRow("SIP", if (s.complete) "${s.user}@${s.domain}" else "not set up")
             InfoRow("Calls in", if (s.listen) "answered (registered)" else "off")
             InfoRow("Network", network ?: "none")

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- USB serial adapters: Android offers the app when one is plugged in (and keeps its permission) -->
+<!-- USB serial adapters and USB modems: Android offers the app when one is plugged in (and keeps its permission) -->
 <resources>
     <!-- FTDI -->
     <usb-device vendor-id="1027" />
@@ -9,6 +9,9 @@
     <usb-device vendor-id="6790" />
     <!-- Prolific PL2303 -->
     <usb-device vendor-id="1659" />
+    <!-- the USB modems that can be the modem's line (UsbModems): a SmartUSB56 (0483:7554), a pico-serial Line (1209:0002) -->
+    <usb-device vendor-id="1155" product-id="30036" />
+    <usb-device vendor-id="4617" product-id="2" />
     <!-- any CDC-ACM (communications class) device -->
     <usb-device class="2" />
 </resources>
