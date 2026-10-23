@@ -91,8 +91,9 @@ too, so the computer dropping DTR hangs up there as well.
 
 The modem's line can also be a telephone line, through a USB modem that
 carries the modem's sound (D-Modem-RE's `usb_line.cpp`, as
-`dmodemd --usb` drives them): a Smart Link SmartUSB56 (USB 0483:7554), or
-a [pico-serial](https://github.com/Neo-Desktop/pico-serial) Line stick
+`dmodemd --usb` drives them): a Smart Link SmartUSB56 (USB 0483:7554,
+with caller ID, its ST7554 or ST75951 DAA), or a
+[pico-serial](https://github.com/Neo-Desktop/pico-serial) Line stick
 (1209:0002, a Si3056 DAA: caller ID on hook, and the country's line
 settings in its registers). The phone runs the modem; plugged into it
 (USB OTG) the stick is its line, with no SIP account or network. Settings,

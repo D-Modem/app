@@ -103,7 +103,7 @@ fun UsbLineFields() {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             "The modem dials and answers a real phone line through a USB modem: a Smart Link SmartUSB56, or a " +
-                "pico-serial Line stick (with caller ID, and the country's line settings). The phone runs the modem; " +
+                "pico-serial Line stick, both with caller ID (the stick takes the country's line settings too). The phone runs the modem; " +
                 "the USB one is its line. No SIP account or network needed. Android asks once whether D-Modem may use it.",
             style = MaterialTheme.typography.bodySmall,
         )

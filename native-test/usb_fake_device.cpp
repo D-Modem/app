@@ -14,3 +14,13 @@ namespace dmodem_android {
 void usb_use_fd(int) {}
 
 } // namespace dmodem_android
+
+/* what the fake leaves to the real libusb (upstream's tests preload the
+   fake in front of it; here it is linked in alone): the device's ports,
+   for wake on ring's sysfs switch (UsbLine::arm_wake(), with set_wake()
+   alone), unknown */
+extern "C" int LIBUSB_CALL libusb_get_port_numbers(libusb_device *,
+						   uint8_t *, int)
+{
+	return LIBUSB_ERROR_NOT_SUPPORTED;
+}
