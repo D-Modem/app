@@ -35,6 +35,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.neodesktop.dmodem.modem.ModemState
+import com.neodesktop.dmodem.ppp.DialIn
 import com.neodesktop.dmodem.ppp.Internet
 import com.neodesktop.dmodem.ppp.PppVpnService
 import com.neodesktop.dmodem.settings.IspSettings
@@ -64,8 +65,10 @@ fun InternetCard(onSetUp: () -> Unit) {
         if (r.resultCode == Activity.RESULT_OK) dial() else Toast.makeText(context, "The VPN wasn't allowed", Toast.LENGTH_LONG).show()
     }
 
+    val dialIn by DialIn.state.collectAsStateWithLifecycle()
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            dialIn?.let { d -> DialInRows(d) }
             val st = state
             when {
                 st == null || !st.running -> {
@@ -115,6 +118,31 @@ fun InternetCard(onSetUp: () -> Unit) {
     }
 }
 
+/** a caller on the internet through the phone (DialIn), or how its call ended */
+@Composable
+private fun DialInRows(d: DialIn.State) {
+    if (d.running) {
+        var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+        LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(1000) } }
+        Text("Dial-in: " + if (d.online) "a caller is online" else d.phase, style = MaterialTheme.typography.titleSmall)
+        val (bIn, bOut) = remember(now) { DialIn.bytes() }
+        if (d.online) {
+            val secs = ((now - d.since) / 1000).coerceAtLeast(0)
+            Text(
+                "${DialIn.peer.hostAddress} · ${d.connect.removePrefix("CONNECT").trim().ifEmpty { "connected" }} · " +
+                    "%d:%02d · ↓ ${size(bIn)}  ↑ ${size(bOut)}".format(secs / 60, secs % 60),
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        TextButton(onClick = { Thread { DialIn.disconnect() }.start() }) { Text("Hang up") }
+    } else {
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text("Dial-in call over: ${d.ended}", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = { DialIn.dismiss() }) { Text("OK") }
+        }
+    }
+}
+
 private fun size(n: Long) = when {
     n < 1024 -> "$n B"
     n < 1024 * 1024 -> "%.1f KB".format(n / 1024.0)
@@ -159,6 +187,17 @@ fun IspSettingsSection() {
             minLines = 2,
             textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
             modifier = Modifier.fillMaxWidth(),
+        )
+        Text("Dial-in", style = MaterialTheme.typography.titleSmall)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text("Callers get the internet through this phone", Modifier.weight(1f))
+            androidx.compose.material3.Switch(checked = s.dialIn, onCheckedChange = { s = s.copy(dialIn = it) })
+        }
+        Text(
+            "The phone as an ISP for whoever calls the modem: a call that rings is answered, and once it connects " +
+                "the caller's dialer gets PPP (no login), the address ${DialIn.peer.hostAddress} and the phone's " +
+                "network. Calls in need the line to take them (on SIP: \"Take calls\", registered).",
+            style = MaterialTheme.typography.bodySmall,
         )
         Button(onClick = {
             scope.launch { store.save(s) }

@@ -155,7 +155,20 @@ this line.
 - **Dial**: the dialing directory: each system's number (or SIP user), the
   AT commands it needs before ATD, its character set and backspace; one
   tap starts the modem if it is off and dials.
-- **Log**: the modem's and SIP's log.
+- **Log**: the modem's and SIP's log (Copy for all of it).
+- **Back**: from any other tab back to Home; on Home the app goes to the
+  background (the modem keeps running), as the Home button would.
+- **Dial-in** (Settings, Dial-up internet): the phone as an ISP for whoever
+  calls the modem, on SIP or any other line. A call that rings is answered
+  (unless the fax settings answer calls already); once it connects, the
+  modem's DTE is taken and a PPP server on the call gives the caller
+  10.64.64.2, DNS at 10.64.64.1 and the phone's network through the same
+  NAT the serial bridges' internet host uses. When the caller's PPP ends,
+  or none starts, the app hangs up; when the call drops, PPP stops. Home
+  shows the caller online, with what has gone each way and a Hang up
+  button. Tested over two of D-Modem's modems back to back
+  (`DialInLineTest`: answer, CONNECT 33600, the address, DNS and a ping
+  through the phone, the hang-up).
 
 The modem runs in a foreground service (`ModemService`) with the CPU and
 Wi-Fi kept awake for the call's real-time audio. The SIP user agent binds

@@ -6,6 +6,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -20,6 +21,8 @@ data class IspSettings(
     val initCommands: String = "",
     /** a login script for after the CONNECT, before PPP (chat's: "ogin: \\U assword: \\P"); empty: none */
     val script: String = "",
+    /** dial-in: callers to the modem get the internet through the phone (DialIn) */
+    val dialIn: Boolean = false,
 ) {
     val complete: Boolean get() = number.isNotBlank()
 }
@@ -33,10 +36,11 @@ class IspSettingsStore(private val context: Context) {
         val password = stringPreferencesKey("password")
         val init = stringPreferencesKey("init")
         val script = stringPreferencesKey("script")
+        val dialIn = booleanPreferencesKey("dial_in")
     }
 
     val settings: Flow<IspSettings> = context.ispStore.data.map { p ->
-        IspSettings(p[K.number] ?: "", p[K.user] ?: "", p[K.password] ?: "", p[K.init] ?: "", p[K.script] ?: "")
+        IspSettings(p[K.number] ?: "", p[K.user] ?: "", p[K.password] ?: "", p[K.init] ?: "", p[K.script] ?: "", p[K.dialIn] ?: false)
     }
 
     suspend fun current(): IspSettings = settings.first()
@@ -48,6 +52,7 @@ class IspSettingsStore(private val context: Context) {
             p[K.password] = s.password
             p[K.init] = s.initCommands.trim()
             p[K.script] = s.script.trim()
+            p[K.dialIn] = s.dialIn
         }
     }
 }

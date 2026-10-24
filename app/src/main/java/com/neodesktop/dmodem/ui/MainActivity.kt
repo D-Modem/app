@@ -114,6 +114,9 @@ class MainActivity : ComponentActivity() {
                         offerFax = !com.neodesktop.dmodem.modem.ModemState.adaptiveAnswer,
                     )
                 }
+                // back: Home from another tab; on Home the app to the background, as Home's button would
+                // (the modem going on), not closed. (Screens' own back, and full screen's below, come first.)
+                BackHandler { if (tab != TAB_MODEM) tab = TAB_MODEM else moveTaskToBack(true) }
                 BackHandler(enabled = full) { fullscreen = false }
 
                 PromptHost()

@@ -39,6 +39,8 @@ class DModemApp : Application() {
         Terminal.init(this)
         // fax calls: their settings and files, and calls that ring answered as faxes when they say so
         com.neodesktop.dmodem.fax.Fax.init(this)
+        // dial-in: callers given the internet when the settings say so (after the fax's watch: its calls first)
+        com.neodesktop.dmodem.ppp.DialIn.init(this)
 
         // what the modem sends its DTE, as text, for the status screen's console
         ModemState.dte.addListener { data, length ->
