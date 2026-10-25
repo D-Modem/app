@@ -144,7 +144,15 @@ class PeerLoopbackTest {
 
             // C calls B, in a call: busy
             c.offHook(caller = true, dial = "B")
-            waitFor("C's BUSY") { "FAILED 486" in c.events() }
+            // (what C got, if it isn't busy: it has failed now and then under load)
+            try {
+                waitFor("C's BUSY") { "FAILED 486" in c.events() }
+            } catch (e: AssertionError) {
+                throw AssertionError(
+                    "no BUSY for C: its events ${c.events()}, its line ${c.line.state.value} (${c.line.lastError.value}); " +
+                        "A's ${a.events()}, B's ${b.events()}",
+                )
+            }
 
             // A hangs up (its modem's line closed): B's line ends
             a.line.stop()
