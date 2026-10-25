@@ -129,7 +129,7 @@ fun DashboardScreen(
             onStop = { ModemService.stop(context) },
             onHangUp = { scope.launch { Terminal.session.hangUp(status.link == NativeModem.Link.ONLINE) } },
             onTerminal = onOpenTerminal,
-            onSetUp = onOpenSettings,
+            onSetUp = { SettingsNav.open(SettingsPage.LINE); onOpenSettings() },
             onStartNoLine = {
                 scope.launch {
                     SettingsStore(context).save(settings.copy(line = ModemSettings.LINE_NONE))
@@ -140,7 +140,7 @@ fun DashboardScreen(
 
         if (appearance != null && !lightsOnTop) ModemLights()
 
-        LineCard(settings, run, network, onOpenSettings)
+        LineCard(settings, run, network) { SettingsNav.open(SettingsPage.LINE); onOpenSettings() }
 
         SectionTitle("Quick dial", action = "Directory", onAction = onOpenDirectory)
         val recent = entries.sortedWith(compareByDescending<DialEntry> { it.lastDialed }.thenBy { it.name }).take(4)
@@ -167,7 +167,7 @@ fun DashboardScreen(
         }
 
         SectionTitle("Internet")
-        InternetCard(onSetUp = onOpenSettings)
+        InternetCard(onSetUp = { SettingsNav.open(SettingsPage.INTERNET); onOpenSettings() })
 
         SectionTitle("Fax")
         FaxSection()

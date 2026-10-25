@@ -52,6 +52,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // (a fresh start: Settings at its menu)
+        if (savedInstanceState == null) SettingsNav.open(null)
         enableEdgeToEdge()
         // notifications, and the LAN (a SIP server, an SSH host, a bridge's client there: Android 17 asks)
         val wanted = buildList {
@@ -127,7 +129,11 @@ class MainActivity : ComponentActivity() {
                                 Item(tab == TAB_MODEM, "Home", { Icon(Icons.Filled.Home, null) }) { tab = TAB_MODEM }
                                 Item(tab == TAB_TERMINAL, "Terminal", { Text(">_") }) { tab = TAB_TERMINAL }
                                 Item(tab == TAB_DIRECTORY, "Dial", { Icon(Icons.Filled.Call, null) }) { tab = TAB_DIRECTORY }
-                                Item(tab == TAB_SETTINGS, "Settings", { Icon(Icons.Filled.Settings, null) }) { tab = TAB_SETTINGS }
+                                Item(tab == TAB_SETTINGS, "Settings", { Icon(Icons.Filled.Settings, null) }) {
+                                    // (Settings again from within it: its menu)
+                                    if (tab == TAB_SETTINGS) SettingsNav.open(null)
+                                    tab = TAB_SETTINGS
+                                }
                                 Item(tab == TAB_LOG, "Log", { Icon(Icons.AutoMirrored.Filled.List, null) }) { tab = TAB_LOG }
                             }
                         }

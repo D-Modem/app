@@ -88,7 +88,7 @@ class AppearanceTest {
                 compose.waitForIdle()
                 shot("theme-$name-home")
                 if (name == "dark-ocean" || name == "light-violet") {
-                    tab("Settings")
+                    SettingsNav.open(SettingsPage.APPEARANCE); tab("Settings")
                     compose.onNodeWithText("Black background").performScrollTo()
                     shot("theme-$name-settings")
                 }
@@ -111,7 +111,7 @@ class AppearanceTest {
     fun chosenInSettings() {
         runBlocking { store.save(Appearance()) }
         ActivityScenario.launch(MainActivity::class.java).use {
-            tab("Settings")
+            SettingsNav.open(SettingsPage.APPEARANCE); tab("Settings")
             compose.onNodeWithText("Black background").performScrollTo()
             compose.onNodeWithText("Dark").performClick()
             compose.onNodeWithText("Teal").performClick()

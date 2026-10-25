@@ -85,6 +85,7 @@ class FaxShotsTest {
 
     @Test
     fun faxSettings() {
+        SettingsNav.open(SettingsPage.FAX)
         compose.onNodeWithText("Settings").performClick()
         compose.onNodeWithText("Fastest rate").performScrollTo()
         shot("fax-3-settings")

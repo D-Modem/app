@@ -93,6 +93,7 @@ class LinuxUiTest {
 
     @Test
     fun installedFromSettingsAndUsed() {
+        SettingsNav.open(SettingsPage.LINUX)
         compose.onNode(hasText("Settings") and isSelectable()).performClick()
         compose.onNodeWithText("Install a Linux").performScrollTo()
         shot("linux-1-settings")

@@ -48,6 +48,7 @@ class PeerShotsTest {
     @Test
     fun theSettings() {
         save(ModemSettings(line = ModemSettings.LINE_WIFI, peerAddress = "192.168.1.20", listen = true))
+        SettingsNav.open(SettingsPage.LINE)
         compose.onNodeWithText("Settings").performClick()
         compose.onNodeWithText("Find phones on this network").performScrollTo()
         shot("peer-1-settings")
@@ -57,6 +58,7 @@ class PeerShotsTest {
     @Test
     fun theLineFromItsMenu() {
         save(ModemSettings(line = ModemSettings.LINE_SIP))
+        SettingsNav.open(SettingsPage.LINE)
         compose.onNodeWithText("Settings").performClick()
         compose.onNodeWithText("A SIP account (calls over the internet)").performScrollTo().performClick()
         compose.onNodeWithText("Another phone with D-Modem, on Wi-Fi").performClick()
@@ -67,6 +69,7 @@ class PeerShotsTest {
     @Test
     fun noLine() {
         save(ModemSettings(line = ModemSettings.LINE_SIP))
+        SettingsNav.open(SettingsPage.LINE)
         compose.onNodeWithText("Settings").performClick()
         compose.onNodeWithText("A SIP account (calls over the internet)").performScrollTo().performClick()
         compose.onNodeWithText("No line (the modem on its own)").performClick()
@@ -79,6 +82,7 @@ class PeerShotsTest {
     @Test
     fun aUsbModem() {
         save(ModemSettings(line = ModemSettings.LINE_SIP))
+        SettingsNav.open(SettingsPage.LINE)
         compose.onNodeWithText("Settings").performClick()
         compose.onNodeWithText("A SIP account (calls over the internet)").performScrollTo().performClick()
         compose.onNodeWithText("A phone line, through a USB modem").performClick()
@@ -104,6 +108,7 @@ class PeerShotsTest {
     @Test
     fun theMobileCallLine() {
         save(ModemSettings(line = ModemSettings.LINE_CELL, listen = true))
+        SettingsNav.open(SettingsPage.LINE)
         compose.onNodeWithText("Settings").performClick()
         compose.onNodeWithText("Calls ringing here go to the modem").performScrollTo()
         shot("peer-3-cell-settings")
