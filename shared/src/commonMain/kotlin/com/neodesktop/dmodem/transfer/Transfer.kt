@@ -14,6 +14,10 @@ enum class Protocol(val label: String, val batch: Boolean) {
     XMODEM("XMODEM", false),
     XMODEM_1K("XMODEM-1K", false),
     KERMIT("Kermit", true),
+    /** an image as Intel HEX records (an EPROM programmer's, a monitor's): no protocol but their checksums */
+    INTEL_HEX("Intel HEX", false),
+    /** the same as Motorola S-records */
+    SREC("Motorola S-records", false),
     ;
 
     /** what to type at the remote's shell for it to send (the files' names after it), or to receive */
@@ -23,7 +27,17 @@ enum class Protocol(val label: String, val batch: Boolean) {
         XMODEM -> if (remoteSends) "sx " else "rx -c "
         XMODEM_1K -> if (remoteSends) "sx -k " else "rx -c "
         KERMIT -> if (remoteSends) "kermit -i -s " else "kermit -i -r"
+        // (a programmer or a monitor takes them as they come: nothing to type)
+        INTEL_HEX, SREC -> ""
     }
+
+    /** the hex records' format, for the two that are */
+    val hexFormat: HexRecords.Format?
+        get() = when (this) {
+            INTEL_HEX -> HexRecords.Format.INTEL
+            SREC -> HexRecords.Format.SREC
+            else -> null
+        }
 }
 
 /** A transfer's state as it goes, and how it ended. */
@@ -73,6 +87,7 @@ class Transfer(
             Protocol.YMODEM -> XYModem(io, progress).receiveY(into)
             Protocol.XMODEM, Protocol.XMODEM_1K -> listOf(XYModem(io, progress).receiveX(into, name))
             Protocol.KERMIT -> Kermit(io, progress).also { kermit = it }.receive(into)
+            Protocol.INTEL_HEX, Protocol.SREC -> HexTransfer(io, protocol.hexFormat!!, progress).receive(into, name)
         }
     }
 
@@ -84,6 +99,7 @@ class Transfer(
             Protocol.XMODEM -> XYModem(io, progress).sendX(files.first(), oneK = false)
             Protocol.XMODEM_1K -> XYModem(io, progress).sendX(files.first(), oneK = true)
             Protocol.KERMIT -> Kermit(io, progress).also { kermit = it }.send(files)
+            Protocol.INTEL_HEX, Protocol.SREC -> HexTransfer(io, protocol.hexFormat!!, progress).send(files.first())
         }
         emptyList()
     }
@@ -115,6 +131,8 @@ class Transfer(
             sendRaw(
                 when (protocol) {
                     Protocol.KERMIT -> kermit?.cancelBytes() ?: ByteArray(0)
+                    // (no protocol to tell: the records just stop)
+                    Protocol.INTEL_HEX, Protocol.SREC -> ByteArray(0)
                     else -> ZModem.CANCEL
                 },
             )

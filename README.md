@@ -152,6 +152,12 @@ this line.
   Home/End/PgUp/PgDn, F1-F12), volume keys as font size or Ctrl/Alt,
   bell as vibration or flash, full screen, snippets, session capture to a
   file (shared to other apps), hang up (+++ with its guard times, ATH).
+  Files sent and received by ZMODEM, YMODEM, XMODEM(-1K) and Kermit, and
+  as Intel HEX or Motorola S-records for EPROM programmers, monitors and
+  boot loaders: a file sent as records (a file of them already, as it is:
+  S1/S2/S3 by the image's size, Intel's extended addresses past 64 KB),
+  records received with their checksums checked into the binary image
+  they hold (gaps 0xFF).
 - **Dial**: the dialing directory: each system's number (or SIP user), the
   AT commands it needs before ATD, its character set and backspace; one
   tap starts the modem if it is off and dials.
@@ -269,7 +275,7 @@ Android's JNI), with D-Modem-RE, libre and Mbed TLS as one XCFramework:
 
 The Kotlin the two apps share is `shared/` (Kotlin Multiplatform: the
 JVM for Android, iOS's framework `DModemShared`; Linux native for its
-tests): the terminal's emulator, the file transfers (X/Y/ZMODEM, Kermit),
+tests): the terminal's emulator, the file transfers (X/Y/ZMODEM, Kermit, Intel HEX and S-records),
 PPP (its client and server, the chat scripts), fax (T.4, T.30, class 1,
 the PDF) and the line to another phone (PeerLine), on a small common I/O
 layer (`shared/.../io`). What stays each app's own: the UI, the modem
@@ -285,7 +291,8 @@ offered and found with Bonjour (`_dmodem._tcp`, as Android's NSD). It has:
   hang up, stop, an AT command line, the log
 - the terminal (the shared emulator drawn in SwiftUI, CP437 and the VGA
   colours, Esc/Ctrl/Tab/arrows) and its file transfers (ZMODEM, YMODEM,
-  XMODEM, Kermit; a remote's `sz` or `kermit -s` starts one by itself)
+  XMODEM, Kermit, Intel HEX, S-records; a remote's `sz` or `kermit -s`
+  starts one by itself)
 - Fax: PDFs, images and text sent; a ringing call answered as a fax, by
   hand or each one; the received faxes as PDFs
 - Internet: dial-up to an ISP (its login script if it has one, PPP), the

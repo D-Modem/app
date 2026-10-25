@@ -80,6 +80,16 @@ fun TransferDialog(
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 4.dp),
                 )
+                if (protocol.hexFormat != null) {
+                    Text(
+                        if (sending) "The file goes as ${protocol.label}, a line each (a file of them already goes as it is), " +
+                            "for an EPROM programmer, a monitor or a boot loader."
+                        else "The records that come (their checksums checked) are saved as the binary image they hold, " +
+                            "gaps as 0xFF: from the end record, or once they pause for 10 s.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
         },
         confirmButton = {
