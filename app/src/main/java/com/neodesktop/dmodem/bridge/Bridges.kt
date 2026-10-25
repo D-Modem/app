@@ -30,6 +30,9 @@ object Bridges {
 
     val serial = SerialBridge(ModemState.dte, signals.asStateFlow(), ::hangUp)
 
+    /** the modem as /dev/ttyDM0 in the local Linux: a client of the serial bridge too */
+    val tty = ModemTty(serial) { ModemState.log.add("bridge: $it") }
+
     private val _tcp = MutableStateFlow<TcpBridge.State>(TcpBridge.State.Stopped)
     val tcpState: StateFlow<TcpBridge.State> = _tcp.asStateFlow()
     private val _bt = MutableStateFlow<BluetoothBridge.State>(BluetoothBridge.State.Stopped)

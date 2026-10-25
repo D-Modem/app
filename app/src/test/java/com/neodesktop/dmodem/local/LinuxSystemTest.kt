@@ -277,6 +277,36 @@ class LinuxSystemTest {
         assertTrue(File(Setup.storage, "Download/from-the-phone.txt").exists())
     }
 
+    /** the modem as /dev/ttyDM0 in the distro: a program there sends it AT commands and reads its answers */
+    @Test
+    fun theModemAsDevTtyDM0() {
+        val got = StringBuffer()
+        val modem = object : TerminalLink {
+            override val state = kotlinx.coroutines.flow.MutableStateFlow<TerminalLink.State>(TerminalLink.State.Open)
+            val listeners = java.util.concurrent.CopyOnWriteArrayList<TerminalLink.Listener>()
+            override fun addListener(l: TerminalLink.Listener) { listeners.add(l) }
+            override fun removeListener(l: TerminalLink.Listener) { listeners.remove(l) }
+            override fun write(data: ByteArray, offset: Int, length: Int): Boolean {
+                val t = String(data, offset, length, Charsets.ISO_8859_1)
+                got.append(t)
+                if (t.endsWith("\r")) "\r\nD-Modem answers\r\nOK\r\n".toByteArray().let { b -> listeners.forEach { it.onData(b, b.size) } }
+                return true
+            }
+        }
+        val serial = com.neodesktop.dmodem.bridge.SerialBridge(
+            modem, kotlinx.coroutines.flow.MutableStateFlow(com.neodesktop.dmodem.bridge.LineSignals(ready = true)), {},
+        )
+        val tty = com.neodesktop.dmodem.bridge.ModemTty(serial)
+        val sys = newSystem("alpine").also { it.modemTty = { tty.slave() } }
+        assertTrue(sys.command().any { it.endsWith(":/dev/ttyDM0") })
+        val (l, s) = shell(sys)
+        waitFor("the prompt", s) { it.contains("root@alpine") && it.contains("~#") }
+        l.write("test -c /dev/ttyDM0 && echo is-a-tty-device; (cat /dev/ttyDM0 & sleep 1; printf 'ATI\\r' > /dev/ttyDM0; sleep 2; kill %1)\r".toByteArray())
+        waitFor("the device", s) { it.contains("is-a-tty-device") }
+        waitFor("the modem's answer in the distro", s) { it.contains("D-Modem answers") }
+        assertTrue(got.toString(), got.contains("ATI\r"))
+    }
+
     companion object {
         /** Lua installed, its command in $LUA, quietly: each package manager's way */
         val INSTALL_LUA = mapOf(

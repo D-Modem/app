@@ -158,6 +158,15 @@ this line.
 - **Log**: the modem's and SIP's log (Copy for all of it).
 - **Back**: from any other tab back to Home; on Home the app goes to the
   background (the modem keeps running), as the Home button would.
+- **Local Linux** (Settings, Linux): distributions installed and run
+  under proot, as root in /root, the phone's storage at /sdcard, and the
+  modem as a serial port at `/dev/ttyDM0` (a pty of the app's, bound in):
+  `minicom -D /dev/ttyDM0`, pppd, efax and the like work as on a real
+  modem. The program that opens it has the modem as a serial bridge's
+  client has it (one at a time, with the TCP, Bluetooth and USB bridges);
+  closing it drops DTR, so the call hangs up as a serial cable's end
+  would. `ModemTtyTest`, and `LinuxSystemTest` in a real Alpine under
+  proot: ATI from the distro, the modem's answer back.
 - **Dial-in** (Settings, Dial-up internet): the phone as an ISP for whoever
   calls the modem, on SIP or any other line. A call that rings is answered
   (unless the fax settings answer calls already); once it connects, the

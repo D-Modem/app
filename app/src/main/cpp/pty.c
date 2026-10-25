@@ -19,6 +19,7 @@
 #include <termios.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <poll.h>
 
 static void throw_io(JNIEnv *env, const char *what)
 {
@@ -262,4 +263,65 @@ Java_com_neodesktop_dmodem_local_Pty_close(JNIEnv *env, jclass cls, jint fd)
 {
 	(void)env; (void)cls;
 	close(fd);
+}
+
+/*
+ * openPort(): a pty with no program on it (the modem's /dev/ttyDM0 for
+ * the local Linux): its master's fd. Its slave is opened once, put in
+ * raw mode (the programs that open it set their own), and closed again,
+ * so the master's poll() says POLLHUP until a program has it open.
+ */
+JNIEXPORT jint JNICALL
+Java_com_neodesktop_dmodem_local_Pty_openPort(JNIEnv *env, jclass cls)
+{
+	(void)cls;
+	int m = posix_openpt(O_RDWR | O_NOCTTY);
+	if (m < 0) {
+		throw_io(env, "posix_openpt");
+		return -1;
+	}
+	fcntl(m, F_SETFD, FD_CLOEXEC);
+	char name[128];
+	if (grantpt(m) < 0 || unlockpt(m) < 0 || ptsname_r(m, name, sizeof name) != 0) {
+		throw_io(env, "the pty's slave");
+		close(m);
+		return -1;
+	}
+	int s = open(name, O_RDWR | O_NOCTTY | O_CLOEXEC);
+	if (s < 0) {
+		throw_io(env, name);
+		close(m);
+		return -1;
+	}
+	struct termios t;
+	if (tcgetattr(s, &t) == 0) {
+		cfmakeraw(&t);
+		tcsetattr(s, TCSANOW, &t);
+	}
+	close(s);
+	return m;
+}
+
+/* the slave's path of master fd (/dev/pts/N), or null */
+JNIEXPORT jstring JNICALL
+Java_com_neodesktop_dmodem_local_Pty_ptsName(JNIEnv *env, jclass cls, jint fd)
+{
+	(void)cls;
+	char name[128];
+	if (ptsname_r(fd, name, sizeof name) != 0)
+		return NULL;
+	return (*env)->NewStringUTF(env, name);
+}
+
+/* poll() on fd for reading, ms at most: its revents (POLLIN 1, POLLHUP 0x10), 0 if nothing came */
+JNIEXPORT jint JNICALL
+Java_com_neodesktop_dmodem_local_Pty_poll(JNIEnv *env, jclass cls, jint fd, jint ms)
+{
+	(void)env; (void)cls;
+	struct pollfd p = { .fd = fd, .events = POLLIN, .revents = 0 };
+	int n;
+	do
+		n = poll(&p, 1, ms);
+	while (n < 0 && errno == EINTR);
+	return n > 0 ? p.revents : 0;
 }

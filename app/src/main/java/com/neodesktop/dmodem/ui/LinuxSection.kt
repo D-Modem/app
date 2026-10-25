@@ -124,7 +124,11 @@ fun LinuxSection(onOpened: () -> Unit = {}) {
             }
         }
         if (systems.isNotEmpty()) {
-            Text("In each: /root is home, /sdcard the phone's storage.", style = MaterialTheme.typography.bodySmall)
+            Text(
+                "In each: /root is home, /sdcard the phone's storage, and /dev/ttyDM0 the modem as a serial port " +
+                    "(minicom -D /dev/ttyDM0, pppd, efax: the program that opens it has the modem until it closes it).",
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
 

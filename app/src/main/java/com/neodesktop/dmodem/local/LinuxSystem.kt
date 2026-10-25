@@ -239,6 +239,9 @@ class LinuxSystem(
         return out
     }
 
+    /** the modem's pty here (its slave's path), bound in as /dev/ttyDM0; null without one */
+    var modemTty: () -> String? = { runCatching { com.neodesktop.dmodem.bridge.Bridges.tty.slave() }.getOrNull() }
+
     /** proot's command: the system's login shell, as root, in /root */
     fun command(): List<String> {
         val shell = loginShell()
@@ -255,6 +258,8 @@ class LinuxSystem(
         )
         for ((f, at) in fakeProc()) c.addAll(listOf("-b", "${f.path}:$at"))
         storage()?.let { c.addAll(listOf("-b", "${it.path}:/sdcard")) }
+        // the modem as a serial port (/dev/ttyDM0: minicom, pppd, efax ...)
+        modemTty()?.let { c.addAll(listOf("-b", "$it:${com.neodesktop.dmodem.bridge.ModemTty.PATH}")) }
         c.addAll(listOf("-w", "/root", "/usr/bin/env", "-i"))
         val env = linkedMapOf(
             "HOME" to "/root",

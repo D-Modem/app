@@ -36,6 +36,18 @@ object Pty {
 
     @JvmStatic external fun close(fd: Int)
 
+    /** a pty with no program on it, its slave raw (the modem's /dev/ttyDM0): the master's fd */
+    @JvmStatic external fun openPort(): Int
+
+    /** the slave's path of master [fd] (/dev/pts/N) */
+    @JvmStatic external fun ptsName(fd: Int): String?
+
+    /** poll() for reading, [ms] at most: [POLLIN] and [POLLHUP] (the slave closed by all), 0 for nothing */
+    @JvmStatic external fun poll(fd: Int, ms: Int): Int
+
+    const val POLLIN = 0x1
+    const val POLLHUP = 0x10
+
     const val SIGHUP = 1
     const val SIGKILL = 9
 }
