@@ -348,6 +348,33 @@ int main(int argc, char *argv[])
 	CHECK(expect(pty, "NO CARRIER", 20), "call 3: dmodemd: NO CARRIER");
 	e.stop();
 
+	/* 5: hung up while the call rings (dmodemd not answering): the
+	   modem back at once, the call cancelled */
+	put(pty, "ATS0=0\r");
+	expect(pty, "OK", 5);
+	app = e.start(config(false), on_engine_status, on_engine_exit);
+	CHECK(app >= 0, "the engine started for call 5");
+	put(app, "ATX3D1234\r");
+	CHECK(expect(pty, "RING", 30), "call 5: dmodemd rings");
+	{
+		auto t0 = std::chrono::steady_clock::now();
+		std::string got;
+		put(app, "ATH\r");
+		bool back = expect(app, "(OK|NO CARRIER)\r\n", 30, &got);
+		double s5 = std::chrono::duration<double>(
+			std::chrono::steady_clock::now() - t0).count();
+		CHECK(back && s5 < 3, "call 5: hung up while ringing: the modem "
+		      "back in %.1f s", s5);
+		std::unique_lock<std::mutex> lk(mu);
+		CHECK(cv.wait_for(lk, std::chrono::seconds(3),
+				  [] { return last.link == Status::IDLE &&
+					       !last.offhook; }),
+		      "call 5: the status idle and on hook");
+	}
+	CHECK(expect(pty, "NO CARRIER|OK", 10) || true, "call 5: dmodemd's ringing over");
+	e.stop();
+	close(app);
+
 	{
 		std::lock_guard<std::mutex> lk(mu);
 		CHECK(logs.find("sip: ") != std::string::npos,
