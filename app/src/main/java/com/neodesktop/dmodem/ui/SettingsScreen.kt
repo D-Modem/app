@@ -55,6 +55,21 @@ enum class SettingsPage(val title: String) {
     TERMINAL("Terminal"),
     SSH("SSH keys"),
     LINUX("Linux"),
+    ;
+
+    /** its icon in the menu */
+    val icon: androidx.compose.ui.graphics.vector.ImageVector
+        get() = when (this) {
+            LINE -> SettingsIcons.Line
+            MODEM -> SettingsIcons.Modem
+            BRIDGES -> SettingsIcons.Bridges
+            FAX -> SettingsIcons.Fax
+            INTERNET -> SettingsIcons.Internet
+            APPEARANCE -> SettingsIcons.Appearance
+            TERMINAL -> SettingsIcons.Terminal
+            SSH -> SettingsIcons.Keys
+            LINUX -> SettingsIcons.Linux
+        }
 }
 
 /** which settings page is open (null: the menu); Home's buttons open theirs */
@@ -227,11 +242,16 @@ private fun SettingsMenu(modifier: Modifier, s: ModemSettings, unsaved: Boolean)
     )
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 8.dp)) {
         for ((page, summary) in rows) {
-            Column(
+            Row(
                 Modifier.fillMaxWidth().clickable { SettingsNav.open(page) }.padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Text(page.title, style = MaterialTheme.typography.titleMedium)
-                Text(summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                androidx.compose.material3.Icon(page.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Column(Modifier.weight(1f)) {
+                    Text(page.title, style = MaterialTheme.typography.titleMedium)
+                    Text(summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
     }
