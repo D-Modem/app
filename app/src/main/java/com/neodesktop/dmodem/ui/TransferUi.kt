@@ -80,6 +80,15 @@ fun TransferDialog(
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 4.dp),
                 )
+                if (protocol == Protocol.TEXT) {
+                    Text(
+                        if (sending) "The file's bytes go as they are, nothing changed or added, as if typed: " +
+                            "to an editor, a BBS's message editor, cat > a file (end that with Ctrl-D)."
+                        else "What comes is saved as it is, until the line has been quiet for 10 s (or Cancel: what came is kept).",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
                 if (protocol.hexFormat != null) {
                     Text(
                         if (sending) "The file goes as ${protocol.label}, a line each (a file of them already goes as it is), " +

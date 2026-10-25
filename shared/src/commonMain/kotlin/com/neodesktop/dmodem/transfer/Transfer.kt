@@ -18,6 +18,8 @@ enum class Protocol(val label: String, val batch: Boolean) {
     INTEL_HEX("Intel HEX", false),
     /** the same as Motorola S-records */
     SREC("Motorola S-records", false),
+    /** a file's bytes as they are, as if typed (received: what comes, until it goes quiet) */
+    TEXT("Plain text", false),
     ;
 
     /** what to type at the remote's shell for it to send (the files' names after it), or to receive */
@@ -29,6 +31,8 @@ enum class Protocol(val label: String, val batch: Boolean) {
         KERMIT -> if (remoteSends) "kermit -i -s " else "kermit -i -r"
         // (a programmer or a monitor takes them as they come: nothing to type)
         INTEL_HEX, SREC -> ""
+        // (sent: to whatever takes text, an editor, a BBS, cat > a file: nothing assumed)
+        TEXT -> if (remoteSends) "cat " else ""
     }
 
     /** the hex records' format, for the two that are */
@@ -88,6 +92,7 @@ class Transfer(
             Protocol.XMODEM, Protocol.XMODEM_1K -> listOf(XYModem(io, progress).receiveX(into, name))
             Protocol.KERMIT -> Kermit(io, progress).also { kermit = it }.receive(into)
             Protocol.INTEL_HEX, Protocol.SREC -> HexTransfer(io, protocol.hexFormat!!, progress).receive(into, name)
+            Protocol.TEXT -> TextTransfer(io, progress).receive(into, name)
         }
     }
 
@@ -100,6 +105,7 @@ class Transfer(
             Protocol.XMODEM_1K -> XYModem(io, progress).sendX(files.first(), oneK = true)
             Protocol.KERMIT -> Kermit(io, progress).also { kermit = it }.send(files)
             Protocol.INTEL_HEX, Protocol.SREC -> HexTransfer(io, protocol.hexFormat!!, progress).send(files.first())
+            Protocol.TEXT -> TextTransfer(io, progress).send(files.first())
         }
         emptyList()
     }
@@ -132,7 +138,7 @@ class Transfer(
                 when (protocol) {
                     Protocol.KERMIT -> kermit?.cancelBytes() ?: ByteArray(0)
                     // (no protocol to tell: the records just stop)
-                    Protocol.INTEL_HEX, Protocol.SREC -> ByteArray(0)
+                    Protocol.INTEL_HEX, Protocol.SREC, Protocol.TEXT -> ByteArray(0)
                     else -> ZModem.CANCEL
                 },
             )
