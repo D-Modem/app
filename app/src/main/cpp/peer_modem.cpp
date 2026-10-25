@@ -78,20 +78,20 @@ public:
 	PeerLine(dmd::Dte &dte, int lead_ms) : dte_(dte), lead_ms_(lead_ms) {}
 	~PeerLine() { hang_up(); }
 
-	int start(dcore::Modem &m) override;
-	int stop(dcore::Modem &) override {
+	s16 start(dcore::Modem &m) override;
+	s16 stop(dcore::Modem &) override {
 		DBG("on hook\n");
 		hang_up();
 		return 0;
 	}
 	const char *driver_name() override { return "peer"; }
 	bool signals_answer(dcore::Modem &) override { return true; }
-	int dte_write(dcore::Modem &, const char *buf, int n) override {
+	s32 dte_write(dcore::Modem &, const char *buf, s32 n) override {
 		return dte_.write(buf, n);
 	}
-	unsigned long now_ms() override { return dcore::monotonic_ms(); }
+	u64 now_ms() override { return dcore::monotonic_ms(); }
 	/* ATM, ATL */
-	void speaker(dcore::Modem &, int volume) override {
+	void speaker(dcore::Modem &, s16 volume) override {
 		speaker_level_ = volume;
 		if (speaker_to.volume)
 			speaker_to.volume(volume);
@@ -130,7 +130,7 @@ private:
 
 /* off hook: the socket pair, ours with the lead silence in it, the
    other end to the app */
-int PeerLine::start(dcore::Modem &m)
+s16 PeerLine::start(dcore::Modem &m)
 {
 	int sv[2];
 	int lead = RATE / 1000 * (lead_ms_ > 0 ? lead_ms_ : 0);

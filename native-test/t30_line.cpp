@@ -57,12 +57,12 @@ void write_pbm(const std::string &path, const T4Page *p)
 	if (!f)
 		return;
 	fprintf(f, "P4\n%d %d\n", p->width, p->rows);
-	fwrite(p->bits, T4_STRIDE(p->width), p->rows, f);
+	fwrite(p->bits.data(), T4_STRIDE(p->width), p->rows, f);
 	fclose(f);
 }
 
 /* the machine's pages: bars, a frame, and noise (big in MH: blocks) */
-int next_page(void *, T4Page *p)
+s16 next_page(void *, T4Page *p)
 {
 	if (pages_sent == 2)
 		return 0;

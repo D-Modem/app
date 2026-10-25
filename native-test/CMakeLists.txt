@@ -11,6 +11,8 @@ project(dmodem_android_test LANGUAGES C CXX)
 
 enable_testing()
 add_subdirectory(../app/src/main/cpp app)
+# (D-Modem-RE's u8 .. s64, its include/dm_types.h)
+include_directories(${DMODEM_RE_INCLUDE})
 
 add_executable(engine_test engine_test.cpp)
 target_link_libraries(engine_test PRIVATE dmodem_engine)

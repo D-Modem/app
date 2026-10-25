@@ -25,6 +25,10 @@ set(DMODEM_ASTERISK OFF CACHE BOOL "" FORCE)
 set(DMODEM_FREESWITCH OFF CACHE BOOL "" FORCE)
 set(DMODEM_ARI OFF CACHE BOOL "" FORCE)
 add_subdirectory(${DMODEM_RE_DIR} d-modem-re)
+# (its u8 .. s64, include/dm_types.h: its headers take them, its own
+# directories have the path, ours here and the host's tests' need it too)
+set(DMODEM_RE_INCLUDE ${DMODEM_RE_DIR}/include CACHE INTERNAL "")
+include_directories(${DMODEM_RE_INCLUDE})
 
 # the engine on its own (the host's tests build it too)
 add_library(dmodem_engine STATIC engine.cpp peer_modem.cpp dmodem_engine.cpp)
