@@ -187,6 +187,7 @@ class ModemService : Service() {
             return
         }
         ModemState.setError(null)
+        log(com.neodesktop.dmodem.BuildInfo.described)
         // (not a failure: the SIP server may be on the internet, which needs no leave)
         if (settings.sip && !localNetworkAllowed()) log(NO_LOCAL_NETWORK)
         // a USB modem: Android's leave to use it (asked now if need be), the device opened while the modem runs

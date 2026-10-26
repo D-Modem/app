@@ -4,6 +4,22 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+/** git's output in [dir] for [args], or null (no git, not a checkout) */
+fun git(dir: File, vararg args: String): String? = runCatching {
+    providers.exec {
+        workingDir = dir
+        commandLine("git", *args)
+        isIgnoreExitValue = true
+    }.let { r -> if (r.result.get().exitValue == 0) r.standardOutput.asText.get().trim() else null }
+}.getOrNull()
+
+/** a checkout's short commit, "-dirty" if its tracked files differ from it: "03a196a-dirty"; "unknown" if none */
+fun commitOf(dir: File): String {
+    val c = git(dir, "rev-parse", "--short=7", "HEAD") ?: return "unknown"
+    val dirty = git(dir, "status", "--porcelain", "--untracked-files=no")?.isNotEmpty() ?: false
+    return if (dirty) "$c-dirty" else c
+}
+
 android {
     namespace = "com.neodesktop.dmodem"
     compileSdk = 37
@@ -15,6 +31,12 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"
+
+        // the build, in the log when the modem starts (BuildInfo): the commits, and -Pdmodem.special=<name>
+        // for a build that isn't a plain one (a test of one change, say)
+        buildConfigField("String", "COMMIT", "\"${commitOf(rootProject.projectDir)}\"")
+        buildConfigField("String", "RE_COMMIT", "\"${commitOf(rootProject.file("external/d-modem-re"))}\"")
+        buildConfigField("String", "SPECIAL", "\"${providers.gradleProperty("dmodem.special").orNull?.replace("\"", "") ?: ""}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -74,6 +96,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {
