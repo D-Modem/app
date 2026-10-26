@@ -12,7 +12,6 @@ import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.os.Build
 import com.hoho.android.usbserial.driver.UsbSerialPort
-import com.hoho.android.usbserial.driver.UsbSerialProber
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -223,13 +222,13 @@ class UsbBridge(
 
     /** the adapters there are: (a name, the device) */
     fun adapters(): List<Pair<String, UsbDevice>> =
-        usb?.let { m -> UsbSerialProber.getDefaultProber().findAllDrivers(m).map { label(it.device) to it.device } }.orEmpty()
+        usb?.let { m -> UsbSerialAdapters.prober.findAllDrivers(m).map { label(it.device) to it.device } }.orEmpty()
 
     @Synchronized
     private fun find() {
         if (!running || link != null) return
         val m = usb ?: return
-        val driver = UsbSerialProber.getDefaultProber().findAllDrivers(m).firstOrNull()
+        val driver = UsbSerialAdapters.prober.findAllDrivers(m).firstOrNull()
         if (driver == null) {
             _state.value = State.Waiting
             return
