@@ -73,9 +73,10 @@ object UsbModems {
             if (!out.exists() || !out.readBytes().contentEquals(bytes)) out.writeBytes(bytes)
         }
         android.system.Os.setenv("DMODEM_AGERE_FIRMWARE", dir.path, true)
-        // (while the Agere is brought up: its descriptors, ROM and registers logged at start, for
-        // reading what its ROM does to stream)
-        android.system.Os.setenv("DMODEM_AGERE_DUMP", "1", true)
+        // (while the Agere is brought up: its samples' rate measured at start with the codec settings
+        // its ROM gives them at boot put back, ~6 s)
+        android.system.Os.unsetenv("DMODEM_AGERE_DUMP")
+        android.system.Os.setenv("DMODEM_AGERE_CODEC_TRY", "1", true)
         return dir
     }
 
