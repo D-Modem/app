@@ -73,10 +73,9 @@ object UsbModems {
             if (!out.exists() || !out.readBytes().contentEquals(bytes)) out.writeBytes(bytes)
         }
         android.system.Os.setenv("DMODEM_AGERE_FIRMWARE", dir.path, true)
-        // (8 bulk transfers in flight each way, not Agere's driver's 2: a packet is 6 ms, and the
-        // device starts the next only once the last has gone, so an app's round trip through libusb
-        // must not leave it waiting)
-        android.system.Os.setenv("DMODEM_AGERE_TRANSFERS", "8", true)
+        // (while the Agere is brought up: its descriptors, ROM and registers logged at start, for
+        // reading what its ROM does to stream)
+        android.system.Os.setenv("DMODEM_AGERE_DUMP", "1", true)
         return dir
     }
 
