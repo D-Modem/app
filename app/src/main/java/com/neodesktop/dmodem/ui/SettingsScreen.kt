@@ -157,6 +157,12 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
                         PeerLineFields(s) { s = it }
                     } else if (s.usb) {
                         UsbLineFields()
+                        Toggle("Record each call (for a bug report)", s.recordLine) { s = s.copy(recordLine = it) }
+                        Text(
+                            "Each call's sound, off hook to on hook, as a stereo WAV file (the line's, the modem's); " +
+                                "the log screen shares the latest. The last ${com.neodesktop.dmodem.modem.LineRecordings.KEEP} are kept.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     } else if (s.btModem) {
                         BluetoothModemFields(s) { s = it }
                     } else {

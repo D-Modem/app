@@ -269,6 +269,16 @@ class ModemService : Service() {
                 else -> 100
             },
         )
+        // each call on a USB modem's line recorded if the settings say so (D-Modem-RE's DMODEM_USB_REC)
+        val rec = if (settings.usb && settings.recordLine) LineRecordings.path(this) else null
+        runCatching {
+            if (rec != null) {
+                LineRecordings.prune(this, LineRecordings.KEEP - 1)
+                android.system.Os.setenv("DMODEM_USB_REC", rec, true)
+            } else {
+                android.system.Os.unsetenv("DMODEM_USB_REC")
+            }
+        }
         val pfd = NativeModem.start(config)
         if (pfd == null) {
             ModemState.setError("the modem didn't start (is it running already?)")

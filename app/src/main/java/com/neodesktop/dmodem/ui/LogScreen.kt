@@ -69,6 +69,13 @@ fun LogScreen(modifier: Modifier = Modifier) {
                 toSave = lines
                 save.launch(logFileName())
             }, enabled = lines.isNotEmpty()) { Text("Save") }
+            // (a call on a USB modem's line, recorded: the settings' "Record each call")
+            val recording = androidx.compose.runtime.remember(lines.size) {
+                com.neodesktop.dmodem.modem.LineRecordings.all(context).firstOrNull()
+            }
+            if (recording != null) {
+                OutlinedButton(onClick = { shareCapture(context, recording) }) { Text("Recording") }
+            }
         }
         SelectionContainer(Modifier.fillMaxWidth().weight(1f)) {
             LazyColumn(state = state, modifier = Modifier.fillMaxSize()) {

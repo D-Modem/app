@@ -63,6 +63,8 @@ data class ModemSettings(
     /** the Bluetooth modem's (LINE_BT_MODEM): the paired device's address, its name to show */
     val btModemAddress: String = "",
     val btModemName: String = "",
+    /** each call on a USB modem's line recorded (LineRecordings), for a bug report */
+    val recordLine: Boolean = false,
 ) {
     /** the line is another phone (or this phone's mobile calls, or none), not SIP: the app carries its samples */
     val peer: Boolean get() = line != LINE_SIP && line != LINE_USB && line != LINE_BT_MODEM
@@ -150,6 +152,7 @@ class SettingsStore(private val context: Context) {
         val cellSpeed = stringPreferencesKey("cell_speed")
         val btModemAddress = stringPreferencesKey("bt_modem_address")
         val btModemName = stringPreferencesKey("bt_modem_name")
+        val recordLine = booleanPreferencesKey("record_line")
     }
 
     val settings: Flow<ModemSettings> = context.dataStore.data.map { p ->
@@ -177,6 +180,7 @@ class SettingsStore(private val context: Context) {
             cellSpeed = p[Keys.cellSpeed] ?: d.cellSpeed,
             btModemAddress = p[Keys.btModemAddress] ?: d.btModemAddress,
             btModemName = p[Keys.btModemName] ?: d.btModemName,
+            recordLine = p[Keys.recordLine] ?: d.recordLine,
         )
     }
 
@@ -206,6 +210,7 @@ class SettingsStore(private val context: Context) {
             p[Keys.cellSpeed] = s.cellSpeed
             p[Keys.btModemAddress] = s.btModemAddress
             p[Keys.btModemName] = s.btModemName
+            p[Keys.recordLine] = s.recordLine
         }
     }
 }
