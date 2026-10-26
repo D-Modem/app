@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
@@ -26,10 +27,26 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.neodesktop.dmodem.modem.ModemState
 
-/** The modem's and SIP's log, the last lines (their levels in the settings). */
+/** The modem's and SIP's log, the last lines (their levels in the settings): cleared, copied, or saved to a file. */
 @Composable
 fun LogScreen(modifier: Modifier = Modifier) {
     val lines by ModemState.log.flow.collectAsStateWithLifecycle()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // (where it's saved: the user's pick, the system's file picker; the lines as they were when Save was pressed)
+    var toSave by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<List<String>>(emptyList()) }
+    val save = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/plain"),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val ok = runCatching {
+            context.contentResolver.openOutputStream(uri)?.use { it.write(logText(toSave).toByteArray()) } ?: error("can't open it")
+        }
+        android.widget.Toast.makeText(
+            context,
+            ok.fold({ "Log saved" }, { "The log wasn't saved: ${it.message}" }),
+            android.widget.Toast.LENGTH_SHORT,
+        ).show()
+    }
     val state = rememberLazyListState()
     LaunchedEffect(lines.size) {
         if (lines.isNotEmpty()) state.scrollToItem(lines.size - 1)
@@ -42,6 +59,10 @@ fun LogScreen(modifier: Modifier = Modifier) {
             OutlinedButton(onClick = { clipboard.setText(AnnotatedString(lines.joinToString("\n"))) }, enabled = lines.isNotEmpty()) {
                 Text("Copy")
             }
+            OutlinedButton(onClick = {
+                toSave = lines
+                save.launch(logFileName())
+            }, enabled = lines.isNotEmpty()) { Text("Save") }
         }
         SelectionContainer(Modifier.fillMaxWidth().weight(1f)) {
             LazyColumn(state = state, modifier = Modifier.fillMaxSize()) {
@@ -52,3 +73,11 @@ fun LogScreen(modifier: Modifier = Modifier) {
         }
     }
 }
+
+/** the log as a file's text: a line each, a newline at the end */
+internal fun logText(lines: List<String>): String = if (lines.isEmpty()) "" else lines.joinToString("\n", postfix = "\n")
+
+/** the name a saved log is offered: dmodem-<date>-<time>.log */
+internal fun logFileName(now: java.util.Date = java.util.Date()): String =
+    "dmodem-" + java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.US).format(now) + ".log"
+
