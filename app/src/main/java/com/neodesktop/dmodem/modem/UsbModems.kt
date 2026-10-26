@@ -54,6 +54,35 @@ object UsbModems {
         if (p.isEmpty()) "none" else p.joinToString(", ") { it.second.label }
     }
 
+    /** "the Agere USB 2.0 modem (USB 047e:2892) at /dev/bus/usb/001/002" */
+    private fun said(d: UsbDevice, kind: Kind): String =
+        "the ${kind.label} (USB %04x:%04x) at ${d.deviceName}".format(d.vendorId, d.productId)
+
+    /**
+     * The ones plugged in said to [log] now, and each as it's plugged in or goes (unplugged, or a reset of
+     * its own: Android says so as it goes from the bus and comes back), for as long as the app runs.
+     */
+    fun watch(context: Context, log: (String) -> Unit) {
+        for ((d, kind) in plugged(context)) log("USB: ${said(d, kind)}: plugged in")
+        val r = object : BroadcastReceiver() {
+            override fun onReceive(c: Context, i: Intent) {
+                @Suppress("DEPRECATION")
+                val d = i.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE) ?: return
+                val kind = kindOf(d) ?: return
+                log(
+                    "USB: ${said(d, kind)}: " + if (i.action == UsbManager.ACTION_USB_DEVICE_DETACHED) "gone from the bus (unplugged, or it reset)"
+                    else "plugged in",
+                )
+            }
+        }
+        val f = IntentFilter().apply {
+            addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
+            addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
+        }
+        // (the system's broadcasts)
+        ContextCompat.registerReceiver(context, r, f, ContextCompat.RECEIVER_EXPORTED)
+    }
+
     /** an opened modem, or why there's none */
     sealed interface Opened {
         class Device(val kind: Kind, val connection: UsbDeviceConnection) : Opened

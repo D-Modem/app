@@ -30,8 +30,14 @@ import com.neodesktop.dmodem.modem.ModemState
 /** The modem's and SIP's log, the last lines (their levels in the settings): cleared, copied, or saved to a file. */
 @Composable
 fun LogScreen(modifier: Modifier = Modifier) {
-    val lines by ModemState.log.flow.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
+    val entries by ModemState.log.entries.collectAsStateWithLifecycle()
+    val store = androidx.compose.runtime.remember { com.neodesktop.dmodem.settings.SettingsStore(context.applicationContext) }
+    val settings by store.settings.collectAsStateWithLifecycle(com.neodesktop.dmodem.settings.ModemSettings())
+    // (each after its time stamp, the days between)
+    val lines = androidx.compose.runtime.remember(entries, settings.logTimestamp) {
+        com.neodesktop.dmodem.modem.LogFormat.render(entries, settings.logTimestamp)
+    }
     // (where it's saved: the user's pick, the system's file picker; the lines as they were when Save was pressed)
     var toSave by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<List<String>>(emptyList()) }
     val save = androidx.activity.compose.rememberLauncherForActivityResult(

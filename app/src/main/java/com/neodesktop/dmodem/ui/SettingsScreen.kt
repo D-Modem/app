@@ -211,6 +211,19 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
                         style = MaterialTheme.typography.bodySmall,
                     )
                     NumberField("Modem log level (0-5)", s.logLevel) { s = s.copy(logLevel = it.coerceIn(0, 5)) }
+                    Field("Log time stamp", s.logTimestamp) { s = s.copy(logTimestamp = it) }
+                    Text(
+                        if (com.neodesktop.dmodem.modem.LogFormat.valid(s.logTimestamp)) {
+                            "Before each line of the log: a date pattern (HH:mm:ss.SSS the time to the millisecond, " +
+                                "yyyy-MM-dd the date), empty for none. Each day starts with a line of its own."
+                        } else {
+                            "Not a date pattern: the log keeps ${com.neodesktop.dmodem.modem.LogFormat.DEFAULT}. " +
+                                "Letters other than the pattern's go in quotes ('at')."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (com.neodesktop.dmodem.modem.LogFormat.valid(s.logTimestamp)) androidx.compose.ui.graphics.Color.Unspecified
+                        else MaterialTheme.colorScheme.error,
+                    )
                     SaveRow()
                 }
                 SettingsPage.BRIDGES -> BridgeSection()

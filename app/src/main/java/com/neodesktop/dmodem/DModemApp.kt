@@ -42,6 +42,10 @@ class DModemApp : Application() {
         // dial-in: callers given the internet when the settings say so (after the fax's watch: its calls first)
         com.neodesktop.dmodem.ppp.DialIn.init(this)
 
+        // the log's first lines: which build, when; the USB modems plugged in, and as they're plugged in and out
+        ModemState.log.add("app: ${BuildInfo.described}, started ${com.neodesktop.dmodem.modem.LogFormat.now()}")
+        com.neodesktop.dmodem.modem.UsbModems.watch(this) { ModemState.log.add("app: $it") }
+
         // what the modem sends its DTE, as text, for the status screen's console
         ModemState.dte.addListener { data, length ->
             ModemState.console.append(String(data, 0, length, Charsets.ISO_8859_1))

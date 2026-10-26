@@ -263,7 +263,6 @@ class ModemService : Service() {
             ?: com.neodesktop.dmodem.tones.CountryTones.find("")!!
         watchProgress()
         ModemState.line = settings.line
-        if (settings.usb) watchUsb()
         // (the speaker's sound: one socket for the process, read for good once started)
         NativeModem.speakerSound()?.let { s ->
             speakerSocket = s
@@ -320,33 +319,6 @@ class ModemService : Service() {
         }
     }
 
-    /** a USB modem as the line: Android's word when it goes from the bus, or comes back (a reset shows as both) */
-    private var usbWatch: android.content.BroadcastReceiver? = null
-
-    private fun watchUsb() {
-        if (usbWatch != null) return
-        val r = object : android.content.BroadcastReceiver() {
-            override fun onReceive(c: Context, i: Intent) {
-                @Suppress("DEPRECATION")
-                val d = i.getParcelableExtra<android.hardware.usb.UsbDevice>(android.hardware.usb.UsbManager.EXTRA_DEVICE) ?: return
-                val kind = UsbModems.kindOf(d) ?: return
-                val gone = i.action == android.hardware.usb.UsbManager.ACTION_USB_DEVICE_DETACHED
-                log("USB: the ${kind.label} " + if (gone) "has gone from the bus (unplugged, or it reset)" else "is on the bus again")
-            }
-        }
-        val f = android.content.IntentFilter().apply {
-            addAction(android.hardware.usb.UsbManager.ACTION_USB_DEVICE_DETACHED)
-            addAction(android.hardware.usb.UsbManager.ACTION_USB_DEVICE_ATTACHED)
-        }
-        androidx.core.content.ContextCompat.registerReceiver(this, r, f, androidx.core.content.ContextCompat.RECEIVER_EXPORTED)
-        usbWatch = r
-    }
-
-    private fun unwatchUsb() {
-        usbWatch?.let { runCatching { unregisterReceiver(it) } }
-        usbWatch = null
-    }
-
     /** the native modem stopped: the call hung up, SIP gone, the DTE's socket closed */
     private fun stopNative() {
         stopping = true
@@ -359,7 +331,6 @@ class ModemService : Service() {
         ModemState.speaker.setLevel(0)
         com.neodesktop.dmodem.peer.Peers.stop()
         NativeModem.stop()
-        unwatchUsb()
         // (the device let go once the modem has)
         usbModem?.connection?.close()
         usbModem = null

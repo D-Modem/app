@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.neodesktop.dmodem.modem.LogFormat
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -33,6 +34,8 @@ data class ModemSettings(
     /** the modem's log level (0 errors .. 5), SIP's (0 none .. 4 the SIP messages) */
     val logLevel: Int = 0,
     val sipLogLevel: Int = 1,
+    /** the log's time stamp before each line, a date pattern (SimpleDateFormat's; empty: none) */
+    val logTimestamp: String = LogFormat.DEFAULT,
     /** the modem's line: a SIP account, or another phone with the app over Wi-Fi or Bluetooth */
     val line: String = LINE_SIP,
     /** the other phone to call: host[:port] on Wi-Fi, a paired phone's address on Bluetooth */
@@ -128,6 +131,7 @@ class SettingsStore(private val context: Context) {
         val initCommands = stringPreferencesKey("init_commands")
         val logLevel = intPreferencesKey("log_level")
         val sipLogLevel = intPreferencesKey("sip_log_level")
+        val logTimestamp = stringPreferencesKey("log_timestamp")
         val line = stringPreferencesKey("line")
         val peerAddress = stringPreferencesKey("peer_address")
         val peerName = stringPreferencesKey("peer_name")
@@ -152,6 +156,7 @@ class SettingsStore(private val context: Context) {
             initCommands = p[Keys.initCommands] ?: d.initCommands,
             logLevel = p[Keys.logLevel] ?: d.logLevel,
             sipLogLevel = p[Keys.sipLogLevel] ?: d.sipLogLevel,
+            logTimestamp = p[Keys.logTimestamp] ?: d.logTimestamp,
             line = p[Keys.line] ?: d.line,
             peerAddress = p[Keys.peerAddress] ?: d.peerAddress,
             peerName = p[Keys.peerName] ?: d.peerName,
@@ -178,6 +183,7 @@ class SettingsStore(private val context: Context) {
             p[Keys.initCommands] = s.initCommands.trim()
             p[Keys.logLevel] = s.logLevel
             p[Keys.sipLogLevel] = s.sipLogLevel
+            p[Keys.logTimestamp] = s.logTimestamp
             p[Keys.line] = s.line
             p[Keys.peerAddress] = s.peerAddress.trim()
             p[Keys.peerName] = s.peerName

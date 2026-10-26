@@ -76,22 +76,32 @@ object ModemState {
     private const val MAX_CONSOLE = 16 * 1024
 }
 
-/** The last [max] lines, as a flow of snapshots (each line added makes a new one). */
-class LineBuffer(private val max: Int) {
-    private val lines = ArrayDeque<String>()
+/** a log line, and when it came ([System.currentTimeMillis]) */
+data class LogLine(val ms: Long, val text: String)
+
+/**
+ * The last [max] lines, as flows of snapshots (each line added makes a new one): their texts, and
+ * [entries], with when each came (as [clock] has it).
+ */
+class LineBuffer(private val max: Int, private val clock: () -> Long = System::currentTimeMillis) {
+    private val lines = ArrayDeque<LogLine>()
     private val _flow = MutableStateFlow<List<String>>(emptyList())
     val flow: StateFlow<List<String>> = _flow.asStateFlow()
+    private val _entries = MutableStateFlow<List<LogLine>>(emptyList())
+    val entries: StateFlow<List<LogLine>> = _entries.asStateFlow()
 
     @Synchronized
     fun add(line: String) {
-        lines.addLast(line)
+        lines.addLast(LogLine(clock(), line))
         while (lines.size > max) lines.removeFirst()
-        _flow.value = lines.toList()
+        _entries.value = lines.toList()
+        _flow.value = _entries.value.map { it.text }
     }
 
     @Synchronized
     fun clear() {
         lines.clear()
+        _entries.value = emptyList()
         _flow.value = emptyList()
     }
 }
