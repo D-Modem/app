@@ -5,8 +5,7 @@
 # usb_line_test.py <usb_host> <line_exchange> [agere]: the app's engine on
 # a USB modem's line (usb_modem.h), two of them (usb_host) on D-Modem-RE's
 # fake pico-serial Line sticks (or, agere, its fake Agere USB 2.0 soft
-# modems at 8000 Hz, their ROM patches the tests' own in a firmware
-# directory, DMODEM_AGERE_FIRMWARE, as the app installs Agere's) whose
+# modems at 8000 Hz, on their ROM's isochronous stream) whose
 # lines are the simulated exchange's, 1001 and 1002 (as D-Modem-RE's
 # pico_line_test.py and agere_test.py run dmodemd --usb):
 #
@@ -24,15 +23,6 @@ agere = len(sys.argv) > 3 and sys.argv[3] == "agere"
 rate = "8000" if agere else "9600"
 tmp = tempfile.mkdtemp(prefix="dmodem-usb-line-")
 device = b"Agere USB 2.0 \\(Mercury\\)" if agere else b"pico-serial Line \\(Si3056\\)"
-firmware = os.path.join(tmp, "firmware")
-if agere:
-    # the tests' patches (D-Modem-RE's agere_patch.h test_patch(), as its
-    # agere_test.py makes them), a file each, as Agere's are installed
-    os.makedirs(firmware)
-    LENS = (748, 748, 1156, 508)
-    for i, n in enumerate(LENS):
-        with open(os.path.join(firmware, "patch%d.bin" % i), "wb") as f:
-            f.write(bytes((k * 31 + i * 77 + 5 + (k >> 8)) & 0xff for k in range(n)))
 
 procs = []
 events = []
@@ -51,8 +41,7 @@ class Modem:
         self.n = n
         sock = os.path.join(tmp, n + ".sock")
         if agere:
-            env = dict(os.environ, FAKE_AGERE_SOCKET=sock, DMODEM_AGERE_FIRMWARE=firmware,
-                       DMODEM_AGERE_TEST_PATCHES="1")
+            env = dict(os.environ, FAKE_AGERE_SOCKET=sock)
         else:
             env = dict(os.environ, FAKE_PICO_LINE_SOCKET=sock)
         self.p = subprocess.Popen([host, rate], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -140,10 +129,10 @@ try:
                    r"[1-9]\d* back \([1-9]\d* octets, 0 failed, last 0\); "
                    r"OUT [1-9]\d* sent, [1-9]\d* back \(0 failed", 12))
     if agere:
-        check("1001's stream state read back: streaming",
-              a.logged(r"usb: Agere: after command 0x10: .*the stream's state 2 \(2: streaming\)", 1))
-        check("1001's first IN transfer logged: 48 samples",
-              a.logged(r"usb: IN transfer 1 back: status 0, 100 octets: 30 00", 1))
+        check("1001 on alternate setting 1",
+              a.logged(r"usb: Agere: isochronous out 02, in 82, 16 octets a packet", 1))
+        check("1001's first IN transfer logged: 24 packets",
+              a.logged(r"usb: IN transfer 1 back: status 0, 24 packets, the first \d+ octets", 1))
     a.write(b"hello from 1001\r\n")
     check("1002 gets 1001's line", b.expect(rb"hello from 1001", 10))
     b.write(b"hello from 1002\r\n")

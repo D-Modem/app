@@ -26,7 +26,7 @@ object UsbModems {
     enum class Kind(val vendor: Int, val products: List<Int>, val label: String, val rate: Int) {
         SMART_USB56(0x0483, listOf(0x7554), "SmartUSB56", 9600),
         PICO_LINE(0x1209, listOf(0x0002), "pico-serial Line", 9600),
-        /** its ROM patched with Agere's bulk patch as it starts (D-Modem-RE ships them; [installAgereFirmware]) */
+        /** on its ROM's own isochronous stream (D-Modem-RE's usb_agere.cpp); a USB 2.0 port */
         AGERE(0x047E, listOf(0x2892, 0x2828), "Agere USB 2.0 modem", 8000),
         ;
 
@@ -58,26 +58,6 @@ object UsbModems {
     sealed interface Opened {
         class Device(val kind: Kind, val connection: UsbDeviceConnection) : Opened
         class Failed(val why: String) : Opened
-    }
-
-    /**
-     * The Agere modem's ROM patches (D-Modem-RE's firmware/agere: Agere's, under Agere's licence, in the
-     * APK's assets) in the app's files, and D-Modem-RE told where (DMODEM_AGERE_FIRMWARE): their directory
-     */
-    fun installAgereFirmware(context: Context): java.io.File {
-        val dir = java.io.File(context.filesDir, "firmware/agere").apply { mkdirs() }
-        val assets = context.assets
-        for (name in assets.list("firmware/agere").orEmpty()) {
-            val out = java.io.File(dir, name)
-            val bytes = assets.open("firmware/agere/$name").use { it.readBytes() }
-            if (!out.exists() || !out.readBytes().contentEquals(bytes)) out.writeBytes(bytes)
-        }
-        android.system.Os.setenv("DMODEM_AGERE_FIRMWARE", dir.path, true)
-        // (while the Agere is brought up: its samples' rate measured at start with the codec settings
-        // its ROM gives them at boot put back, ~6 s)
-        android.system.Os.unsetenv("DMODEM_AGERE_DUMP")
-        android.system.Os.setenv("DMODEM_AGERE_CODEC_TRY", "1", true)
-        return dir
     }
 
     private const val ACTION_PERMISSION = "com.neodesktop.dmodem.USB_MODEM_PERMISSION"

@@ -76,14 +76,24 @@ void LIBUSB_CALL counted(libusb_transfer *t)
 		w.last_status = t->status;
 	}
 	if (is_in(t) && in_said_ < IN_SAID &&
-	    t->type == LIBUSB_TRANSFER_TYPE_BULK) {
+	    t->type != LIBUSB_TRANSFER_TYPE_INTERRUPT) {
+		/* (a bulk one's octets' head; an isochronous one's packets and
+		   its first packet's head) */
+		const unsigned char *b = t->buffer;
+		int n = t->actual_length, packets = t->num_iso_packets;
+		if (packets > 0)
+			n = static_cast<int>(t->iso_packet_desc[0].actual_length);
 		char head[3 * 8 + 1] = "";
-		int n = t->actual_length < 8 ? t->actual_length : 8;
-		for (int i = 0; i < n; i++)
-			snprintf(head + 3 * i, 4, " %02x", t->buffer[i]);
-		dcore::log_printf(1, "usb: IN transfer %d back: status %d, "
-				  "%d octets:%s\n", in_said_ + 1, t->status,
-				  t->actual_length, head);
+		for (int i = 0; i < (n < 8 ? n : 8); i++)
+			snprintf(head + 3 * i, 4, " %02x", b[i]);
+		if (packets > 0)
+			dcore::log_printf(1, "usb: IN transfer %d back: status %d, "
+					  "%d packets, the first %d octets:%s\n",
+					  in_said_ + 1, t->status, packets, n, head);
+		else
+			dcore::log_printf(1, "usb: IN transfer %d back: status %d, "
+					  "%d octets:%s\n", in_said_ + 1, t->status,
+					  n, head);
 		in_said_++;
 	}
 	auto it = callbacks_.find(t);

@@ -120,8 +120,7 @@ add_test(NAME usb_line COMMAND python3
 set_tests_properties(usb_line PROPERTIES TIMEOUT 300)
 
 # the same on D-Modem-RE's fake Agere USB 2.0 soft modems
-# (test/fake_agere.cpp): their ROM patches the tests' own, in a firmware
-# directory as the app installs Agere's (DMODEM_AGERE_FIRMWARE)
+# (test/fake_agere.cpp): the ROM's isochronous stream
 add_library(dmodem_engine_agere STATIC ${_app}/engine.cpp
 	${_app}/peer_modem.cpp ${_app}/dmodem_engine.cpp
 	${_app}/usb/usb_modem.cpp ${_dmd}/usb_line.cpp ${_dmd}/usb_agere.cpp

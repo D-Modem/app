@@ -199,10 +199,6 @@ class ModemService : Service() {
                 is UsbModems.Opened.Device -> {
                     usbModem = o
                     log("line: the ${o.kind.described}")
-                    // (its ROM patches where D-Modem-RE looks for them)
-                    if (o.kind == UsbModems.Kind.AGERE) {
-                        runCatching { UsbModems.installAgereFirmware(this) }.onFailure { log("the Agere modem's patches: $it") }
-                    }
                 }
             }
         }
