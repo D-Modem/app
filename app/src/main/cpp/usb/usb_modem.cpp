@@ -20,6 +20,12 @@
 
 #define ERR(fmt, ...) dcore::log_printf(0, "error: " fmt, ##__VA_ARGS__)
 
+namespace {
+/* the first look at the device's clock, and how often it's said after */
+const u64 CLOCK_CHECK_MS = 3000;
+const u64 CLOCK_LOG_MS = 10000;
+} // namespace
+
 namespace dmodem_android {
 
 /* see usb_modem.h: the core first (its country to the line), then the
@@ -95,8 +101,32 @@ int UsbModem::run()
 	dcore::Modem *const modems[] = { &m };
 	dmd::RunLoop loop;
 	int ret = 0;
+	/* the device's clock (its samples) against the wall's: said once if
+	   its samples don't come, or come slowly, and how far it has got
+	   every CLOCK_LOG_MS (a modem with no samples is a modem that never
+	   dials: its timers are its samples) */
+	const u64 t0 = dcore::monotonic_ms();
+	u64 next_say = t0 + CLOCK_CHECK_MS;
+	bool warned = false;
 
 	while (!stopped_) {
+		u64 now = dcore::monotonic_ms();
+		if (now >= next_say) {
+			u64 wall = now - t0, clock = line_->now_ms();
+			if (!warned && clock < wall / 2) {
+				ERR("usb: the modem's samples %s: its clock %llu ms "
+				    "after %llu ms (no dialling, no timers without them)\n",
+				    clock ? "come too slowly" : "don't come",
+				    (unsigned long long)clock,
+				    (unsigned long long)wall);
+				warned = true;
+			}
+			dcore::log_printf(1, "usb: the line's clock %llu ms, "
+					  "the wall's %llu ms\n",
+					  (unsigned long long)clock,
+					  (unsigned long long)wall);
+			next_say = now + CLOCK_LOG_MS;
+		}
 		long wait = dmd::RunLoop::poll(modems, 1);
 		int dte = dte_.fd();
 
