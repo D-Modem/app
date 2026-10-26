@@ -11,7 +11,11 @@
 
 namespace dmodem_android {
 
-void usb_use_fd(int) {}
+void usb_use_fd(int fd)
+{
+	if (fd >= 0)
+		usb_transfers_reset();
+}
 
 } // namespace dmodem_android
 

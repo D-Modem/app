@@ -113,18 +113,21 @@ int UsbModem::run()
 		u64 now = dcore::monotonic_ms();
 		if (now >= next_say) {
 			u64 wall = now - t0, clock = line_->now_ms();
+			char stats[256];
+			usb_transfer_stats(stats, sizeof(stats));
 			if (!warned && clock < wall / 2) {
 				ERR("usb: the modem's samples %s: its clock %llu ms "
-				    "after %llu ms (no dialling, no timers without them)\n",
+				    "after %llu ms (no dialling, no timers without "
+				    "them); its transfers: %s\n",
 				    clock ? "come too slowly" : "don't come",
 				    (unsigned long long)clock,
-				    (unsigned long long)wall);
+				    (unsigned long long)wall, stats);
 				warned = true;
 			}
 			dcore::log_printf(1, "usb: the line's clock %llu ms, "
-					  "the wall's %llu ms\n",
+					  "the wall's %llu ms; %s\n",
 					  (unsigned long long)clock,
-					  (unsigned long long)wall);
+					  (unsigned long long)wall, stats);
 			next_say = now + CLOCK_LOG_MS;
 		}
 		long wait = dmd::RunLoop::poll(modems, 1);

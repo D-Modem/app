@@ -135,6 +135,13 @@ try:
           and cb.group(1).startswith(b"CONNECT"))
     check("the exchange heard 1002 dialled", "1001 dialled 1002" in events)
     check("1001's status: online, off hook", a.logged(r"^STATUS 2 1 [1-9]\d* [1-9]\d*$", 5))
+    check("1001's transfers counted, both ways, none failed",
+          a.logged(r"the line's clock [1-9]\d* ms, the wall's \d+ ms; IN [1-9]\d* sent, "
+                   r"[1-9]\d* back \([1-9]\d* octets, 0 failed, last 0\); "
+                   r"OUT [1-9]\d* sent, [1-9]\d* back \(0 failed", 12))
+    if agere:
+        check("1001's first IN transfer logged: 48 samples",
+              a.logged(r"usb: IN transfer 1 back: status 0, 100 octets: 30 00", 1))
     a.write(b"hello from 1001\r\n")
     check("1002 gets 1001's line", b.expect(rb"hello from 1001", 10))
     b.write(b"hello from 1002\r\n")

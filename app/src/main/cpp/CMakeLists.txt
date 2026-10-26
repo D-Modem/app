@@ -43,15 +43,21 @@ if(ANDROID)
 	# its ROM patches from the app's assets, DMODEM_AGERE_FIRMWARE) on the
 	# device Android opened for the app:
 	# libusb built here, and usb_line.cpp's three calls that look for the
-	# device renamed to usb/usb_android.cpp's, which give it that one
+	# device renamed to usb/usb_android.cpp's, which give it that one;
+	# libusb_submit_transfer() renamed too, the transfers counted for the
+	# log (usb/usb_transfers.cpp)
 	include(usb/libusb.cmake)
 	target_sources(dmodem_engine PRIVATE usb/usb_modem.cpp
-		usb/usb_android.cpp ${DMODEM_RE_DIR}/dmodemd/usb_line.cpp
+		usb/usb_android.cpp usb/usb_transfers.cpp
+		${DMODEM_RE_DIR}/dmodemd/usb_line.cpp
 		${DMODEM_RE_DIR}/dmodemd/usb_agere.cpp
 		${DMODEM_RE_DIR}/dmodemd/si3056.cpp)
 	set_source_files_properties(${DMODEM_RE_DIR}/dmodemd/usb_line.cpp
 		PROPERTIES COMPILE_DEFINITIONS
-		"libusb_init=dmodem_libusb_init;libusb_get_device_list=dmodem_libusb_get_device_list;libusb_open=dmodem_libusb_open")
+		"libusb_init=dmodem_libusb_init;libusb_get_device_list=dmodem_libusb_get_device_list;libusb_open=dmodem_libusb_open;libusb_submit_transfer=dmodem_libusb_submit_transfer")
+	set_source_files_properties(${DMODEM_RE_DIR}/dmodemd/usb_agere.cpp
+		PROPERTIES COMPILE_DEFINITIONS
+		"libusb_submit_transfer=dmodem_libusb_submit_transfer")
 	target_compile_definitions(dmodem_engine PUBLIC DMODEM_ENGINE_USB)
 	target_link_libraries(dmodem_engine PUBLIC dmodem_android_libusb)
 

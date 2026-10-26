@@ -23,6 +23,8 @@ namespace dmodem_android {
 void usb_use_fd(int fd)
 {
 	fd_ = fd;
+	if (fd >= 0)
+		usb_transfers_reset();
 }
 
 } // namespace dmodem_android
@@ -75,3 +77,4 @@ int dmodem_libusb_open(libusb_device *dev, libusb_device_handle **h)
 	}
 	return libusb_open(dev, h);
 }
+
