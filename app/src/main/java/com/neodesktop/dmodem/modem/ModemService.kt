@@ -32,6 +32,7 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -89,6 +90,13 @@ class ModemService : Service() {
     private var stopping = false
     /** the USB modem that's the line (LINE_USB), open while the modem runs */
     private var usbModem: UsbModems.Opened.Device? = null
+
+    /** the Bluetooth modem's connection (LINE_BT_MODEM), in place of D-Modem's modem while it runs */
+    @Volatile
+    private var btSocket: android.bluetooth.BluetoothSocket? = null
+    private var btWatch: kotlinx.coroutines.Job? = null
+    private val btStatus = ResultCodeStatus { ModemState.setStatus(it) }
+    private val btResults = com.neodesktop.dmodem.terminal.TerminalLink.Listener { d, n -> btStatus.feed(d, n) }
 
     /** the network changed during a call: start again once on hook */
     @Volatile
@@ -186,6 +194,16 @@ class ModemService : Service() {
             fail("the line is Bluetooth, which isn't allowed: allow it in the settings")
             return
         }
+        if (settings.btModem) {
+            if (!com.neodesktop.dmodem.bridge.BluetoothBridge.hasPermission(this)) {
+                fail("the modem is a Bluetooth modem, and Bluetooth isn't allowed: allow it in the settings")
+                return
+            }
+            if (settings.btModemAddress.isBlank()) {
+                fail("no Bluetooth modem chosen: choose the paired modem in the settings")
+                return
+            }
+        }
         ModemState.setError(null)
         log(com.neodesktop.dmodem.BuildInfo.described)
         // (not a failure: the SIP server may be on the internet, which needs no leave)
@@ -216,6 +234,7 @@ class ModemService : Service() {
 
     /** the native modem on the default network now, its DTE on the hub, the init commands sent */
     private fun startNative(): Boolean {
+        if (settings.btModem) return startBtModem()
         val cm = getSystemService(ConnectivityManager::class.java)
         val net = cm.activeNetwork
         val lp = net?.let { cm.getLinkProperties(it) }
@@ -319,9 +338,50 @@ class ModemService : Service() {
         }
     }
 
+    /**
+     * The Bluetooth modem connected in place of D-Modem's modem: what's written to the modem goes to it,
+     * what it says to the terminal, the internet and fax; the status from its result codes. Its line's
+     * own tones: no tones of the app's. Its connection dropping: connected again once, else the modem stops.
+     */
+    private fun startBtModem(): Boolean {
+        stopping = false
+        val name = settings.btModemName.ifBlank { settings.btModemAddress }
+        log("the modem: the Bluetooth modem $name")
+        val s = try {
+            BluetoothModem.connect(this, settings.btModemAddress) { log("Bluetooth modem: $it") }
+        } catch (e: java.io.IOException) {
+            ModemState.setError("the Bluetooth modem $name: ${e.message}")
+            return false
+        }
+        btSocket = s
+        ModemState.dte.attach(s.inputStream, s.outputStream)
+        ModemState.setStatus(ModemState.IDLE)
+        ModemState.speaker.enabled = false
+        ModemState.tones.enabled = false
+        ModemState.line = settings.line
+        watchProgress()
+        ModemState.dte.removeListener(btResults)
+        ModemState.dte.addListener(btResults)
+        // (its own commands: not D-Modem's adaptive answer, AT+FAA)
+        ModemState.adaptiveAnswer = false
+        val start = settings.startCommands()
+        if (start.isNotBlank()) ModemState.dte.write(start + "\r")
+        btWatch?.cancel()
+        btWatch = scope.launch {
+            // (the reader's end: the connection gone, not by our stop)
+            ModemState.dte.state.first { it is com.neodesktop.dmodem.terminal.TerminalLink.State.Closed && !stopping }
+            log("the Bluetooth modem's connection dropped: connecting again")
+            restart()
+        }
+        return true
+    }
+
     /** the native modem stopped: the call hung up, SIP gone, the DTE's socket closed */
     private fun stopNative() {
         stopping = true
+        btWatch?.cancel()
+        btWatch = null
+        ModemState.dte.removeListener(btResults)
         progressJob?.cancel()
         progressJob = null
         ModemState.dte.removeListener(progressText)
@@ -330,7 +390,9 @@ class ModemService : Service() {
         callNotification(null)
         ModemState.speaker.setLevel(0)
         com.neodesktop.dmodem.peer.Peers.stop()
-        NativeModem.stop()
+        // (a Bluetooth modem's connection, or D-Modem's modem)
+        btSocket?.let { s -> runCatching { s.close() } } ?: NativeModem.stop()
+        btSocket = null
         // (the device let go once the modem has)
         usbModem?.connection?.close()
         usbModem = null
@@ -493,6 +555,7 @@ class ModemService : Service() {
                 ModemSettings.LINE_CELL -> " (line: mobile calls)"
                 ModemSettings.LINE_NONE -> " (no line)"
                 ModemSettings.LINE_USB -> " (line: the ${usbModem?.kind?.label ?: "USB modem"})"
+                ModemSettings.LINE_BT_MODEM -> " (the Bluetooth modem ${settings.btModemName.ifBlank { settings.btModemAddress }})"
                 else -> ""
             }
         }
@@ -519,7 +582,7 @@ class ModemService : Service() {
     private fun callerOfLine(): String = when (settings.line) {
         ModemSettings.LINE_WIFI, ModemSettings.LINE_BLUETOOTH -> "The other phone"
         ModemSettings.LINE_CELL -> "A mobile call"
-        ModemSettings.LINE_USB -> "A call on the phone line"
+        ModemSettings.LINE_USB, ModemSettings.LINE_BT_MODEM -> "A call on the phone line"
         else -> "A SIP call"
     }
 

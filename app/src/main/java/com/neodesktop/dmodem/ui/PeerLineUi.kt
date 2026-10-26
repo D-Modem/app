@@ -48,6 +48,9 @@ fun LineChoice(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
     val askBt = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         if (BluetoothBridge.hasPermission(context)) onChange(s.copy(line = ModemSettings.LINE_BLUETOOTH))
     }
+    val askBtModem = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        if (BluetoothBridge.hasPermission(context)) onChange(s.copy(line = ModemSettings.LINE_BT_MODEM))
+    }
     Text("Line", style = MaterialTheme.typography.titleMedium)
     val lines = listOf(
         ModemSettings.LINE_SIP to "A SIP account (calls over the internet)",
@@ -55,6 +58,7 @@ fun LineChoice(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
         ModemSettings.LINE_BLUETOOTH to "Another phone with D-Modem, on Bluetooth",
         ModemSettings.LINE_CELL to "This phone's mobile calls (slow; root)",
         ModemSettings.LINE_USB to "A phone line, through a USB modem",
+        ModemSettings.LINE_BT_MODEM to "A phone line, through a Bluetooth modem (Dial-Up Networking)",
         ModemSettings.LINE_NONE to "No line (the modem on its own)",
     )
     var open by remember { mutableStateOf(false) }
@@ -80,6 +84,11 @@ fun LineChoice(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
                             ModemSettings.LINE_WIFI -> onChange(
                                 s.copy(line = line, peerAddress = if (s.line == line) s.peerAddress else "", peerName = ""),
                             )
+                            ModemSettings.LINE_BT_MODEM -> if (!BluetoothBridge.hasPermission(context)) {
+                                askBtModem.launch(BluetoothBridge.permissions())
+                            } else {
+                                onChange(s.copy(line = line))
+                            }
                             ModemSettings.LINE_BLUETOOTH -> if (!BluetoothBridge.hasPermission(context)) {
                                 askBt.launch(BluetoothBridge.permissions())
                             } else {
@@ -256,6 +265,42 @@ private fun BluetoothPeer(s: ModemSettings, onChange: (ModemSettings) -> Unit, c
                     }.padding(vertical = 8.dp),
                 )
             }
+        }
+    }
+}
+
+/** A modem of its own on Bluetooth (a Sony BTA-NW1, say): which paired one, how to pair it */
+@Composable
+fun BluetoothModemFields(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
+    val context = LocalContext.current
+    var picking by remember { mutableStateOf(false) }
+    val paired = remember(picking) { BluetoothBridge.paired(context) }
+    Text(
+        "A modem with Bluetooth's Dial-Up Networking (a Sony BTA-NW1, say) on a phone line: it dials and answers, " +
+            "and the terminal, the internet and fax talk to it in place of D-Modem's own modem (its own AT commands; " +
+            "fax if it does Class 1). Pair it first in Android's Bluetooth settings: an older one asks for its PIN " +
+            "(often 0000, or printed on it).",
+        style = MaterialTheme.typography.bodySmall,
+    )
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text("Modem: " + (s.btModemName.ifBlank { s.btModemAddress }.ifBlank { "none chosen" }), Modifier.weight(1f))
+        TextButton(onClick = { picking = !picking }) { Text("Choose") }
+    }
+    if (picking) {
+        Column(Modifier.padding(start = 16.dp)) {
+            if (paired.isEmpty()) Text("No paired devices", style = MaterialTheme.typography.bodySmall)
+            for ((name, address) in paired) {
+                Text(
+                    "$name  ($address)",
+                    Modifier.fillMaxWidth().clickable {
+                        picking = false
+                        onChange(s.copy(btModemAddress = address, btModemName = name))
+                    }.padding(vertical = 8.dp),
+                )
+            }
+            TextButton(onClick = {
+                runCatching { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)) }
+            }) { Text("Pair a modem…") }
         }
     }
 }

@@ -60,15 +60,21 @@ data class ModemSettings(
      * through AMR 12.2, to another D-Modem; V.22 or V.21 to other modems), V21 (300 bit/s), V22, V22B
      */
     val cellSpeed: String = CELL_VCVM,
+    /** the Bluetooth modem's (LINE_BT_MODEM): the paired device's address, its name to show */
+    val btModemAddress: String = "",
+    val btModemName: String = "",
 ) {
     /** the line is another phone (or this phone's mobile calls, or none), not SIP: the app carries its samples */
-    val peer: Boolean get() = line != LINE_SIP && line != LINE_USB
+    val peer: Boolean get() = line != LINE_SIP && line != LINE_USB && line != LINE_BT_MODEM
 
     /** the line is a SIP account's */
     val sip: Boolean get() = line == LINE_SIP
 
     /** the line is a phone line, through a USB modem (UsbModems): the modem dials it itself */
     val usb: Boolean get() = line == LINE_USB
+
+    /** a modem of its own on Bluetooth (BluetoothModem) in place of D-Modem's: it has the line */
+    val btModem: Boolean get() = line == LINE_BT_MODEM
 
     /** no line at all: the modem on its own (AT commands, the terminal, the bridges); a dial gets NO DIALTONE */
     val noLine: Boolean get() = line == LINE_NONE
@@ -96,6 +102,7 @@ data class ModemSettings(
         const val LINE_CELL = "cell"
         const val LINE_NONE = "none"
         const val LINE_USB = "usb"
+        const val LINE_BT_MODEM = "bt_modem"
         /** the mobile-call line's V.cvm (D-Modem-RE's +MS=V_CVM) */
         const val CELL_VCVM = "V_CVM"
 
@@ -141,6 +148,8 @@ class SettingsStore(private val context: Context) {
         val callTones = booleanPreferencesKey("callTones")
         val adaptiveAnswer = booleanPreferencesKey("adaptiveAnswer")
         val cellSpeed = stringPreferencesKey("cell_speed")
+        val btModemAddress = stringPreferencesKey("bt_modem_address")
+        val btModemName = stringPreferencesKey("bt_modem_name")
     }
 
     val settings: Flow<ModemSettings> = context.dataStore.data.map { p ->
@@ -166,6 +175,8 @@ class SettingsStore(private val context: Context) {
             callTones = p[Keys.callTones] ?: d.callTones,
             adaptiveAnswer = p[Keys.adaptiveAnswer] ?: d.adaptiveAnswer,
             cellSpeed = p[Keys.cellSpeed] ?: d.cellSpeed,
+            btModemAddress = p[Keys.btModemAddress] ?: d.btModemAddress,
+            btModemName = p[Keys.btModemName] ?: d.btModemName,
         )
     }
 
@@ -193,6 +204,8 @@ class SettingsStore(private val context: Context) {
             p[Keys.callTones] = s.callTones
             p[Keys.adaptiveAnswer] = s.adaptiveAnswer
             p[Keys.cellSpeed] = s.cellSpeed
+            p[Keys.btModemAddress] = s.btModemAddress
+            p[Keys.btModemName] = s.btModemName
         }
     }
 }

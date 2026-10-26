@@ -104,6 +104,18 @@ nothing downloaded into it; a USB 2.0 port). The phone runs the modem; plugged i
 Line, "A phone line, through a USB modem"; Android asks once whether
 D-Modem may use it, and offers the app when one is plugged in.
 
+## A real phone line: a Bluetooth modem
+
+A modem of its own with Bluetooth's Dial-Up Networking profile, such as
+Sony's BTA-NW1 (Bluetooth 1.1) on a phone line, can take D-Modem's
+modem's place: Settings, Line, "A phone line, through a Bluetooth modem",
+and the paired modem chosen (pair it in Android's Bluetooth settings
+first; an older one asks for its PIN). The app connects to its DUN
+service (unencrypted, or its serial port, if need be) and the terminal,
+the internet and fax talk to it with its own AT commands; the status
+(online, its speed) comes from its result codes. Its connection
+dropping, the app connects again once.
+
 An app can't list the USB devices itself: Android opens the one the user
 allowed and gives its descriptor. libusb is built for Android in the app
 (`app/src/main/cpp/usb/libusb.cmake`, D-Modem-RE's pinned release) and
