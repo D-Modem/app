@@ -140,6 +140,8 @@ try:
                    r"[1-9]\d* back \([1-9]\d* octets, 0 failed, last 0\); "
                    r"OUT [1-9]\d* sent, [1-9]\d* back \(0 failed", 12))
     if agere:
+        check("1001's stream state read back: streaming",
+              a.logged(r"usb: Agere: after command 0x10: .*the stream's state 2 \(2: streaming\)", 1))
         check("1001's first IN transfer logged: 48 samples",
               a.logged(r"usb: IN transfer 1 back: status 0, 100 octets: 30 00", 1))
     a.write(b"hello from 1001\r\n")
