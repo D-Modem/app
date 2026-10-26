@@ -157,6 +157,12 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
                         PeerLineFields(s) { s = it }
                     } else if (s.usb) {
                         UsbLineFields()
+                        SignedNumberField("Transmit level (dB, -20 to 20)", s.usbTxGain) { s = s.copy(usbTxGain = it.coerceIn(-20, 20)) }
+                        Text(
+                            "The modem's sound to the line louder (+) or softer (-) than D-Modem's own: for a line or modem " +
+                                "that hears it too faintly (0: as it is). Too loud distorts it.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                         Toggle("Record each call (for a bug report)", s.recordLine) { s = s.copy(recordLine = it) }
                         Text(
                             "Each call's sound, off hook to on hook, as a stereo WAV file (the line's, the modem's); " +
@@ -294,6 +300,23 @@ private fun Field(label: String, value: String, onChange: (String) -> Unit) {
     OutlinedTextField(
         value = value, onValueChange = onChange, label = { Text(label) },
         singleLine = true, modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
+private fun SignedNumberField(label: String, value: Int, onChange: (Int) -> Unit) {
+    var text by remember(value) { mutableStateOf(value.toString()) }
+    OutlinedTextField(
+        value = text,
+        onValueChange = { v ->
+            // (a sign, then digits)
+            text = (if (v.startsWith("-")) "-" else "") + v.filter { it.isDigit() }.take(3)
+            text.toIntOrNull()?.let(onChange)
+        },
+        label = { Text(label) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = Modifier.fillMaxWidth(),
     )
 }
 
