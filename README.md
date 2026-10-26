@@ -95,7 +95,13 @@ carries the modem's sound (D-Modem-RE's `usb_line.cpp`, as
 with caller ID, its ST7554 or ST75951 DAA), or a
 [pico-serial](https://github.com/Neo-Desktop/pico-serial) Line stick
 (1209:0002, a Si3056 DAA: caller ID on hook, and the country's line
-settings in its registers). The phone runs the modem; plugged into it
+settings in its registers), or an Agere USB 2.0 soft modem (047E:2892,
+047E:2828: 8000 Hz, caller ID; its ROM patched as it starts with
+Agere's bulk patch). Agere's ROM patches come from D-Modem-RE's
+`firmware/agere` into the APK's assets (`app/build.gradle.kts`'s
+agereFirmware) and are installed in the app's files for D-Modem-RE
+(`DMODEM_AGERE_FIRMWARE`); they are Agere's, under Agere's licence, not
+the AGPL (its LICENSE and NOTICE.md go with them). The phone runs the modem; plugged into it
 (USB OTG) the stick is its line, with no SIP account or network. Settings,
 Line, "A phone line, through a USB modem"; Android asks once whether
 D-Modem may use it, and offers the app when one is plugged in.
@@ -107,7 +113,7 @@ allowed and gives its descriptor. libusb is built for Android in the app
 renamed to `usb/usb_android.cpp`'s, which start libusb without its device
 discovery and give it that descriptor, wrapped, as the only device on the
 bus. Tested on the build host on D-Modem-RE's fake pico-serial Line
-sticks and simulated exchange (`native-test/usb_line_test.py`: dialling,
+sticks and Agere modems, and simulated exchange (`native-test/usb_line_test.py`, its `agere` run with the tests' own ROM patches: dialling,
 caller ID, answering, CONNECT 33600, data each way, hanging up, unplugged);
 not yet on a phone with a real stick. The phone's speaker isn't fed on
 this line.

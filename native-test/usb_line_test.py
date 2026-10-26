@@ -2,12 +2,15 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 Neo-Desktop
 #
-# usb_line_test.py <usb_host> <line_exchange>: the app's engine on a USB
-# modem's line (usb_modem.h), two of them (usb_host) on D-Modem-RE's fake
-# pico-serial Line sticks whose lines are the simulated exchange's, 1001
-# and 1002 (as D-Modem-RE's pico_line_test.py runs dmodemd --usb):
+# usb_line_test.py <usb_host> <line_exchange> [agere]: the app's engine on
+# a USB modem's line (usb_modem.h), two of them (usb_host) on D-Modem-RE's
+# fake pico-serial Line sticks (or, agere, its fake Agere USB 2.0 soft
+# modems at 8000 Hz, their ROM patches the tests' own in a firmware
+# directory, DMODEM_AGERE_FIRMWARE, as the app installs Agere's) whose
+# lines are the simulated exchange's, 1001 and 1002 (as D-Modem-RE's
+# pico_line_test.py and agere_test.py run dmodemd --usb):
 #
-# - each says it's on a pico-serial Line (ATI3);
+# - each says what it's on (ATI3);
 # - 1001 dials 1002 (ATX4: after the dial tone, in DTMF); 1002 rings,
 #   shows the caller ID (AT#CID=1), answers at the second ring (ATS0=2);
 #   both CONNECT, and the engine's status says online; a line of text
@@ -17,8 +20,19 @@
 import os, re, shutil, subprocess, sys, tempfile, threading, time
 
 host, exchange = sys.argv[1], sys.argv[2]
-rate = "9600"
+agere = len(sys.argv) > 3 and sys.argv[3] == "agere"
+rate = "8000" if agere else "9600"
 tmp = tempfile.mkdtemp(prefix="dmodem-usb-line-")
+device = b"Agere USB 2.0 \\(Mercury\\)" if agere else b"pico-serial Line \\(Si3056\\)"
+firmware = os.path.join(tmp, "firmware")
+if agere:
+    # the tests' patches (D-Modem-RE's agere_patch.h test_patch(), as its
+    # agere_test.py makes them), a file each, as Agere's are installed
+    os.makedirs(firmware)
+    LENS = (748, 748, 1156, 508)
+    for i, n in enumerate(LENS):
+        with open(os.path.join(firmware, "patch%d.bin" % i), "wb") as f:
+            f.write(bytes((k * 31 + i * 77 + 5 + (k >> 8)) & 0xff for k in range(n)))
 
 procs = []
 events = []
@@ -35,7 +49,12 @@ class Modem:
     """the engine (usb_host) on line <n>'s fake stick: its DTE, its log"""
     def __init__(self, n):
         self.n = n
-        env = dict(os.environ, FAKE_PICO_LINE_SOCKET=os.path.join(tmp, n + ".sock"))
+        sock = os.path.join(tmp, n + ".sock")
+        if agere:
+            env = dict(os.environ, FAKE_AGERE_SOCKET=sock, DMODEM_AGERE_FIRMWARE=firmware,
+                       DMODEM_AGERE_TEST_PATCHES="1")
+        else:
+            env = dict(os.environ, FAKE_PICO_LINE_SOCKET=sock)
         self.p = subprocess.Popen([host, rate], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE, env=env)
         procs.append(self.p)
@@ -97,8 +116,8 @@ try:
     b = Modem("1002")
     for m in (a, b):
         check("%s ATE0" % m.n, m.cmd(b"ATE0", t=15))
-        check("%s ATI3: pico-serial Line" % m.n,
-              m.cmd(b"ATI3", rb"pico-serial Line \(Si3056\)\r\n(\r\n)?OK\r\n"))
+        check("%s ATI3: %s" % (m.n, device.decode().replace("\\", "")),
+              m.cmd(b"ATI3", device + rb"\r\n(\r\n)?OK\r\n"))
     check("1002 answers at the 2nd ring", b.cmd(b"ATS0=2"))
     check("1002 caller ID on", b.cmd(b"AT#CID=1"))
     check("1001 waits for the dial tone", a.cmd(b"ATX4"))

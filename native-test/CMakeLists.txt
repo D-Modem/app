@@ -92,7 +92,7 @@ set(_app ${CMAKE_CURRENT_SOURCE_DIR}/../app/src/main/cpp)
 set(_dmd ${DMODEM_RE_DIR}/dmodemd)
 add_library(dmodem_engine_usb STATIC ${_app}/engine.cpp
 	${_app}/peer_modem.cpp ${_app}/dmodem_engine.cpp
-	${_app}/usb/usb_modem.cpp ${_dmd}/usb_line.cpp ${_dmd}/si3056.cpp
+	${_app}/usb/usb_modem.cpp ${_dmd}/usb_line.cpp ${_dmd}/usb_agere.cpp ${_dmd}/si3056.cpp
 	usb_fake_device.cpp ${_dmd}/test/fake_pico_line.cpp)
 target_include_directories(dmodem_engine_usb PUBLIC ${_app})
 target_include_directories(dmodem_engine_usb SYSTEM PUBLIC
@@ -112,3 +112,25 @@ add_test(NAME usb_line COMMAND python3
 	${CMAKE_CURRENT_SOURCE_DIR}/usb_line_test.py $<TARGET_FILE:usb_host>
 	$<TARGET_FILE:usb_exchange>)
 set_tests_properties(usb_line PROPERTIES TIMEOUT 300)
+
+# the same on D-Modem-RE's fake Agere USB 2.0 soft modems
+# (test/fake_agere.cpp): their ROM patches the tests' own, in a firmware
+# directory as the app installs Agere's (DMODEM_AGERE_FIRMWARE)
+add_library(dmodem_engine_agere STATIC ${_app}/engine.cpp
+	${_app}/peer_modem.cpp ${_app}/dmodem_engine.cpp
+	${_app}/usb/usb_modem.cpp ${_dmd}/usb_line.cpp ${_dmd}/usb_agere.cpp
+	${_dmd}/si3056.cpp usb_fake_device.cpp ${_dmd}/test/fake_agere.cpp)
+target_include_directories(dmodem_engine_agere PUBLIC ${_app})
+target_include_directories(dmodem_engine_agere SYSTEM PUBLIC
+	${DMODEM_LIBUSB_SRC}/libusb)
+target_compile_definitions(dmodem_engine_agere PUBLIC DMODEM_ENGINE_USB)
+target_link_libraries(dmodem_engine_agere PUBLIC dmodem_sip)
+
+add_executable(agere_host usb_host.cpp)
+target_link_libraries(agere_host PRIVATE dmodem_engine_agere Threads::Threads)
+target_compile_options(agere_host PRIVATE -Wall -Wextra)
+
+add_test(NAME agere_line COMMAND python3
+	${CMAKE_CURRENT_SOURCE_DIR}/usb_line_test.py $<TARGET_FILE:agere_host>
+	$<TARGET_FILE:usb_exchange> agere)
+set_tests_properties(agere_line PROPERTIES TIMEOUT 300)

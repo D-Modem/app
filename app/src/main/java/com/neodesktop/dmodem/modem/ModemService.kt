@@ -199,6 +199,10 @@ class ModemService : Service() {
                 is UsbModems.Opened.Device -> {
                     usbModem = o
                     log("line: the ${o.kind.described}")
+                    // (its ROM patches where D-Modem-RE looks for them)
+                    if (o.kind == UsbModems.Kind.AGERE) {
+                        runCatching { UsbModems.installAgereFirmware(this) }.onFailure { log("the Agere modem's patches: $it") }
+                    }
                 }
             }
         }
@@ -240,7 +244,7 @@ class ModemService : Service() {
             sipLogLevel = settings.sipLogLevel,
             peer = settings.peer,
             usbFd = usbModem?.connection?.fileDescriptor ?: -1,
-            usbRate = UsbModems.RATE,
+            usbRate = usbModem?.kind?.rate ?: UsbModems.RATE,
             // (Bluetooth's way is slower: more room for the samples on it)
             peerLeadMs = when (settings.line) {
                 ModemSettings.LINE_BLUETOOTH -> 200

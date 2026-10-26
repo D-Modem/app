@@ -23,20 +23,23 @@ import kotlin.coroutines.resume
  * The app runs the modem itself: they carry its samples to the line.
  */
 object UsbModems {
-    enum class Kind(val vendor: Int, val product: Int, val label: String) {
-        SMART_USB56(0x0483, 0x7554, "SmartUSB56"),
-        PICO_LINE(0x1209, 0x0002, "pico-serial Line"),
+    enum class Kind(val vendor: Int, val products: List<Int>, val label: String, val rate: Int) {
+        SMART_USB56(0x0483, listOf(0x7554), "SmartUSB56", 9600),
+        PICO_LINE(0x1209, listOf(0x0002), "pico-serial Line", 9600),
+        /** its ROM patched with Agere's bulk patch as it starts (D-Modem-RE ships them; [installAgereFirmware]) */
+        AGERE(0x047E, listOf(0x2892, 0x2828), "Agere USB 2.0 modem", 8000),
         ;
 
         /** "SmartUSB56 (USB 0483:7554)" */
-        val described: String get() = "$label (USB %04x:%04x)".format(vendor, product)
+        val described: String
+            get() = "$label (USB " + products.joinToString("/") { "%04x:%04x".format(vendor, it) } + ")"
     }
 
-    /** the modems' rate (Hz): both take 9600, the Si3056's default (dmodemd's too) */
+    /** the modems' rate (Hz) but the Agere's: both take 9600, the Si3056's default (dmodemd's too); the Agere 8000 */
     const val RATE = 9600
 
     /** which of them a USB device with these IDs is, or null */
-    fun kindOf(vendor: Int, product: Int): Kind? = Kind.entries.firstOrNull { it.vendor == vendor && it.product == product }
+    fun kindOf(vendor: Int, product: Int): Kind? = Kind.entries.firstOrNull { it.vendor == vendor && product in it.products }
 
     fun kindOf(d: UsbDevice): Kind? = kindOf(d.vendorId, d.productId)
 
@@ -57,6 +60,22 @@ object UsbModems {
         class Failed(val why: String) : Opened
     }
 
+    /**
+     * The Agere modem's ROM patches (D-Modem-RE's firmware/agere: Agere's, under Agere's licence, in the
+     * APK's assets) in the app's files, and D-Modem-RE told where (DMODEM_AGERE_FIRMWARE): their directory
+     */
+    fun installAgereFirmware(context: Context): java.io.File {
+        val dir = java.io.File(context.filesDir, "firmware/agere").apply { mkdirs() }
+        val assets = context.assets
+        for (name in assets.list("firmware/agere").orEmpty()) {
+            val out = java.io.File(dir, name)
+            val bytes = assets.open("firmware/agere/$name").use { it.readBytes() }
+            if (!out.exists() || !out.readBytes().contentEquals(bytes)) out.writeBytes(bytes)
+        }
+        android.system.Os.setenv("DMODEM_AGERE_FIRMWARE", dir.path, true)
+        return dir
+    }
+
     private const val ACTION_PERMISSION = "com.neodesktop.dmodem.USB_MODEM_PERMISSION"
 
     /**
@@ -66,7 +85,9 @@ object UsbModems {
     suspend fun open(context: Context, askMs: Long = 60_000): Opened {
         val m = context.getSystemService(UsbManager::class.java) ?: return Opened.Failed("this phone has no USB host")
         val (dev, kind) = plugged(context).firstOrNull()
-            ?: return Opened.Failed("no USB modem plugged in: a ${Kind.SMART_USB56.described} or a ${Kind.PICO_LINE.described}")
+            ?: return Opened.Failed(
+                "no USB modem plugged in: a ${Kind.SMART_USB56.described}, a ${Kind.PICO_LINE.described} or an ${Kind.AGERE.described}",
+            )
         if (!m.hasPermission(dev)) {
             val allowed = withTimeoutOrNull(askMs) { ask(context, m, dev) } ?: false
             if (!allowed) return Opened.Failed("the ${kind.label} wasn't allowed: allow D-Modem to use it, then start the modem again")

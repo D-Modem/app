@@ -39,12 +39,15 @@ set_target_properties(dmodem_engine PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 if(ANDROID)
 	# the USB modems (D-Modem-RE's usb_line.cpp: a SmartUSB56, a
-	# pico-serial Line stick) on the device Android opened for the app:
+	# pico-serial Line stick, an Agere USB 2.0 soft modem, usb_agere.cpp,
+	# its ROM patches from the app's assets, DMODEM_AGERE_FIRMWARE) on the
+	# device Android opened for the app:
 	# libusb built here, and usb_line.cpp's three calls that look for the
 	# device renamed to usb/usb_android.cpp's, which give it that one
 	include(usb/libusb.cmake)
 	target_sources(dmodem_engine PRIVATE usb/usb_modem.cpp
 		usb/usb_android.cpp ${DMODEM_RE_DIR}/dmodemd/usb_line.cpp
+		${DMODEM_RE_DIR}/dmodemd/usb_agere.cpp
 		${DMODEM_RE_DIR}/dmodemd/si3056.cpp)
 	set_source_files_properties(${DMODEM_RE_DIR}/dmodemd/usb_line.cpp
 		PROPERTIES COMPILE_DEFINITIONS

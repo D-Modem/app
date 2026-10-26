@@ -9,9 +9,12 @@
     <usb-device vendor-id="6790" />
     <!-- Prolific PL2303 -->
     <usb-device vendor-id="1659" />
-    <!-- the USB modems that can be the modem's line (UsbModems): a SmartUSB56 (0483:7554), a pico-serial Line (1209:0002) -->
+    <!-- the USB modems that can be the modem's line (UsbModems): a SmartUSB56 (0483:7554), a pico-serial Line (1209:0002), an Agere (047E:2892, 047E:2828) -->
     <usb-device vendor-id="1155" product-id="30036" />
     <usb-device vendor-id="4617" product-id="2" />
+    <!-- an Agere USB 2.0 soft modem (047E:2892, 047E:2828) -->
+    <usb-device vendor-id="1150" product-id="10386" />
+    <usb-device vendor-id="1150" product-id="10280" />
     <!-- any CDC-ACM (communications class) device -->
     <usb-device class="2" />
 </resources>

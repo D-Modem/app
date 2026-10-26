@@ -15,12 +15,18 @@ void usb_use_fd(int) {}
 
 } // namespace dmodem_android
 
-/* what the fake leaves to the real libusb (upstream's tests preload the
+/* (weak: a fake that has its own wins) what the fake leaves to the real libusb (upstream's tests preload the
    fake in front of it; here it is linked in alone): the device's ports,
    for wake on ring's sysfs switch (UsbLine::arm_wake(), with set_wake()
    alone), unknown */
-extern "C" int LIBUSB_CALL libusb_get_port_numbers(libusb_device *,
+extern "C" __attribute__((weak)) int LIBUSB_CALL libusb_get_port_numbers(libusb_device *,
 						   uint8_t *, int)
 {
 	return LIBUSB_ERROR_NOT_SUPPORTED;
+}
+
+/* (the Agere modem's speed check: the fake stick isn't one) */
+extern "C" __attribute__((weak)) int LIBUSB_CALL libusb_get_device_speed(libusb_device *)
+{
+	return LIBUSB_SPEED_HIGH;
 }

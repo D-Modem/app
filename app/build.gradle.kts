@@ -34,6 +34,8 @@ android {
         getByName("main") {
             // proot, built for each ABI (below)
             jniLibs.directories.add(layout.buildDirectory.dir("proot/jniLibs").get().asFile.path)
+            // the Agere USB modem's ROM patches (D-Modem-RE's firmware/agere, below)
+            assets.directories.add(layout.buildDirectory.dir("generated/firmware-assets").get().asFile.path)
         }
     }
 
@@ -159,3 +161,13 @@ for (abi in prootAbis) {
     buildProot.configure { dependsOn(t) }
 }
 tasks.named("preBuild") { dependsOn(buildProot) }
+
+// the Agere USB modem's ROM patches, as D-Modem-RE ships them (firmware/agere: Agere's, under Agere's
+// licence, its LICENSE and NOTICE.md with them), into the APK's assets as firmware/agere; installed in
+// the app's files when an Agere modem is the line (UsbModems)
+val agereFirmware = tasks.register<Copy>("agereFirmware") {
+    description = "Copies the Agere USB modem's ROM patches from D-Modem-RE into the assets"
+    from(rootProject.file("external/d-modem-re/firmware/agere"))
+    into(layout.buildDirectory.dir("generated/firmware-assets/firmware/agere"))
+}
+tasks.named("preBuild") { dependsOn(agereFirmware) }

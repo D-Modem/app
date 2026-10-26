@@ -102,8 +102,9 @@ fun UsbLineFields() {
     val plugged = remember { com.neodesktop.dmodem.modem.UsbModems.describe(context) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            "The modem dials and answers a real phone line through a USB modem: a Smart Link SmartUSB56, or a " +
-                "pico-serial Line stick, both with caller ID (the stick takes the country's line settings too). The phone runs the modem; " +
+            "The modem dials and answers a real phone line through a USB modem: a Smart Link SmartUSB56, a " +
+                "pico-serial Line stick (with the country's line settings) or an Agere USB 2.0 soft modem (Agere's ROM patches " +
+                "come with the app), all with caller ID. The phone runs the modem; " +
                 "the USB one is its line. No SIP account or network needed. Android asks once whether D-Modem may use it.",
             style = MaterialTheme.typography.bodySmall,
         )
