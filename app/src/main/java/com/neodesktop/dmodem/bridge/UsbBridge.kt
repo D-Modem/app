@@ -255,7 +255,8 @@ class UsbBridge(
             _state.value = State.Failed("${label(dev)}: ${e.message}")
             return
         }
-        val extra = extraLines(dev, conn)
+        // (an Exar's lines are its driver's, from its GPIOs)
+        val extra = if (driver is XrSerialDriver) null else extraLines(dev, conn)
         val boardJob = (extra as? PicoSerialLines)?.let { p ->
             pico = p
             Thread({

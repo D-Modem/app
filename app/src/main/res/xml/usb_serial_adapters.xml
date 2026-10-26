@@ -9,6 +9,8 @@
     <usb-device vendor-id="6790" />
     <!-- Prolific PL2303 -->
     <usb-device vendor-id="1659" />
+    <!-- Exar (MaxLinear) XR21V141x, XR21B14xx, XR2280x -->
+    <usb-device vendor-id="1250" />
     <!-- the USB modems that can be the modem's line (UsbModems): a SmartUSB56 (0483:7554), a pico-serial Line (1209:0002), an Agere (047E:2892, 047E:2828) -->
     <usb-device vendor-id="1155" product-id="30036" />
     <usb-device vendor-id="4617" product-id="2" />

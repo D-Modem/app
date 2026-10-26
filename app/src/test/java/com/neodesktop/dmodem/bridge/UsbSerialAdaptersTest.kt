@@ -32,6 +32,12 @@ class UsbSerialAdaptersTest {
     }
 
     @Test
+    fun exarsTheirOwn() {
+        assertEquals(XrSerialDriver::class.java, driver(0x04e2, 0x1410))
+        assertEquals(XrSerialDriver::class.java, driver(0x04e2, 0x1422))
+    }
+
+    @Test
     fun theChipMakersStill() {
         assertEquals(FtdiSerialDriver::class.java, driver(0x0403, 0x6001))
         assertEquals(Cp21xxSerialDriver::class.java, driver(0x10c4, 0xea60))

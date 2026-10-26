@@ -72,7 +72,8 @@ between the app's engine and dmodemd (`sip_fax_line`).
 The phone can be a computer's external modem on a serial cable: on a
 USB serial adapter (FTDI, CP210x, CH34x, PL2303 and CDC-ACM chips, under
 the chip makers' IDs and the 1100 or so adapter makers' own that Linux's
-drivers know: tools/usb-serial-ids), Bluetooth serial, or TCP. [pico-serial](https://github.com/Neo-Desktop/pico-serial)
+drivers know: tools/usb-serial-ids; and Exar's XR21V141x and XR21B14xx),
+Bluetooth serial, or TCP. [pico-serial](https://github.com/Neo-Desktop/pico-serial)
 is a USB-C to DB25 adapter made for it: plugged into the computer's
 serial port it is the modem there. The app finds its control interface
 and uses its lines and settings (its firmware/PROTOCOL.md):
