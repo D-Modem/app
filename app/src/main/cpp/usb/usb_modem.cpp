@@ -113,7 +113,7 @@ int UsbModem::run()
 		u64 now = dcore::monotonic_ms();
 		if (now >= next_say) {
 			u64 wall = now - t0, clock = line_->now_ms();
-			char stats[256];
+			char stats[384];
 			usb_transfer_stats(stats, sizeof(stats));
 			if (!warned && clock < wall / 2) {
 				ERR("usb: the modem's samples %s: its clock %llu ms "
