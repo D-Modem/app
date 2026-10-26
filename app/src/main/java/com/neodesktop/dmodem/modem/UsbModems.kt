@@ -43,14 +43,14 @@ object UsbModems {
 
     fun kindOf(d: UsbDevice): Kind? = kindOf(d.vendorId, d.productId)
 
-    /** the ones plugged in, and which each is */
-    fun plugged(context: Context): List<Pair<UsbDevice, Kind>> {
+    /** the ones plugged in, and which each is; not [gone] (the device name of one just unplugged, which Android may still list) */
+    fun plugged(context: Context, gone: String? = null): List<Pair<UsbDevice, Kind>> {
         val m = context.getSystemService(UsbManager::class.java) ?: return emptyList()
-        return m.deviceList.values.mapNotNull { d -> kindOf(d)?.let { d to it } }
+        return m.deviceList.values.filter { it.deviceName != gone }.mapNotNull { d -> kindOf(d)?.let { d to it } }
     }
 
-    /** what the line setting says of what's plugged in */
-    fun describe(context: Context): String = plugged(context).let { p ->
+    /** what the line setting says of what's plugged in (see [plugged]) */
+    fun describe(context: Context, gone: String? = null): String = plugged(context, gone).let { p ->
         if (p.isEmpty()) "none" else p.joinToString(", ") { it.second.label }
     }
 

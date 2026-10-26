@@ -98,8 +98,7 @@ fun LineChoice(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
 @Composable
 fun UsbLineFields() {
     val context = LocalContext.current
-    // (looked at again when the screen is: plugging one in brings the app up)
-    val plugged = remember { com.neodesktop.dmodem.modem.UsbModems.describe(context) }
+    val plugged = rememberUsbModemsPlugged()
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             "The modem dials and answers a real phone line through a USB modem: a Smart Link SmartUSB56, a " +
