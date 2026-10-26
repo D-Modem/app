@@ -73,6 +73,8 @@ object UsbModems {
             if (!out.exists() || !out.readBytes().contentEquals(bytes)) out.writeBytes(bytes)
         }
         android.system.Os.setenv("DMODEM_AGERE_FIRMWARE", dir.path, true)
+        // (while the Agere is brought up: its samples' rate at each ARM clock, logged at start, ~13 s)
+        android.system.Os.setenv("DMODEM_AGERE_CLOCK_SWEEP", "1", true)
         return dir
     }
 
