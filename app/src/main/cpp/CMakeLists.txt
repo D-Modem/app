@@ -54,9 +54,14 @@ if(ANDROID)
 	set_source_files_properties(${DMODEM_RE_DIR}/dmodemd/usb_line.cpp
 		PROPERTIES COMPILE_DEFINITIONS
 		"libusb_init=dmodem_libusb_init;libusb_get_device_list=dmodem_libusb_get_device_list;libusb_open=dmodem_libusb_open;libusb_submit_transfer=dmodem_libusb_submit_transfer")
+	# (a special build, -Pdmodem.special=led-probe: the Agere's GPIOs
+	# flipped one by one at start, docs/agere-usb.md in D-Modem-RE)
+	set(agere_defs "libusb_submit_transfer=dmodem_libusb_submit_transfer")
+	if(DMODEM_SPECIAL STREQUAL "led-probe")
+		list(APPEND agere_defs DMODEM_AGERE_LED_PROBE)
+	endif()
 	set_source_files_properties(${DMODEM_RE_DIR}/dmodemd/usb_agere.cpp
-		PROPERTIES COMPILE_DEFINITIONS
-		"libusb_submit_transfer=dmodem_libusb_submit_transfer")
+		PROPERTIES COMPILE_DEFINITIONS "${agere_defs}")
 	target_compile_definitions(dmodem_engine PUBLIC DMODEM_ENGINE_USB)
 	target_link_libraries(dmodem_engine PUBLIC dmodem_android_libusb)
 
