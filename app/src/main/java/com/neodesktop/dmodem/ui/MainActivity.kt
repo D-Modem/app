@@ -38,6 +38,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -91,6 +93,19 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(a.dark) { applyNightMode(a.dark) }
             DModemTheme(a) {
                 var tab by rememberSaveable { mutableIntStateOf(TAB_MODEM) }
+                // (the app fading in as it starts, from the window's background: once, not again as it's
+                // recreated, as when turned)
+                var appeared by rememberSaveable { mutableStateOf(false) }
+                val appear = remember { androidx.compose.animation.core.Animatable(if (appeared) 1f else 0f) }
+                LaunchedEffect(Unit) {
+                    if (!appeared) {
+                        appeared = true
+                        appear.animateTo(
+                            1f,
+                            androidx.compose.animation.core.tween(400, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                        )
+                    }
+                }
                 var fullscreen by rememberSaveable { mutableStateOf(false) }
                 val full = fullscreen && tab == TAB_TERMINAL
 
@@ -125,6 +140,7 @@ class MainActivity : ComponentActivity() {
 
                 PromptHost()
                 Scaffold(
+                    modifier = Modifier.graphicsLayer { alpha = appear.value },
                     bottomBar = {
                         if (!full) {
                             NavigationBar {
