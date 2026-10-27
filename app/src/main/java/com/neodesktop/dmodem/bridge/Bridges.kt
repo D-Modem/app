@@ -61,6 +61,7 @@ object Bridges {
     /** "RING" from the modem: RI on for a while */
     @Volatile private var ringUntil = 0L
 
+    /** the line signals kept up with the modem's state and its RINGs (once) */
     private fun watch() {
         if (watching) return
         watching = true
@@ -79,6 +80,7 @@ object Bridges {
         })
     }
 
+    /** the line signals for [r] and [s]: DSR running, DCD online, RI while a RING is recent and on hook */
     private fun update(r: ModemState.Run, s: NativeModem.Status) {
         signals.value = LineSignals(
             ready = r == ModemState.Run.RUNNING,
@@ -144,6 +146,7 @@ object Bridges {
         }
     }
 
+    /** every bridge stopped, the settings forgotten */
     @Synchronized
     fun stopAll() {
         stopTcp()
@@ -153,6 +156,7 @@ object Bridges {
         applied = null
     }
 
+    /** the TCP bridge stopped */
     private fun stopTcp() {
         tcp?.stop()
         tcp = null
@@ -166,6 +170,7 @@ object Bridges {
         scope.launch { u.withBoard(f) }
     }
 
+    /** the USB bridge stopped, its board gone */
     private fun stopUsb() {
         usb?.stop()
         usb = null
@@ -175,6 +180,7 @@ object Bridges {
         _usb.value = UsbBridge.State.Stopped
     }
 
+    /** the USB gadget stopped (in the background) */
     private fun stopGadget() {
         val g = gadget
         gadget = null
@@ -196,6 +202,7 @@ object Bridges {
         return if (m == null) SerialFormat(baud) else SerialFormat(baud, m.groupValues[1].toInt(), m.groupValues[2][0], m.groupValues[3].toInt())
     }
 
+    /** the Bluetooth bridge stopped */
     private fun stopBt() {
         bt?.stop()
         bt = null

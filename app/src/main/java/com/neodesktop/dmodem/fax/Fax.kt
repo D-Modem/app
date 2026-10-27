@@ -39,10 +39,12 @@ data class FaxRecord(
     /** the received fax's file in Downloads (its name) */
     val file: String = "",
 ) {
+    /** the record as JSON, for the history's file */
     fun toJson(): JSONObject = JSONObject().put("id", id).put("time", time).put("sending", sending).put("number", number)
         .put("remote", remote).put("pages", pages).put("result", result).put("file", file)
 
     companion object {
+        /** a record from its JSON */
         fun fromJson(o: JSONObject) = FaxRecord(
             o.getString("id"), o.getLong("time"), o.getBoolean("sending"), o.optString("number"), o.optString("remote"),
             o.optInt("pages"), o.optString("result"), o.optString("file"),
@@ -80,6 +82,7 @@ object Fax {
     private var history: JsonListStore<FaxRecord>? = null
     private var watching = false
 
+    /** the faxes sent and received, kept in the app's faxes.json */
     fun history(context: Context): JsonListStore<FaxRecord> = synchronized(this) {
         history ?: JsonListStore(File(context.applicationContext.filesDir, "faxes.json"), FaxRecord::toJson, FaxRecord::fromJson, FaxRecord::id)
             .also { history = it }
@@ -180,16 +183,19 @@ object Fax {
         _state.value = s
     }
 
+    /** the last call's state cleared, once it's over */
     fun dismiss() {
         if (!running) _state.value = null
     }
 
     private var rates: List<T30.Rate> = emptyList()
 
+    /** the call's progress shown as [p] */
     private fun update(p: FaxProgress) {
         _state.value = _state.value?.copy(progress = p)
     }
 
+    /** a dial's result (null: none came) as the reason the fax didn't go */
     private fun dialResult(r: String?) = when (r) {
         null -> "no answer"
         "BUSY" -> "busy"
@@ -268,7 +274,9 @@ object Fax {
     @android.annotation.SuppressLint("StaticFieldLeak")
     private var app: Context? = null
 
+    /** the application's context; a FaxException before init */
     private fun contextOrThrow(): Context = app ?: throw FaxException("not set up")
+    /** the application's context, or null before init */
     private fun contextOrNull(): Context? = app
 
     /** adaptive answer's word for a fax call (ATV1), its line alone */
@@ -295,6 +303,7 @@ object Fax {
         })
     }
 
+    /** [pages] saved as a PDF in Downloads/D-Modem: its file's name */
     private fun save(context: Context, pages: List<FaxPage>): String {
         val name = "fax-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) + ".pdf"
         val into = DownloadsIncoming(context)
@@ -309,6 +318,7 @@ object Fax {
         return actual
     }
 
+    /** the call put in the history */
     private fun record(context: Context, sending: Boolean, number: String, p: FaxProgress, result: String, file: String) {
         history(context).put(
             FaxRecord(java.util.UUID.randomUUID().toString(), System.currentTimeMillis(), sending, number, p.remote, p.pages, result, file),

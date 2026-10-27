@@ -42,6 +42,7 @@ object FaxDocuments {
         }
     }
 
+    /** each page of the PDF at [uri] rendered at the fax's width, black and white */
     private fun pdf(context: Context, uri: Uri, fine: Boolean): List<FaxPage> {
         val fd = context.contentResolver.openFileDescriptor(uri, "r") ?: throw IOException("can't open the PDF")
         return fd.use { pfd ->
@@ -60,6 +61,7 @@ object FaxDocuments {
         }
     }
 
+    /** the fax's lines per inch: fine 196, else 98 */
     private fun lpi(fine: Boolean) = if (fine) 196 else 98
 
     /** an image decoded no bigger than it need be for a fax page */
@@ -82,8 +84,10 @@ object FaxDocuments {
         return (if (dither) dither(s, fine) else threshold(s, fine)).also { s.recycle() }
     }
 
+    /** [p]'s brightness, 0..255 */
     private fun luma(p: Int): Int = (Color.red(p) * 299 + Color.green(p) * 587 + Color.blue(p) * 114) / 1000
 
+    /** [b] as a page: each pixel black where it's opaque and dark */
     private fun threshold(b: Bitmap, fine: Boolean): FaxPage {
         val page = FaxPage(b.width, b.height, fine)
         val row = IntArray(b.width)

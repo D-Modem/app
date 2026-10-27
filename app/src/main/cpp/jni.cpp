@@ -37,12 +37,14 @@ int speaker_fd[2] = { -1, -1 };
 struct Attached {
 	JNIEnv *env = nullptr;
 	bool ours = false;
+	/* the thread detached, if attached here */
 	~Attached() {
 		if (ours)
 			vm->DetachCurrentThread();
 	}
 };
 
+/* this thread's JNIEnv, attaching it if need be (nullptr if that fails) */
 JNIEnv *env_now()
 {
 	thread_local Attached a;
@@ -84,6 +86,7 @@ std::string printable(const char *line)
 	return s;
 }
 
+/* a log line to NativeModem.onLog() */
 void log_line(const char *line)
 {
 	JNIEnv *env = env_now();
@@ -99,6 +102,7 @@ void log_line(const char *line)
 	env->DeleteLocalRef(s);
 }
 
+/* the call's state to NativeModem.onStatus() */
 void status_changed(const Status &st)
 {
 	JNIEnv *env = env_now();
@@ -110,6 +114,7 @@ void status_changed(const Status &st)
 	clear(env);
 }
 
+/* the modem's end to NativeModem.onExit() */
 void exited(int result)
 {
 	JNIEnv *env = env_now();
@@ -138,6 +143,7 @@ void line_started(bool caller, const char *dial, int fd)
 	env->DeleteLocalRef(d);
 }
 
+/* the speaker's level to NativeModem.onSpeaker() */
 void speaker_level(int level)
 {
 	JNIEnv *env = env_now();
@@ -157,6 +163,7 @@ void speaker_sound(const int16_t *pcm, int n)
 	}
 }
 
+/* s as a std::string ("" for null) */
 std::string str(JNIEnv *env, jstring s)
 {
 	if (!s)
@@ -196,11 +203,13 @@ jint native_start(JNIEnv *env, jclass, jstring user, jstring password,
 					line_started);
 }
 
+/* NativeModem.nativeStop(): the engine stopped */
 void native_stop(JNIEnv *, jclass)
 {
 	Engine::instance().stop();
 }
 
+/* NativeModem.nativePeerEvent(): a peer line's event to the engine */
 void native_peer_event(JNIEnv *env, jclass, jstring line)
 {
 	Engine::instance().peer_event(str(env, line).c_str());
@@ -215,6 +224,7 @@ jint native_speaker_fd(JNIEnv *, jclass)
 	return fd;
 }
 
+/* NativeModem.nativeRunning(): whether the engine runs */
 jboolean native_running(JNIEnv *, jclass)
 {
 	return Engine::instance().running();

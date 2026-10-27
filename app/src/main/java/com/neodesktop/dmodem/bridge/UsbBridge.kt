@@ -21,6 +21,7 @@ import java.io.OutputStream
 
 /** a serial line's character format and speed */
 data class SerialFormat(val baud: Int = 115200, val dataBits: Int = 8, val parity: Char = 'N', val stopBits: Int = 1) {
+    /** as "115200 8N1" */
     override fun toString() = "$baud $dataBits$parity$stopBits"
 
     val parityCode: Int get() = when (parity) {
@@ -55,6 +56,7 @@ class UsbPortLink(
 ) {
     @Volatile private var open = true
 
+    /** the link ended: the adapter's extra lines and its port closed */
     fun close() {
         open = false
         runCatching { extra?.close() }
@@ -66,11 +68,13 @@ class UsbPortLink(
         private var have = 0
         private var at = 0
 
+        /** one octet, or -1 once closed */
         override fun read(): Int {
             val one = ByteArray(1)
             return if (read(one, 0, 1) < 0) -1 else one[0].toInt() and 0xff
         }
 
+        /** what the port has into [b], polling it until there is some; -1 once closed or failed */
         override fun read(b: ByteArray, off: Int, len: Int): Int {
             while (open) {
                 if (at < have) {
@@ -88,7 +92,9 @@ class UsbPortLink(
     }
 
     private val output = object : OutputStream() {
+        /** one octet to the port */
         override fun write(b: Int) = write(byteArrayOf(b.toByte()), 0, 1)
+        /** [len] octets of [b] to the port; an IOException once closed */
         override fun write(b: ByteArray, off: Int, len: Int) {
             if (!open) throw IOException("the adapter is closed")
             port.write(b.copyOfRange(off, off + len), 2000)
@@ -184,6 +190,7 @@ class UsbBridge(
     @Volatile private var running = false
 
     private val receiver = object : BroadcastReceiver() {
+        /** an adapter plugged in or allowed: looked for, if none is served; unplugged: the link closed */
         override fun onReceive(c: Context, i: Intent) {
             when (i.action) {
                 UsbManager.ACTION_USB_DEVICE_ATTACHED, ACTION_PERMISSION -> if (link == null) Thread { find() }.start()
@@ -194,6 +201,7 @@ class UsbBridge(
         }
     }
 
+    /** watching for adapters plugged in, and the first one there served */
     fun start() {
         if (running) return
         if (usb == null) {
@@ -211,6 +219,7 @@ class UsbBridge(
         Thread { find() }.start()
     }
 
+    /** the watch stopped, the link closed */
     fun stop() {
         if (!running) return
         running = false
@@ -224,6 +233,7 @@ class UsbBridge(
     fun adapters(): List<Pair<String, UsbDevice>> =
         usb?.let { m -> UsbSerialAdapters.prober.findAllDrivers(m).map { label(it.device) to it.device } }.orEmpty()
 
+    /** the first adapter there served on a thread of its own (Android's permission asked for first), or [state] saying why not */
     @Synchronized
     private fun find() {
         if (!running || link != null) return
@@ -300,6 +310,7 @@ class UsbBridge(
         return CdcLineState { buf, ms -> conn.bulkTransfer(ep, buf, buf.size, ms) }.start()
     }
 
+    /** [d]'s maker and product, else its USB IDs */
     private fun label(d: UsbDevice): String =
         (listOfNotNull(d.manufacturerName, d.productName).joinToString(" ").ifBlank { null })
             ?: "USB %04x:%04x".format(d.vendorId, d.productId)

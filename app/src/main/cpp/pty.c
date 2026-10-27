@@ -21,6 +21,7 @@
 #include <dirent.h>
 #include <poll.h>
 
+/* an IOException thrown: what, and errno's message */
 static void throw_io(JNIEnv *env, const char *what)
 {
 	char msg[256];
@@ -45,6 +46,7 @@ static char **strings(JNIEnv *env, jobjectArray a)
 	return out;
 }
 
+/* what strings() made, freed */
 static void free_strings(char **s)
 {
 	for (char **p = s; p && *p; p++)
@@ -146,6 +148,7 @@ Java_com_neodesktop_dmodem_local_Pty_start(JNIEnv *env, jclass cls, jstring jpat
 	return master;
 }
 
+/* resize(fd, rows, cols): the pty's window size set */
 JNIEXPORT void JNICALL
 Java_com_neodesktop_dmodem_local_Pty_resize(JNIEnv *env, jclass cls, jint fd, jint rows, jint cols)
 {
@@ -258,6 +261,7 @@ Java_com_neodesktop_dmodem_local_Pty_signalSession(JNIEnv *env, jclass cls, jint
 	return count;
 }
 
+/* close(fd): the fd closed */
 JNIEXPORT void JNICALL
 Java_com_neodesktop_dmodem_local_Pty_close(JNIEnv *env, jclass cls, jint fd)
 {

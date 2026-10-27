@@ -126,11 +126,14 @@ object PicoSerialProtocol {
         val roleChanges: Long,
     )
 
+    /** [b]'s byte at [i], unsigned */
     private fun u8(b: ByteArray, i: Int) = b[i].toInt() and 0xff
 
+    /** [b]'s little-endian u32 at [i] */
     private fun u32(b: ByteArray, i: Int): Long =
         (u8(b, i).toLong()) or (u8(b, i + 1).toLong() shl 8) or (u8(b, i + 2).toLong() shl 16) or (u8(b, i + 3).toLong() shl 24)
 
+    /** GET_INFO's reply as an [Info], or null when it's short or no protocol */
     fun info(b: ByteArray): Info? {
         if (b.size < 14 || u8(b, 0) < 1) return null
         return Info(
@@ -146,11 +149,13 @@ object PicoSerialProtocol {
         )
     }
 
+    /** GET_INPUTS' reply as [Inputs], or null when it's short */
     fun inputs(b: ByteArray): Inputs? {
         if (b.size < 5) return null
         return Inputs(Role.of(u8(b, 0)), u8(b, 1), u8(b, 2), u8(b, 3), u8(b, 4))
     }
 
+    /** GET_STATS' reply as [Stats], or null when it's short */
     fun stats(b: ByteArray): Stats? {
         if (b.size < 32) return null
         val v = LongArray(8) { u32(b, it * 4) }
@@ -178,29 +183,38 @@ interface UsbControl {
 
 /** [UsbControl] on Android's USB host: vendor requests to [itf] on [conn] */
 class AndroidUsbControl(private val conn: UsbDeviceConnection, private val itf: Int) : UsbControl {
+    /** a vendor IN request to [itf]: its data, null if it failed */
     override fun read(request: Int, value: Int, length: Int): ByteArray? {
         val buf = ByteArray(length)
         val n = conn.controlTransfer(0xC1, request, value, itf, buf, length, 500)
         return if (n < 0) null else buf.copyOf(n)
     }
 
+    /** a vendor OUT request to [itf], no data: whether it went */
     override fun write(request: Int, value: Int): Boolean = conn.controlTransfer(0x41, request, value, itf, null, 0, 500) >= 0
 }
 
 /** A pico-serial board, by its control requests. */
 class PicoSerial(private val control: UsbControl) {
+    /** the board's info (GET_INFO), or null */
     fun info(): PicoSerialProtocol.Info? = control.read(PicoSerialProtocol.GET_INFO, 0, 64)?.let(PicoSerialProtocol::info)
+    /** the board's lines now (GET_INPUTS), or null */
     fun inputs(): PicoSerialProtocol.Inputs? = control.read(PicoSerialProtocol.GET_INPUTS, 0, 5)?.let(PicoSerialProtocol::inputs)
+    /** the board's counts (GET_STATS), or null */
     fun stats(): PicoSerialProtocol.Stats? = control.read(PicoSerialProtocol.GET_STATS, 0, 32)?.let(PicoSerialProtocol::stats)
 
     /** (saved in the board's flash) */
     fun setMode(m: PicoSerialProtocol.Mode) = control.write(PicoSerialProtocol.SET_MODE, m.code)
+    /** the board's flow control (saved in the board's flash) */
     fun setFlow(f: PicoSerialProtocol.Flow) = control.write(PicoSerialProtocol.SET_FLOW, f.code)
+    /** where the board's speed comes from (saved in the board's flash) */
     fun setBaudMode(b: PicoSerialProtocol.BaudMode) = control.write(PicoSerialProtocol.SET_BAUD_MODE, b.code)
 
     /** (not saved) */
     fun setOutputs(mask: Int, value: Int) = control.write(PicoSerialProtocol.SET_OUTPUTS, PicoSerialProtocol.outputs(mask, value))
+    /** the board's counts zeroed */
     fun clearStats() = control.write(PicoSerialProtocol.CLEAR_STATS, 0)
+    /** the board's speed learned from the computer again */
     fun relearnBaud() = control.write(PicoSerialProtocol.AUTOBAUD_RESTART, 0)
 
     companion object {
@@ -224,6 +238,7 @@ interface AdapterLines {
     /** the computer's DTR, or null when it isn't known */
     fun computerDtr(): Boolean?
 
+    /** whatever the adapter holds let go (nothing, by default) */
     fun close() {}
 }
 
@@ -275,6 +290,7 @@ class PicoSerialLines(val pico: PicoSerial, private val clock: () -> Long = Syst
         return true
     }
 
+    /** the computer's DTR from the inputs the last [drive] read, or null when the board isn't DCE */
     override fun computerDtr(): Boolean? {
         val i = last ?: return null
         if (i.role != PicoSerialProtocol.Role.DCE) return null
@@ -312,12 +328,16 @@ class CdcLineState(private val read: (ByteArray, Int) -> Int) : AdapterLines {
         }
     }, "cdc-notify").apply { isDaemon = true }
 
+    /** the notifications read, on a thread of their own */
     fun start(): CdcLineState = apply { thread.start() }
 
+    /** nothing driven: false, the port's DTR does DCD */
     override fun drive(dcd: Boolean, dsr: Boolean, ri: Boolean) = false
 
+    /** the computer's DTR: the adapter's DSR, from the last notification */
     override fun computerDtr(): Boolean? = state?.dsr
 
+    /** the notifications' thread stopped */
     override fun close() {
         open = false
         thread.interrupt()

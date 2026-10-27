@@ -61,6 +61,7 @@ class TcpBridge(
     /** the port the server got (when [port] was 0: any) */
     val localPort: Int get() = server?.localPort ?: -1
 
+    /** the server closed, its thread joined */
     fun stop() {
         val s = server ?: return
         server = null
@@ -69,6 +70,7 @@ class TcpBridge(
         _state.value = State.Stopped
     }
 
+    /** each connection to [s] served on a thread of its own, until it's closed */
     private fun accept(s: ServerSocket) {
         while (!s.isClosed) {
             val c = try { s.accept() } catch (_: IOException) { break }
@@ -76,6 +78,7 @@ class TcpBridge(
         }
     }
 
+    /** [c] served: Telnet started, the password asked for, then the modem if no other client has it (else BUSY) */
     private fun client(c: Socket) {
         c.tcpNoDelay = true
         val name = c.inetAddress.hostAddress ?: "?"
@@ -141,6 +144,7 @@ class TcpBridge(
         return null
     }
 
+    /** whether [a] and [b] are the same, compared in constant time (by their SHA-256) */
     private fun same(a: String, b: String): Boolean {
         val d = MessageDigest.getInstance("SHA-256")
         return MessageDigest.isEqual(d.digest(a.toByteArray()), d.digest(b.toByteArray()))

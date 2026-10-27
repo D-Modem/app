@@ -67,7 +67,9 @@ object NativeModem {
     )
 
     interface Listener {
+        /** a line of the modem's or SIP's log */
         fun onLog(line: String) {}
+        /** the call's state, as it changes */
         fun onStatus(status: Status) {}
         /** The modem stopped: 0 by [stop] or the DTE closed, -1 on an error. */
         fun onExit(result: Int) {}
@@ -110,6 +112,7 @@ object NativeModem {
     /** A peer line's event to the modem: RING, CANCEL, ANSWERED, FAILED <SIP status>, DROPPED. */
     fun peerEvent(line: String) = nativePeerEvent(line)
 
+    /** the modem started (jni.cpp): the app's end of its DTE's socket, or -1 */
     @JvmStatic
     private external fun nativeStart(
         user: String, password: String, domain: String, sipPort: Int,
@@ -118,31 +121,38 @@ object NativeModem {
         peer: Boolean, peerLeadMs: Int, usbFd: Int, usbRate: Int,
     ): Int
 
+    /** a peer line's event to the engine */
     @JvmStatic
     private external fun nativePeerEvent(line: String)
 
+    /** the speaker sound's socket, -1 after the first call */
     @JvmStatic
     private external fun nativeSpeakerFd(): Int
 
+    /** the modem stopped, waiting for it */
     @JvmStatic
     private external fun nativeStop()
 
+    /** whether the modem runs */
     @JvmStatic
     private external fun nativeRunning(): Boolean
 
     // the native library's callbacks (jni.cpp)
 
+    /** a log line, to the listener */
     @JvmStatic
     private fun onLog(line: String) {
         listener?.onLog(line)
     }
 
+    /** the call's state, to the listener as a [Status] */
     @JvmStatic
     private fun onStatus(link: Int, offhook: Boolean, txRate: Int, rxRate: Int) {
         val l = Link.entries.getOrElse(link) { Link.IDLE }
         listener?.onStatus(Status(l, offhook, txRate, rxRate))
     }
 
+    /** a peer line's call to the listener (its descriptor closed if there is none) */
     @JvmStatic
     private fun onLine(caller: Boolean, dial: String, fd: Int) {
         val pfd = ParcelFileDescriptor.adoptFd(fd)
@@ -150,11 +160,13 @@ object NativeModem {
         if (l == null) pfd.close() else l.onLine(caller, dial, pfd)
     }
 
+    /** the speaker's level, to the listener */
     @JvmStatic
     private fun onSpeaker(level: Int) {
         listener?.onSpeaker(level)
     }
 
+    /** the modem's end, to the listener */
     @JvmStatic
     private fun onExit(result: Int) {
         listener?.onExit(result)

@@ -27,6 +27,7 @@ import java.util.EnumSet
 
 /** a control transfer on endpoint 0: the bytes moved, or < 0 */
 fun interface XrControl {
+    /** the transfer done, [data] (up to [length]) out or in: the bytes moved, or < 0 */
     fun transfer(requestType: Int, request: Int, value: Int, index: Int, data: ByteArray?, length: Int): Int
 }
 
@@ -94,11 +95,13 @@ class XrUart(val chip: XrChip, private val control: XrControl, val itf: Int) {
 
     private val recipient = if (chip.toDevice) 0 else 1
 
+    /** register [reg] of this channel set to [value]; an IOException if the request fails */
     fun write(reg: Int, value: Int) {
         val n = control.transfer(0x40 or recipient, chip.setRequest, value and 0xffff, (channel shl 8) or reg, null, 0)
         if (n < 0) throw IOException("register 0x%x write failed".format(reg))
     }
 
+    /** register [reg] of this channel (1 byte for 8-bit chips, else 2); an IOException if the read fails */
     fun read(reg: Int): Int {
         val len = if (chip.width == 8) 1 else 2
         val buf = ByteArray(len)
@@ -138,8 +141,10 @@ class XrUart(val chip: XrChip, private val control: XrControl, val itf: Int) {
         enable()
     }
 
+    /** the UART off */
     fun close() = disable()
 
+    /** the UART on, TX and RX (on the V141x its FIFOs too, in the datasheet's order) */
     fun enable() {
         if (chip == XrChip.V141X) {
             // (the order the datasheet asks: TX FIFO, the UART, then RX FIFO)
@@ -151,11 +156,13 @@ class XrUart(val chip: XrChip, private val control: XrControl, val itf: Int) {
         }
     }
 
+    /** the UART off (on the V141x its FIFOs too) */
     fun disable() {
         write(chip.uartEnable, 0)
         if (chip == XrChip.V141X) manager(UM_FIFO_ENABLE, 0)
     }
 
+    /** the TX and/or RX FIFOs emptied */
     fun resetFifos(tx: Boolean, rx: Boolean) {
         if (chip == XrChip.V141X) {
             if (tx) manager(UM_TX_FIFO_RESET, 1)
@@ -174,6 +181,7 @@ class XrUart(val chip: XrChip, private val control: XrControl, val itf: Int) {
         enable()
     }
 
+    /** [baud] and the format checked for this chip: IllegalArgumentException if invalid, UnsupportedOperationException if the chip can't */
     private fun check(baud: Int, dataBits: Int, stopBits: Int, parity: Int) {
         if (baud <= 0) throw IllegalArgumentException("Invalid baud rate: $baud")
         if (chip == XrChip.V141X && (baud < V141X_MIN || baud > OSC_HZ)) throw UnsupportedOperationException("Unsupported baud rate: $baud")
@@ -190,6 +198,7 @@ class XrUart(val chip: XrChip, private val control: XrControl, val itf: Int) {
         if (parity !in UsbSerialPort.PARITY_NONE..UsbSerialPort.PARITY_SPACE) throw IllegalArgumentException("Invalid parity: $parity")
     }
 
+    /** the speed and format written: the V141x's own registers, the others' by CDC's SET_LINE_CODING */
     private fun line(baud: Int, dataBits: Int, stopBits: Int, parity: Int) {
         if (chip == XrChip.V141X) {
             val c = v141xClock(baud)
@@ -215,6 +224,7 @@ class XrUart(val chip: XrChip, private val control: XrControl, val itf: Int) {
         }
     }
 
+    /** GPIO_MODE's value: RTS/CTS on the pins for hardware flow, the activity toggles on chips that keep them */
     private fun gpioMode(): Int {
         val sel = if (flow == UsbSerialPort.FlowControl.RTS_CTS) GPIO_SEL_RTS_CTS else 0
         return sel or (if (chip.toggles) GPIO_TX_TOGGLE or GPIO_RX_TOGGLE else 0)
@@ -231,6 +241,7 @@ class XrUart(val chip: XrChip, private val control: XrControl, val itf: Int) {
         enable()
     }
 
+    /** the chip's FLOW_CONTROL mode for [f] */
     private fun flowMode(f: UsbSerialPort.FlowControl) = when (f) {
         UsbSerialPort.FlowControl.NONE -> FLOW_NONE
         UsbSerialPort.FlowControl.RTS_CTS -> FLOW_HW
@@ -238,6 +249,7 @@ class XrUart(val chip: XrChip, private val control: XrControl, val itf: Int) {
         else -> throw UnsupportedOperationException("Unsupported flow control: $f")
     }
 
+    /** the XON and XOFF characters set, for software flow */
     private fun flowChars() {
         if (flow != UsbSerialPort.FlowControl.XON_XOFF) return
         write(chip.xonChar, UsbSerialPort.CHAR_XON.code)
@@ -322,6 +334,7 @@ class XrUart(val chip: XrChip, private val control: XrControl, val itf: Int) {
             0xaaa, 0x5aa, 0x55a, 0xb56, 0x6d6, 0xdb6, 0xbb6, 0x76e, 0xeee, 0xdde, 0x7de, 0xf7e, 0xefe, 0x7fe, 0xffe, 0xffd,
         )
 
+        /** the V141x's divisor and clock masks for [baud] */
         fun v141xClock(baud: Int): Clock {
             val divisor = OSC_HZ / baud
             val fraction = ((32L * OSC_HZ) / baud).toInt() and 0x1f
@@ -359,8 +372,10 @@ class XrSerialDriver(private val device: UsbDevice) : UsbSerialDriver {
         XrUart.pairs(itfs.map { it.id to it.interfaceClass }).mapIndexed { n, (c, d) -> XrSerialPort(n, itfs[c], itfs[d]) }
     }
 
+    /** the device the ports are on */
     override fun getDevice(): UsbDevice = device
 
+    /** its ports, one per communications/data interface pair */
     override fun getPorts(): List<UsbSerialPort> = ports
 
     inner class XrSerialPort(n: Int, private val comm: UsbInterface, private val data: UsbInterface) :
@@ -370,10 +385,13 @@ class XrSerialDriver(private val device: UsbDevice) : UsbSerialDriver {
         private var dtr = false
         private var rts = false
 
+        /** the driver the port is of */
         override fun getDriver(): UsbSerialDriver = this@XrSerialDriver
 
+        /** the open port's UART; an IOException when closed */
         private fun uart(): XrUart = uart ?: throw IOException("Port not open")
 
+        /** the port opened: its interfaces claimed, its bulk endpoints found, the UART set up with DTR, RTS and flow as set before */
         override fun openInt() {
             val conn = mConnection
             if (!conn.claimInterface(comm, true)) throw IOException("Could not claim interface ${comm.id}")
@@ -390,6 +408,7 @@ class XrSerialDriver(private val device: UsbDevice) : UsbSerialDriver {
             uart = u
         }
 
+        /** the UART off, its interfaces let go */
         override fun closeInt() {
             runCatching { uart?.close() }
             uart = null
@@ -397,26 +416,36 @@ class XrSerialDriver(private val device: UsbDevice) : UsbSerialDriver {
             runCatching { mConnection.releaseInterface(comm) }
         }
 
+        /** the UART's speed and character format */
         override fun setParameters(baudRate: Int, dataBits: Int, stopBits: Int, parity: Int) =
             uart().setLine(baudRate, dataBits, stopBits, parity)
 
+        /** CD, from the UART's status */
         override fun getCD() = uart().status().cd
+        /** CTS, from the UART's status */
         override fun getCTS() = uart().status().cts
+        /** DSR, from the UART's status */
         override fun getDSR() = uart().status().dsr
+        /** RI, from the UART's status */
         override fun getRI() = uart().status().ri
+        /** DTR as last set */
         override fun getDTR() = dtr
+        /** RTS as last set */
         override fun getRTS() = rts
 
+        /** DTR set, kept for the next open if closed */
         override fun setDTR(value: Boolean) {
             uart?.lines(value, rts)
             dtr = value
         }
 
+        /** RTS set, kept for the next open if closed */
         override fun setRTS(value: Boolean) {
             uart?.lines(dtr, value)
             rts = value
         }
 
+        /** the lines: DTR and RTS as set, the rest from the UART's status */
         override fun getControlLines(): EnumSet<UsbSerialPort.ControlLine> {
             val s = uart().status()
             val l = EnumSet.noneOf(UsbSerialPort.ControlLine::class.java)
@@ -429,28 +458,34 @@ class XrSerialDriver(private val device: UsbDevice) : UsbSerialDriver {
             return l
         }
 
+        /** all of them: the chip has every line */
         override fun getSupportedControlLines(): EnumSet<UsbSerialPort.ControlLine> =
             EnumSet.allOf(UsbSerialPort.ControlLine::class.java)
 
+        /** flow control done by the chip (kept for the next open if closed) */
         override fun setFlowControl(flowControl: UsbSerialPort.FlowControl) {
             if (flowControl !in supportedFlowControl) throw UnsupportedOperationException("Unsupported flow control: $flowControl")
             uart?.setFlow(flowControl)
             mFlowControl = flowControl
         }
 
+        /** none, RTS/CTS and XON/XOFF */
         override fun getSupportedFlowControl(): EnumSet<UsbSerialPort.FlowControl> = EnumSet.of(
             UsbSerialPort.FlowControl.NONE, UsbSerialPort.FlowControl.RTS_CTS, UsbSerialPort.FlowControl.XON_XOFF,
         )
 
+        /** the chip's FIFOs emptied, either way */
         override fun purgeHwBuffers(purgeWriteBuffers: Boolean, purgeReadBuffers: Boolean) =
             uart().resetFifos(tx = purgeWriteBuffers, rx = purgeReadBuffers)
 
+        /** a break held on the line, or ended */
         override fun setBreak(value: Boolean) = uart().setBreak(value)
     }
 
     companion object {
         private const val TIMEOUT = 5000
 
+        /** usb-serial-for-android's table: Exar's products this driver takes */
         @JvmStatic
         fun getSupportedDevices(): Map<Int, IntArray> = mapOf(XrChip.VENDOR to XrChip.products)
     }

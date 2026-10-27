@@ -38,6 +38,7 @@ const int RATE = 8000;
 std::mutex log_mu;
 Engine::LogFn log_fn;
 
+/* a log line to the app's function, if it set one */
 void log_hook(const char *line)
 {
 	std::lock_guard<std::mutex> lk(log_mu);
@@ -45,6 +46,7 @@ void log_hook(const char *line)
 		log_fn(line);
 }
 
+/* the app's link state for the core's */
 Status::Link link_of(dcore::LinkState s)
 {
 	switch (s) {

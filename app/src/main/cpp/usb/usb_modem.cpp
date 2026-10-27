@@ -60,11 +60,13 @@ UsbModem::~UsbModem()
 			close(e);
 }
 
+/* the core up, the device open and the wake pipe made */
 bool UsbModem::ok() const
 {
 	return m_ && m_->ok() && open_ && ev_[0] >= 0;
 }
 
+/* see usb_modem.h: stopped_ set and run()'s poll woken */
 void UsbModem::stop()
 {
 	stopped_ = true;

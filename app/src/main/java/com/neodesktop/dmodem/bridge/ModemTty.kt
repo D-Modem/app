@@ -81,11 +81,13 @@ class ModemTty(
 
     /** the program's octets: -1 once it has closed the port (or the bridge let it go) */
     private inner class Input(private val fd: Int) : InputStream() {
+        /** one octet, or -1 at the end */
         override fun read(): Int {
             val b = ByteArray(1)
             return if (read(b, 0, 1) <= 0) -1 else b[0].toInt() and 0xff
         }
 
+        /** what the program sent into [b], waiting for it; -1 once it closed the port or was let go */
         override fun read(b: ByteArray, off: Int, len: Int): Int {
             while (true) {
                 if (kicked) return -1
@@ -98,8 +100,10 @@ class ModemTty(
 
     /** the modem's octets to the program */
     private class Output(private val fd: Int) : OutputStream() {
+        /** one octet to the program */
         override fun write(b: Int) = write(byteArrayOf(b.toByte()), 0, 1)
 
+        /** [len] octets of [b] to the pty; an IOException if the write fails */
         override fun write(b: ByteArray, off: Int, len: Int) {
             if (!Pty.write(fd, b, off, len)) throw IOException("ttyDM0: the write failed")
         }

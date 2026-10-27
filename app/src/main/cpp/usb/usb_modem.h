@@ -37,6 +37,7 @@ public:
 	UsbModem &operator=(const UsbModem &) = delete;
 
 	bool ok() const;
+	/* the core */
 	dcore::Modem &modem() { return *m_; }
 
 	/* before run(): the call's state each time it changes */

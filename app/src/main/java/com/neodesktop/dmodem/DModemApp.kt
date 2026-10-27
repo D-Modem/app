@@ -15,6 +15,7 @@ class DModemApp : Application() {
         const val CHANNEL_CALLS = "calls"
     }
 
+    /** the notification channels made; the terminal, fax and dial-in set up; the log and the DTE's console started */
     override fun onCreate() {
         super.onCreate()
         val ch = NotificationChannel(

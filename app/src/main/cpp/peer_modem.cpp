@@ -75,20 +75,27 @@ bool send_all(int fd, const void *buf, size_t n)
    app's while off hook */
 class PeerLine final : public dcore::Host {
 public:
+	/* on dte, lead_ms of silence ahead of the modem's samples */
 	PeerLine(dmd::Dte &dte, int lead_ms) : dte_(dte), lead_ms_(lead_ms) {}
+	/* the app's end of the line closed, if off hook */
 	~PeerLine() { hang_up(); }
 
 	s16 start(dcore::Modem &m) override;
+	/* on hook: the line closed */
 	s16 stop(dcore::Modem &) override {
 		DBG("on hook\n");
 		hang_up();
 		return 0;
 	}
+	/* the driver's name, for the log */
 	const char *driver_name() override { return "peer"; }
+	/* the app's line says when the far end answers (ANSWERED) */
 	bool signals_answer(dcore::Modem &) override { return true; }
+	/* the modem's output to the DTE */
 	s32 dte_write(dcore::Modem &, const char *buf, s32 n) override {
 		return dte_.write(buf, n);
 	}
+	/* the core's clock: the monotonic ms */
 	u64 now_ms() override { return dcore::monotonic_ms(); }
 	/* ATM, ATL */
 	void speaker(dcore::Modem &, s16 volume) override {
@@ -100,6 +107,7 @@ public:
 	PeerModem::LineFn line_fn;
 	dmd::SipModem::Speaker speaker_to;
 
+	/* the line's socket, -1 on hook */
 	int fd() const { return fd_; }
 	/* the ms until the line may take samples again (0: now) */
 	long wait_ms();
@@ -108,6 +116,7 @@ public:
 	int audio(dcore::Modem &m);
 
 private:
+	/* the line's socket closed, if open */
 	void hang_up() {
 		if (fd_ >= 0) {
 			close(fd_);
@@ -257,16 +266,19 @@ PeerModem::~PeerModem()
 			close(fd);
 }
 
+/* the core up and the event pipe made */
 bool PeerModem::ok() const
 {
 	return m_ && m_->ok() && ev_[0] >= 0;
 }
 
+/* where an off hook's line goes (before run()) */
 void PeerModem::on_line(LineFn fn)
 {
 	line_->line_fn = std::move(fn);
 }
 
+/* see peer_modem.h */
 void PeerModem::on_speaker(dmd::SipModem::Speaker s)
 {
 	line_->speaker_to = std::move(s);
@@ -313,6 +325,7 @@ void PeerModem::act(const char *s)
 	}
 }
 
+/* the call's state to status_fn_, when it changed */
 void PeerModem::report()
 {
 	Status s;

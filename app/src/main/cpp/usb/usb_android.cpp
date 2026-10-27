@@ -20,6 +20,7 @@ libusb_device_handle *wrapped_ = nullptr;
 
 namespace dmodem_android {
 
+/* see usb_android.h */
 void usb_use_fd(int fd)
 {
 	fd_ = fd;

@@ -19,6 +19,7 @@ object UsbSerialAdapters {
     /** finds them among what's plugged in */
     val prober: UsbSerialProber by lazy { UsbSerialProber(table()) }
 
+    /** usb-serial-for-android's table, with the adapters' IDs Linux knows and Exar's chips added */
     internal fun table(): ProbeTable = UsbSerialProber.getDefaultProbeTable().apply {
         add(UsbSerialIds.FTDI, FtdiSerialDriver::class.java)
         add(UsbSerialIds.CP210X, Cp21xxSerialDriver::class.java)
@@ -28,6 +29,7 @@ object UsbSerialAdapters {
         for (pid in XrChip.products) addProduct(XrChip.VENDOR, pid, XrSerialDriver::class.java)
     }
 
+    /** [driver] for each of [ids] (vendor << 16 | product) */
     private fun ProbeTable.add(ids: IntArray, driver: Class<out UsbSerialDriver>) {
         for (id in ids) addProduct(id ushr 16, id and 0xffff, driver)
     }

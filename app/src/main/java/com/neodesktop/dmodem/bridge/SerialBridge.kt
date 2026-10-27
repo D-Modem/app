@@ -182,6 +182,7 @@ class Telnet {
     /** the modem's lines as last told */
     @Volatile private var lines = LineSignals()
 
+    /** [s] as RFC 2217's modem state bits: DCD, RI, DSR and CTS */
     private fun lineBits(s: LineSignals) =
         (if (s.carrier) 0x80 else 0) or (if (s.ringing) 0x40 else 0) or (if (s.ready) 0x30 else 0)
     private var lastModem = -1
@@ -246,6 +247,7 @@ class Telnet {
         return o.toByteArray()
     }
 
+    /** the client's WILL, WONT, DO or DONT of [opt] answered: the options we offer or accept agreed to, the rest refused */
     private fun negotiate(cmd: Int, opt: Int) {
         when (cmd) {
             DO_I -> if (opt in OFFER) {
@@ -261,13 +263,16 @@ class Telnet {
         }
     }
 
+    /** IAC [verb] [opt] to the client */
     private fun send(verb: Byte, opt: Int) = reply(byteArrayOf(IAC, verb, opt.toByte()))
 
+    /** an RFC 2217 subnegotiation acted on and answered; any other option's ignored */
     private fun subnegotiation(s: ByteArray) {
         if (s.isEmpty() || (s[0].toInt() and 0xff) != COM_PORT || s.size < 2) return
         comPort = true
         val c = s[1].toInt() and 0xff
         val v = s.copyOfRange(2, s.size)
+        /** the value's first octet, or 0 */
         fun u8() = if (v.isNotEmpty()) v[0].toInt() and 0xff else 0
         when (c) {
             SIGNATURE -> answer(c, "D-Modem".toByteArray())
@@ -308,8 +313,10 @@ class Telnet {
         }
     }
 
+    /** RFC 2217's answer to command [c]: [v] back */
     private fun answer(c: Int, v: ByteArray) = reply(subneg(c + 100, v))
 
+    /** a COM-PORT-OPTION subnegotiation of [c] with [v], IAC doubled */
     private fun subneg(c: Int, v: ByteArray): ByteArray {
         val o = java.io.ByteArrayOutputStream()
         o.write(0xff); o.write(SB_I); o.write(COM_PORT); o.write(c)

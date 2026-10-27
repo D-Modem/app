@@ -38,6 +38,7 @@ class UsbGadget(
     private var thread: Thread? = null
     @Volatile private var input: FileInputStream? = null
 
+    /** the ACM function added (as root) and the tty served on a thread of its own; false, [state] saying why, if root couldn't */
     fun start(): Boolean {
         if (running) return true
         val (status, out) = root(ENABLE)
@@ -51,6 +52,7 @@ class UsbGadget(
         return true
     }
 
+    /** the tty let go, its thread joined, the function taken out again */
     fun stop() {
         if (!running) return
         running = false

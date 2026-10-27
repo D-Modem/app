@@ -38,10 +38,12 @@ class LocalLink(
     @Volatile var exitStatus: Int? = null
         private set
 
+    /** [l] given the program's output from now */
     override fun addListener(l: TerminalLink.Listener) {
         listeners.add(l)
     }
 
+    /** [l] given no more of it */
     override fun removeListener(l: TerminalLink.Listener) {
         listeners.remove(l)
     }
@@ -75,6 +77,7 @@ class LocalLink(
         return true
     }
 
+    /** the program's output to the listeners, until the pty's end */
     private fun read() {
         val buf = ByteArray(16384)
         while (true) {
@@ -84,6 +87,7 @@ class LocalLink(
         }
     }
 
+    /** closed, saying [reason] (once): the writer stopped, the pty's master closed */
     private fun closed(reason: String?) {
         synchronized(this) {
             if (_state.value is TerminalLink.State.Closed) return
@@ -97,6 +101,7 @@ class LocalLink(
         }
     }
 
+    /** [length] octets of [data] to the program, on the writer's thread; false when it isn't open */
     override fun write(data: ByteArray, offset: Int, length: Int): Boolean {
         val f = fd
         if (f < 0 || _state.value !is TerminalLink.State.Open) return false
@@ -109,6 +114,7 @@ class LocalLink(
         }
     }
 
+    /** the window's size kept and given the pty */
     override fun resize(cols: Int, rows: Int) {
         this.cols = cols
         this.rows = rows

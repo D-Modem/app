@@ -51,9 +51,11 @@ class CellTransport(
         throw last ?: IOException("no sound from the call")
     }
 
+    /** whether the phone's call state came to [s] within [ms] */
     private fun waitFor(s: CellPhone.State, ms: Long): Boolean =
         runBlocking { withTimeoutOrNull(ms) { phone.state.first { it == s } } } != null
 
+    /** a mobile call placed to the digits of [address], up and its sound had (the mic muted), as a connection already answered; an IOException, hung up, if not */
     override fun connect(address: String): Duplex {
         audio.unavailable()?.let { throw IOException(it) }
         val number = address.filter { it.isDigit() || it in "+*#" }
@@ -76,6 +78,7 @@ class CellTransport(
         return CellDuplex(number, "ANSWER\n".toByteArray(), streams).also { call = it; it.watchEnd() }
     }
 
+    /** each call ringing here, while there's none, to [accept] as a connection saying RING */
     override fun listen(accept: (Duplex) -> Unit) {
         audio.unavailable()?.let { throw IOException(it) }
         listening = Thread({
@@ -95,6 +98,7 @@ class CellTransport(
         }, "cell-listen").apply { isDaemon = true; start() }
     }
 
+    /** listening stopped, the call there is hung up */
     override fun close() {
         listening?.interrupt()
         listening = null
@@ -129,6 +133,7 @@ class CellTransport(
         }, "cell-end").apply { isDaemon = true; start() }
 
         override val input: Source = object : Source {
+            /** the hello first, then the call's sound once it's there; -1 once closed */
             override fun read(b: ByteArray, off: Int, len: Int): Int {
                 if (helloAt < hello.size) {
                     val n = minOf(len, hello.size - helloAt)
@@ -146,8 +151,10 @@ class CellTransport(
         }
 
         override val output: Sink = object : Sink {
+            /** one octet to the call */
             override fun write(b: Int) = write(byteArrayOf(b.toByte()), 0, 1)
 
+            /** the handshake's line first (ANSWER takes the call), then our sound to the call: kept until it's taken */
             override fun write(b: ByteArray, off: Int, len: Int) {
                 var at = off
                 // the handshake's line (RING from a caller: nothing to do; ANSWER: the call taken)
@@ -194,6 +201,7 @@ class CellTransport(
             }
         }, "cell-answer").apply { isDaemon = true; start() }
 
+        /** the call's sound closed, the mic as it was, the call hung up (once) */
         override fun close() {
             val s = synchronized(lock) {
                 if (closed) return

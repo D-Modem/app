@@ -59,6 +59,7 @@ object Linux {
 
     var place: (Context) -> Place = { ctx -> phonePlace(ctx) }
 
+    /** where the systems live on the phone: the app's files, its programs, its cache, shared storage when allowed, the phone's DNS */
     private fun phonePlace(app: Context) = Place(
         root = File(app.filesDir, "linux"),
         programDir = File(app.applicationInfo.nativeLibraryDir ?: app.filesDir.path),
@@ -71,6 +72,7 @@ object Linux {
     /** this phone's processor, or null where no Linux is built for it */
     fun machine(): Machine? = Build.SUPPORTED_ABIS.firstNotNullOfOrNull { Machine.forAbi(it) }
 
+    /** the system with [id] (installed or not), where [place] has it */
     fun system(context: Context, id: String): LinuxSystem {
         val p = place(context.applicationContext)
         return LinuxSystem(File(p.root, id), p.programDir, p.tmpDir, p.storage, p.nameServers, p.extraEnv)
@@ -127,6 +129,7 @@ object Linux {
         }
     }
 
+    /** the system with [id] removed (in the background), unless work is going on */
     fun remove(context: Context, id: String) {
         if (_work.value is Work.Busy) return
         if (_done.value == id) _done.value = null
@@ -143,6 +146,7 @@ object Linux {
         }
     }
 
+    /** a failed install's or removal's word cleared */
     fun clearFailure() {
         if (_work.value is Work.Failed) _work.value = Work.Idle
     }

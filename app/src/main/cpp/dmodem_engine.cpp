@@ -22,12 +22,14 @@ namespace {
 std::mutex mu;
 dmodem_callbacks cbs;
 
+/* the callbacks set, copied under the lock */
 dmodem_callbacks callbacks()
 {
 	std::lock_guard<std::mutex> lk(mu);
 	return cbs;
 }
 
+/* s, or "" for NULL */
 const char *str(const char *s)
 {
 	return s ? s : "";
@@ -35,6 +37,7 @@ const char *str(const char *s)
 
 } // namespace
 
+/* see dmodem_engine.h */
 extern "C" void dmodem_config_init(dmodem_config *c)
 {
 	*c = dmodem_config();
@@ -44,6 +47,7 @@ extern "C" void dmodem_config_init(dmodem_config *c)
 	c->peer_lead_ms = 100;
 }
 
+/* see dmodem_engine.h */
 extern "C" void dmodem_set_callbacks(const dmodem_callbacks *cb)
 {
 	{
@@ -65,6 +69,7 @@ extern "C" void dmodem_set_callbacks(const dmodem_callbacks *cb)
 		}) : nullptr);
 }
 
+/* see dmodem_engine.h */
 extern "C" int dmodem_start(const dmodem_config *c)
 {
 	Config cfg;
@@ -101,16 +106,19 @@ extern "C" int dmodem_start(const dmodem_config *c)
 		});
 }
 
+/* see dmodem_engine.h */
 extern "C" void dmodem_stop(void)
 {
 	Engine::instance().stop();
 }
 
+/* see dmodem_engine.h */
 extern "C" int dmodem_running(void)
 {
 	return Engine::instance().running();
 }
 
+/* see dmodem_engine.h */
 extern "C" void dmodem_peer_event(const char *line)
 {
 	Engine::instance().peer_event(str(line));

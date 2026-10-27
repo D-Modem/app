@@ -33,8 +33,10 @@ class HostService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var watching = false
 
+    /** not bound: started only */
     override fun onBind(intent: Intent?): IBinder? = null
 
+    /** in the foreground; the bridges kept as the settings are (stopped with the service when internet mode or every bridge is off), the notification saying who's online */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         ServiceCompat.startForeground(
             this, NOTIFICATION_ID, notification("Starting"),
@@ -57,12 +59,14 @@ class HostService : Service() {
         return START_STICKY
     }
 
+    /** the watch cancelled, the bridges stopped */
     override fun onDestroy() {
         scope.cancel()
         Bridges.stopAll()
         super.onDestroy()
     }
 
+    /** the ongoing notification, saying [text], opening the app */
     private fun notification(text: String): Notification {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         return NotificationCompat.Builder(this, DModemApp.CHANNEL_MODEM)

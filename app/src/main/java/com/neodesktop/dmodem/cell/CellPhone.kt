@@ -31,6 +31,7 @@ interface CellPhone {
     fun hangUp()
     /** the microphone muted (a modem call: only the modem's sound on it) or not */
     fun muteMic(on: Boolean) {}
+    /** whatever it holds let go (nothing, by default) */
     fun close() {}
 }
 
@@ -53,6 +54,7 @@ class AndroidCellPhone(context: Context) : CellPhone {
     init {
         if (missing().isEmpty() && Build.VERSION.SDK_INT >= 31) {
             val cb = object : TelephonyCallback(), TelephonyCallback.CallStateListener {
+                /** Telephony's call state as [state] */
                 override fun onCallStateChanged(s: Int) {
                     _state.value = when (s) {
                         TelephonyManager.CALL_STATE_RINGING -> CellPhone.State.RINGING
@@ -68,6 +70,7 @@ class AndroidCellPhone(context: Context) : CellPhone {
     /** the runtime permissions the line needs and hasn't got */
     fun missing(): List<String> = PERMISSIONS.filter { app.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
 
+    /** a call to [number] placed through Telecom; an IOException if the app may not */
     override fun dial(number: String) {
         if (missing().isNotEmpty()) throw IOException("calls aren't allowed (the app's permissions)")
         try {
@@ -77,15 +80,18 @@ class AndroidCellPhone(context: Context) : CellPhone {
         }
     }
 
+    /** the ringing call answered through Telecom (quietly not, if it can't be) */
     override fun answer() {
         runCatching { telecom.acceptRingingCall() }
     }
 
+    /** the call ended through Telecom (Android 9 on; else nothing) */
     override fun hangUp() {
         @Suppress("DEPRECATION")
         if (Build.VERSION.SDK_INT >= 28) runCatching { telecom.endCall() }
     }
 
+    /** the microphone muted, its state before kept; unmuted: as it was before */
     override fun muteMic(on: Boolean) {
         if (on) {
             if (micWas == null) micWas = audio.isMicrophoneMute
@@ -96,6 +102,7 @@ class AndroidCellPhone(context: Context) : CellPhone {
         }
     }
 
+    /** Telephony's callback unregistered, its thread stopped */
     override fun close() {
         if (Build.VERSION.SDK_INT >= 31) {
             (callback as? TelephonyCallback)?.let { runCatching { telephony.unregisterTelephonyCallback(it) } }

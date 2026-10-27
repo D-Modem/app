@@ -30,6 +30,7 @@ Way in_, out_;
 std::unordered_map<libusb_transfer *, uint64_t> sent_at_;
 uint64_t trips_ = 0, trip_us_ = 0, trip_max_us_ = 0, gap_max_us_ = 0, last_back_us_ = 0;
 
+/* the monotonic clock, in microseconds */
 uint64_t now_us()
 {
 	struct timespec ts;
@@ -43,11 +44,13 @@ int in_said_ = 0;
 /* each transfer's own callback, called after it's counted */
 std::unordered_map<libusb_transfer *, libusb_transfer_cb_fn> callbacks_;
 
+/* whether t is an IN transfer */
 bool is_in(const libusb_transfer *t)
 {
 	return t->endpoint & LIBUSB_ENDPOINT_IN;
 }
 
+/* t's callback in libusb: t counted (and its round trip, the first few logged), then its own callback */
 void LIBUSB_CALL counted(libusb_transfer *t)
 {
 	Way &w = is_in(t) ? in_ : out_;
@@ -105,6 +108,7 @@ void LIBUSB_CALL counted(libusb_transfer *t)
 
 namespace dmodem_android {
 
+/* see usb_android.h */
 void usb_transfers_reset()
 {
 	in_ = Way();
@@ -115,6 +119,7 @@ void usb_transfers_reset()
 	trips_ = trip_us_ = trip_max_us_ = gap_max_us_ = last_back_us_ = 0;
 }
 
+/* see usb_android.h (the round trips' and gaps' counts started again) */
 void usb_transfer_stats(char *buf, size_t len)
 {
 	snprintf(buf, len,

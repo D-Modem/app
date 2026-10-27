@@ -53,6 +53,7 @@ public:
 	PeerModem &operator=(const PeerModem &) = delete;
 
 	bool ok() const;
+	/* the core */
 	dcore::Modem &modem() { return *m_; }
 
 	/* before run() */

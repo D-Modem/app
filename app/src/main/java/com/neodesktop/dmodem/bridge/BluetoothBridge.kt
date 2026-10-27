@@ -55,6 +55,7 @@ class BluetoothBridge(
     private val adapter: BluetoothAdapter?
         get() = context.getSystemService(BluetoothManager::class.java)?.adapter
 
+    /** the bridge's thread started (true), or why not in [state] (false) */
     fun start(): Boolean {
         if (running) return true
         val a = adapter
@@ -79,6 +80,7 @@ class BluetoothBridge(
         return true
     }
 
+    /** the bridge stopped: its sockets closed, its thread joined */
     fun stop() {
         running = false
         runCatching { server?.close() }
@@ -88,6 +90,7 @@ class BluetoothBridge(
         _state.value = State.Stopped
     }
 
+    /** [why] in [state]; false, for [start] */
     private fun fail(why: String): Boolean {
         _state.value = State.Failed(why)
         return false
@@ -144,6 +147,7 @@ class BluetoothBridge(
         }
     }
 
+    /** [c] served by the bridge until it closes, or told BUSY if the modem's in use; [known] its name */
     private fun serveSocket(c: BluetoothSocket, known: String? = null) {
         val d = c.remoteDevice
         val name = known ?: runCatching { d?.name }.getOrNull() ?: d?.address ?: "a device"
@@ -174,6 +178,7 @@ class BluetoothBridge(
         fun permissions(): Array<String> =
             if (Build.VERSION.SDK_INT >= 31) arrayOf(Manifest.permission.BLUETOOTH_CONNECT) else emptyArray()
 
+        /** whether the app has [permissions] */
         fun hasPermission(context: Context): Boolean =
             permissions().all { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
 

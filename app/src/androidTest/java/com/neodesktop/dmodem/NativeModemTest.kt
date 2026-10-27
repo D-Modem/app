@@ -30,18 +30,21 @@ class NativeModemTest {
     private val exits = CopyOnWriteArrayList<Int>()
     private val exited = CountDownLatch(1)
 
+    /** the modem stopped and the listener gone after each test */
     @After
     fun tearDown() {
         NativeModem.stop()
         NativeModem.listener = null
     }
 
+    /** a SIP account at nowhere (no call is made), the modem's data in the app's files */
     private fun config() = NativeModem.Config(
         user = "test", password = "x", domain = "127.0.0.1:5999", sipPort = 15060,
         dns = listOf("127.0.0.1"), logLevel = 1, sipLogLevel = 3,
         dataFile = File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir, "test_dsp").path,
     )
 
+    /** [cmd] sent on [dte]: what came back by the time [expect] matched or [secs] passed */
     private fun command(dte: ParcelFileDescriptor, cmd: String, expect: Regex, secs: Int = 10): String {
         val out = ParcelFileDescriptor.AutoCloseOutputStream(dte.dup())
         out.write("$cmd\r".toByteArray())
@@ -64,10 +67,13 @@ class NativeModemTest {
         return buf.toString()
     }
 
+    /** the modem starts (once at a time), answers AT, ATI3 and ATX3, and stops with 0, SIP's log through the hook */
     @Test
     fun startsAnswersAndStops() {
         NativeModem.listener = object : NativeModem.Listener {
+            /** the line kept */
             override fun onLog(line: String) { logs.add(line) }
+            /** the result kept, the test woken */
             override fun onExit(result: Int) { exits.add(result); exited.countDown() }
         }
         val dte = NativeModem.start(config())
@@ -90,9 +96,11 @@ class NativeModemTest {
         dte.close()
     }
 
+    /** closing the DTE stops the modem, with 0 */
     @Test
     fun closingTheDteStopsTheModem() {
         NativeModem.listener = object : NativeModem.Listener {
+            /** the result kept, the test woken */
             override fun onExit(result: Int) { exits.add(result); exited.countDown() }
         }
         val dte = NativeModem.start(config())

@@ -40,6 +40,7 @@ class AndroidCallAudio(context: Context) : CallAudio {
     private val app = context.applicationContext
     private val audio = app.getSystemService(AudioManager::class.java)
 
+    /** why the call's sound can't be had (Android before 13, not privileged, the phone's audio not interceptable), or null */
     override fun unavailable(): String? = when {
         Build.VERSION.SDK_INT < 33 -> "needs Android 13 or later"
         app.checkSelfPermission(PERMISSION) != PackageManager.PERMISSION_GRANTED ->
@@ -48,10 +49,12 @@ class AndroidCallAudio(context: Context) : CallAudio {
         else -> null
     }
 
+    /** whether the phone's audio says mobile calls' sound can be intercepted (false if it can't be asked) */
     private fun interceptable(): Boolean = runCatching {
         AudioManager::class.java.getMethod("isPstnCallAudioInterceptable").invoke(audio) as Boolean
     }.getOrDefault(false)
 
+    /** the downlink's AudioRecord and the uplink's AudioTrack, started, as the call's streams; an IOException if unavailable */
     @SuppressLint("MissingPermission")
     override fun open(): CallStreams {
         unavailable()?.let { throw IOException(it) }
@@ -83,12 +86,14 @@ class AndroidCallAudio(context: Context) : CallAudio {
         return object : CallStreams {
             @Volatile private var open = true
             override val input = object : InputStream() {
+                /** one octet of the far end's sound, or -1 once closed */
                 override fun read(): Int {
                     val b = ByteArray(1)
                     return if (read(b, 0, 1) < 0) -1 else b[0].toInt() and 0xff
                 }
                 private val two = ByteArray(2)
                 private var odd = -1
+                /** the far end's sound: whole samples where [len] allows, an odd octet kept for the next read; -1 once closed */
                 override fun read(b: ByteArray, off: Int, len: Int): Int {
                     if (!open) return -1
                     if (len == 0) return 0
@@ -110,7 +115,9 @@ class AndroidCallAudio(context: Context) : CallAudio {
                 }
             }
             override val output = object : OutputStream() {
+                /** one octet to the call */
                 override fun write(b: Int) = write(byteArrayOf(b.toByte()), 0, 1)
+                /** our sound to the call, all of it; an IOException once closed */
                 override fun write(b: ByteArray, off: Int, len: Int) {
                     if (!open) throw IOException("the call is over")
                     var at = off
@@ -121,6 +128,7 @@ class AndroidCallAudio(context: Context) : CallAudio {
                     }
                 }
             }
+            /** the record and track stopped and released (once) */
             override fun close() {
                 if (!open) return
                 open = false
