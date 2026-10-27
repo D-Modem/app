@@ -253,9 +253,9 @@ class PeerLine(
             }
         }
 
-        /** the tone at sample [n]: dial tone (350 + 440 Hz), quiet, ringback (440 + 480 Hz, 2 s in 6) once ringing */
+        /** the sample the ringback started at (-1: not yet) */
         private var ringFrom = -1L
-        /** that tone's sample [n], as above */
+        /** the tone at sample [n]: dial tone (350 + 440 Hz), quiet, ringback (440 + 480 Hz, 2 s in 6) once ringing */
         private fun tone(n: Long): Short {
             val t = n.toDouble() / RATE
             val a = when {

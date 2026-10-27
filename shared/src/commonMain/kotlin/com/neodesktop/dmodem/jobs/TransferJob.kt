@@ -49,7 +49,7 @@ class TransferJob(protocolName: String, sending: Boolean, out: DteOut, log: LogO
     fun cancel() = transfer.cancel()
 
     companion object {
-        /** the protocols' names, and what each is called */
+        /** the protocols' names (what each is called: [label]) */
         val protocols: List<String> = Protocol.entries.map { it.name }
 
         /** what the protocol [protocolName] is called */

@@ -106,13 +106,14 @@ class XYModem(
 
     private var crc = true
 
-    /**
-     * a block: (number, data); null on a timeout or a bad block (the line
-     * purged); throws on EOT handled by the caller via [eot], or CAN
-     */
+    /** the sender's EOT came instead of a block ([readBlock]) */
     private var eot = false
 
-    /** a block within [waitMs], its CRC or checksum checked (as above): EOT sets [eot] */
+    /**
+     * a block within [waitMs], its CRC or checksum checked: (number, data);
+     * null on a timeout, a bad block (the line purged) or EOT (which sets
+     * [eot]); throws on CAN CAN (the sender cancelling)
+     */
     private fun readBlock(useCrc: Boolean, waitMs: Long): Block? {
         eot = false
         // (what isn't a block's start let go by: the sender's own messages, line noise)
