@@ -13,6 +13,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.background
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -278,18 +281,43 @@ private fun SettingsMenu(modifier: Modifier, s: ModemSettings, unsaved: Boolean)
         SettingsPage.SSH to "This phone's keys for SSH",
         SettingsPage.LINUX to "Linux on the phone, the modem at /dev/ttyDM0",
     )
-    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 8.dp)) {
-        for ((page, summary) in rows) {
-            Row(
-                Modifier.fillMaxWidth().clickable { SettingsNav.open(page) }.padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+    Column(
+        modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        // (the title, as each page has its own)
+        Text(
+            "Settings", style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.heightIn(min = 48.dp).padding(start = 4.dp).wrapContentHeight(Alignment.CenterVertically),
+        )
+        for ((page, summary) in rows) SettingsCard(page, summary)
+    }
+}
+
+/** a page's card in the menu: its icon on a tile, its title, what it's set to; opens it */
+@Composable
+private fun SettingsCard(page: SettingsPage, summary: String) {
+    val colors = MaterialTheme.colorScheme
+    androidx.compose.material3.Surface(
+        onClick = { SettingsNav.open(page) },
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+        color = colors.surfaceContainer,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            androidx.compose.foundation.layout.Box(
+                Modifier.size(56.dp).background(colors.surface, androidx.compose.foundation.shape.RoundedCornerShape(16.dp)),
+                contentAlignment = Alignment.Center,
             ) {
-                androidx.compose.material3.Icon(page.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Column(Modifier.weight(1f)) {
-                    Text(page.title, style = MaterialTheme.typography.titleMedium)
-                    Text(summary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                androidx.compose.material3.Icon(page.icon, contentDescription = null, tint = colors.primary)
+            }
+            Column(Modifier.weight(1f).padding(end = 4.dp)) {
+                Text(page.title, style = MaterialTheme.typography.titleMedium, color = colors.primary)
+                Text(summary, style = MaterialTheme.typography.bodyMedium, color = colors.onSurface)
             }
         }
     }
