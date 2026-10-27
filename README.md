@@ -279,7 +279,12 @@ failed deletes its folder; the build names the one it kept.
 `KERMIT_TRACE=1` and `TRANSFER_TRACE=1` add the transfer tests' bytes
 each way.
 
-CI (`.github/workflows/android.yml`) runs all three; it needs a
+Every function has a comment on the line just above it, or above its
+annotations (Kotlin, Swift, shell), or a docstring (Python); C and C++ as
+D-Modem-RE's own rule has it. `tools/doc_check.py` lists any that don't
+(and fails).
+
+CI (`.github/workflows/android.yml`) runs all three, and that check; it needs a
 `DMODEM_RE_TOKEN` secret that can read the private D-Modem-RE submodule.
 
 ## Apple's systems: the iOS app
