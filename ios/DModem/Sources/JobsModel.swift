@@ -32,6 +32,7 @@ final class JobsModel: ObservableObject {
     private var tunnel: UdpPacketTunnel?
     private var sawOnline = false
 
+    /// jobs on [session], with the settings as [settings] gives them at each start
     init(session: ModemSession, settings: @escaping () -> ModemSettings) {
         self.session = session
         self.settings = settings
@@ -52,6 +53,7 @@ final class JobsModel: ObservableObject {
         session.claim { d in feed(Octets.latin1(d)) }
     }
 
+    /// a link for a job, whose changes run [refresh] on this model
     private func link(_ refresh: @escaping @MainActor (JobsModel) -> Void) -> JobLink {
         JobLink(session: session) { [weak self] in
             guard let self else { return }
@@ -77,6 +79,7 @@ final class JobsModel: ObservableObject {
         return nil
     }
 
+    /// the fax's pages drawn: the DTE lent and the fax sent, or why not in [faxError]
     private func faxPagesReady(_ pages: Result<[FaxPage], Error>, number: String, settings s: ModemSettings) {
         preparing = false
         let l = link { $0.refreshFax() }
@@ -111,10 +114,13 @@ final class JobsModel: ObservableObject {
         return nil
     }
 
+    /// the fax call hung up
     func cancelFax() { faxJob?.cancel() }
 
+    /// the last fax's outcome cleared (not while one's going)
     func dismissFax() { if faxJob == nil { fax = nil; faxError = nil } }
 
+    /// the fax job's state copied in; once it's over, the DTE back with what it didn't read
     private func refreshFax() {
         guard let job = faxJob else { return }
         fax = job.state
@@ -128,7 +134,9 @@ final class JobsModel: ObservableObject {
 
     /// the protocols' names (ZMODEM …), and what each is called
     static var protocols: [String] { TransferJob.companion.protocols }
+    /// what protocol [p] is called
     static func label(_ p: String) -> String { TransferJob.companion.label(protocolName: p) }
+    /// whether protocol [p] takes a batch of files (else one at a time)
     static func batch(_ p: String) -> Bool { TransferJob.companion.batch(protocolName: p) }
 
     /// files received by [proto] into Documents/Received ([first]: what came that started it)
@@ -174,10 +182,13 @@ final class JobsModel: ObservableObject {
         return nil
     }
 
+    /// the transfer cancelled
     func cancelTransfer() { transferJob?.cancel() }
 
+    /// the last transfer's outcome cleared (not while one's going)
     func dismissTransfer() { if transferJob == nil { transfer = nil } }
 
+    /// the transfer's state copied in; once it's over, the DTE back with what it didn't read
     private func refreshTransfer() {
         guard let job = transferJob else { return }
         transfer = job.state
@@ -220,11 +231,13 @@ final class JobsModel: ObservableObject {
         return nil
     }
 
+    /// the dial-up link hung up
     func disconnectInternet() { dialUp?.disconnect() }
 
     /// how long the link has been up (ms)
     var upMs: Int64 { dialUp?.upMs ?? 0 }
 
+    /// the last dial-up's outcome cleared (not while one's going)
     func dismissInternet() { if dialUp == nil { internet = nil } }
 
     /// the modem's status changed: the link down when the call is
@@ -236,6 +249,7 @@ final class JobsModel: ObservableObject {
         if sawOnline && !online && d.state.connected { d.lineDropped() }
     }
 
+    /// the dial-up's state copied in; once it's over, the tunnel dropped and the DTE back with what it didn't read
     private func refreshInternet() {
         guard let job = dialUp else { return }
         internet = job.state

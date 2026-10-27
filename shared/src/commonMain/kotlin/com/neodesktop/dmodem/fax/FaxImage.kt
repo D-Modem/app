@@ -27,6 +27,7 @@ object FaxImage {
         require(gray.size >= width * height) { "${gray.size} octets for $width by $height" }
         val w = FaxPage.WIDTH
         val page = FaxPage(w, height, fine)
+        /** the gray at [x], [y]: white right of the image */
         fun at(x: Int, y: Int): Int = if (x < width) gray[y * width + x].toInt() and 0xff else 255
         if (!dither) {
             for (y in 0 until height) for (x in 0 until w) if (at(x, y) < 128) page.set(x, y, true)

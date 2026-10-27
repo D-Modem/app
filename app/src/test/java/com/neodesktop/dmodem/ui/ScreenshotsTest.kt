@@ -29,6 +29,7 @@ class ScreenshotsTest {
     @get:Rule
     val compose = createAndroidComposeRule<MainActivity>()
 
+    /** the whole screen drawn into build/screens/[name].png */
     private fun shot(name: String) {
         compose.waitForIdle()
         val bmp = compose.onRoot().captureToImage().asAndroidBitmap()
@@ -36,6 +37,7 @@ class ScreenshotsTest {
         File(dir, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
+    /** home, terminal, dial, settings and log drawn, with some modem text in them */
     @Test
     fun screens() {
         // some text from a "modem" for the console and the terminal

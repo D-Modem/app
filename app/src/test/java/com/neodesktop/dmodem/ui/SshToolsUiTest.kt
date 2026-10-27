@@ -53,6 +53,7 @@ import org.robolectric.annotation.GraphicsMode
 import java.io.File
 import java.net.ServerSocket
 
+/** [bmp] saved as build/screens/[name].png */
 private fun saveShot(bmp: Bitmap, name: String) {
     File("build/screens").mkdirs()
     File("build/screens/$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
@@ -71,6 +72,7 @@ class SshSessionPanelTest {
 
     private lateinit var server: SshServer
 
+    /** a local SSH server that allows any key, forwards and the agent; the terminal with no SSH files */
     @Before
     fun setUp() {
         SshSecurity.ensure()
@@ -87,12 +89,14 @@ class SshSessionPanelTest {
         Terminal.init(ctx, PlainBox())
     }
 
+    /** the SSH sessions closed and the server stopped */
     @After
     fun tearDown() {
         Terminal.sessions.value.filter { it.kind != TerminalSession.Kind.MODEM }.forEach { Terminal.close(it) }
         server.stop(true)
     }
 
+    /** an entry's local, SOCKS and remote forwards and its agent come up, and the session's panel shows them */
     @Test
     fun forwardsAndTheAgent() {
         val ctx = ApplicationProvider.getApplicationContext<Context>()
@@ -144,6 +148,7 @@ class SshToolsDialogsTest {
     @get:Rule
     val compose = createComposeRule()
 
+    /** the terminal with no SSH files */
     @Before
     fun setUp() {
         SshSecurity.ensure()
@@ -152,11 +157,13 @@ class SshToolsDialogsTest {
         Terminal.init(ctx, PlainBox())
     }
 
+    /** the dialog on screen saved as [name] */
     private fun shot(name: String) {
         compose.waitForIdle()
         saveShot(compose.onNode(isDialog()).captureToImage().asAndroidBitmap(), name)
     }
 
+    /** an entry's forward removed in its dialog is gone from the saved entry, and agent forwarding asks to confirm */
     @Test
     fun anEntrysForwardsAndAgent() {
         var saved: DialEntry? = null
@@ -173,6 +180,7 @@ class SshToolsDialogsTest {
         assertTrue(saved!!.agentForwarding && saved!!.agentConfirm)
     }
 
+    /** a remote forward from the forward dialog's fields, to localhost by default */
     @Test
     fun aForwardMade() {
         var made: ForwardSpec? = null
@@ -186,6 +194,7 @@ class SshToolsDialogsTest {
         assertEquals(ForwardSpec(ForwardSpec.Type.REMOTE, null, 2222, "localhost", 22), made)
     }
 
+    /** a key's details show its kind and size */
     @Test
     fun aKeysDetails() {
         val k = Terminal.keys.generate(KeyKind.ED25519, "pixel", comment = "alice@pixel")
@@ -194,6 +203,7 @@ class SshToolsDialogsTest {
         shot("ssh-tools-key")
     }
 
+    /** the export dialog's format can be switched to PuTTY .ppk */
     @Test
     fun anExportAsPutty() {
         val k = Terminal.keys.generate(KeyKind.ED25519, "pixel", comment = "alice@pixel")

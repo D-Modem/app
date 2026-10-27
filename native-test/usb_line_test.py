@@ -38,6 +38,7 @@ while "ready" not in events and time.time() - t0 < 5:
 class Modem:
     """the engine (usb_host) on line <n>'s fake stick: its DTE, its log"""
     def __init__(self, n):
+        """usb_host started on the stick at line n's socket, its DTE and log read by threads of their own"""
         self.n = n
         sock = os.path.join(tmp, n + ".sock")
         if agere:
@@ -54,6 +55,7 @@ class Modem:
         threading.Thread(target=self._log, daemon=True).start()
 
     def _dte(self):
+        """the DTE's output gathered into buf until it ends"""
         while True:
             d = os.read(self.p.stdout.fileno(), 4096)
             if not d:
@@ -62,14 +64,17 @@ class Modem:
                 self.buf += d
 
     def _log(self):
+        """the log's lines gathered until it ends"""
         for l in self.p.stderr:
             self.log.append(l.decode(errors="replace").rstrip())
 
     def write(self, b):
+        """b to the DTE"""
         self.p.stdin.write(b)
         self.p.stdin.flush()
 
     def expect(self, pat, t):
+        """the first match of pat in what the DTE said within t s (what's up to it taken), or None"""
         end = time.time() + t
         while time.time() < end:
             with self.lock:
@@ -81,10 +86,12 @@ class Modem:
         return None
 
     def cmd(self, c, pat=rb"OK\r\n", t=5):
+        """the AT command c sent; pat's match within t s, or None"""
         self.write(c + b"\r")
         return self.expect(pat, t)
 
     def logged(self, pat, t):
+        """whether a log line matches pat within t s"""
         end = time.time() + t
         while time.time() < end:
             if any(re.search(pat, l) for l in list(self.log)):
@@ -95,6 +102,7 @@ class Modem:
 
 ok = True
 def check(what, cond):
+    """what was checked printed with yes or NO; a NO fails the test"""
     global ok
     print("%s: %s" % (what, "yes" if cond else "NO"))
     ok = ok and bool(cond)

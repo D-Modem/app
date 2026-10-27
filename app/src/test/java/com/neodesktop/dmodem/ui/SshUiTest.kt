@@ -71,12 +71,18 @@ class SshUiTest {
         private lateinit var inp: InputStream
         private lateinit var out: OutputStream
         private var exit: ExitCallback? = null
+        /** the client's keystrokes, read by the shell's thread */
         override fun setInputStream(i: InputStream) { inp = i }
+        /** where the shell's output goes */
         override fun setOutputStream(o: OutputStream) { out = o }
+        /** (nothing goes to stderr) */
         override fun setErrorStream(e: OutputStream) {}
+        /** told when the input ends */
         override fun setExitCallback(cb: ExitCallback) { exit = cb }
+        /** [s] written to the client and flushed */
         private fun say(s: String) = synchronized(out) { out.write(s.toByteArray()); out.flush() }
         private val prompt = "\u001b[1;32malice@raspberrypi\u001b[0m:\u001b[1;34m~ \u001b[0m$ "
+        /** a login banner, the client's TERM and size, the prompt; then a thread that echoes, edits and runs each line */
         override fun start(channel: ChannelSession, env: Environment) {
             val cols = env.env[Environment.ENV_COLUMNS]
             say("Linux raspberrypi 6.12.25-v8+ #1 SMP PREEMPT aarch64\r\n\r\nLast login: Fri Oct 16 09:12:44 2026 from 192.168.1.20\r\n")
@@ -113,9 +119,11 @@ class SshUiTest {
                 exit?.onExit(0)
             }.start()
         }
+        /** (nothing to free: the thread ends with the input) */
         override fun destroy(channel: ChannelSession) {}
     }
 
+    /** a local SSH server taking alice's password, with [Shell]; the terminal with no SSH files */
     @Before
     fun setUp() {
         SshSecurity.ensure()
@@ -131,12 +139,14 @@ class SshUiTest {
         Terminal.init(ctx, PlainBox())
     }
 
+    /** the SSH sessions closed and the server stopped */
     @After
     fun tearDown() {
         Terminal.sessions.value.filter { it.kind != TerminalSession.Kind.MODEM }.forEach { Terminal.close(it) }
         server.stop(true)
     }
 
+    /** the whole screen drawn into build/screens/[name].png */
     private fun shot(name: String) {
         compose.waitForIdle()
         val bmp = compose.onRoot().captureToImage().asAndroidBitmap()
@@ -147,6 +157,7 @@ class SshUiTest {
     /** the bottom bar's item (not a heading of the same name) */
     private fun tab(name: String) = compose.onNode(hasText(name) and isSelectable()).performClick()
 
+    /** (up to [ms]) until some node shows [t] */
     private fun waitForText(t: String, ms: Long = 20_000) {
         compose.waitUntil(ms) { compose.onAllNodesWithText(t, substring = true).fetchSemanticsNodes().isNotEmpty() }
     }
@@ -165,9 +176,11 @@ class SshUiTest {
         }
     }.apply { isDaemon = true; start() }
 
+    /** the text on [s]'s screen, row by row */
     private fun shell(s: TerminalSession) =
         synchronized(s.emulator) { (0 until s.emulator.rows).joinToString("\n") { s.emulator.line(it).text() } }
 
+    /** (up to 20 s) until [s]'s screen shows [text], or an error with what it shows */
     private fun waitShell(s: TerminalSession, text: String) {
         val end = System.currentTimeMillis() + 20_000
         while (!shell(s).contains(text)) {
@@ -176,6 +189,7 @@ class SshUiTest {
         }
     }
 
+    /** an SSH entry logs in with the host key and password kept, gets its own tab, and offers to reconnect when the server goes */
     @Test
     fun sshFromTheDirectory() {
         val ctx = ApplicationProvider.getApplicationContext<Context>()

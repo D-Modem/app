@@ -141,6 +141,7 @@ private struct PeerSection: View {
         .onDisappear(perform: stop)
     }
 
+    /// phones taking calls on this network looked for, each address listed once
     private func find() {
         found = []
         let f = PeerFinder { name, address in
@@ -151,6 +152,7 @@ private struct PeerSection: View {
         f.start()
     }
 
+    /// the looking stopped
     private func stop() {
         finder?.stop()
         finder = nil

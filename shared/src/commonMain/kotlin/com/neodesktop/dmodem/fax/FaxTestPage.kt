@@ -6,6 +6,7 @@ import kotlin.random.Random
 
 /** A fax test page: a frame, bars of every width, text-like dashes, a checkerboard, a black row. */
 object FaxTestPage {
+    /** the page, [rows] rows at fine or normal resolution, its speckles from [seed] */
     fun of(fine: Boolean, rows: Int = 400, seed: Int = 1): FaxPage {
         val p = FaxPage(FaxPage.WIDTH, rows, fine)
         val r = Random(seed)

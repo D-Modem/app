@@ -11,6 +11,7 @@
 
 namespace dmodem_android {
 
+/* (the fake needs no descriptor) a descriptor's use only starts the transfer counts again */
 void usb_use_fd(int fd)
 {
 	if (fd >= 0)

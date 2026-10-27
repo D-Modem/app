@@ -56,6 +56,7 @@ struct InternetView: View {
         .navigationTitle("Internet")
     }
 
+    /// the dial-up's state: connected or its phase, and once connected its address, DNS, time up and bytes
     @ViewBuilder private func status(_ s: DialUpJob.State) -> some View {
         Text(s.running ? (s.connected ? "Connected" : s.phase) : "Disconnected").font(.headline)
         if !s.connect.isEmpty { Text(s.connect).font(.callout.monospaced()).foregroundStyle(.secondary) }
@@ -71,6 +72,7 @@ struct InternetView: View {
         if let e = s.ended, e != "disconnected" { Text(e).foregroundStyle(.red) }
     }
 
+    /// [s] seconds as m:ss, or h:mm:ss from an hour
     private func elapsed(_ s: Int) -> String {
         s >= 3600 ? String(format: "%d:%02d:%02d", s / 3600, s / 60 % 60, s % 60) : String(format: "%d:%02d", s / 60, s % 60)
     }

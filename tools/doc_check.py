@@ -43,6 +43,7 @@ PY_DEF = re.compile(r"^(\s*)(?:async\s+)?def\s+\w+")
 
 
 def tracked():
+    """git's tracked sources of the kinds checked, outside external/"""
     out = subprocess.run(["git", "-C", ROOT, "ls-files"], capture_output=True, text=True,
                          check=True).stdout.split("\n")
     return [f for f in out if f.endswith(EXTS) and not f.startswith("external/")]
@@ -86,6 +87,7 @@ def commented(lines, i, raw):
 
 
 def check_kt_swift(path, text):
+    """Kotlin's or Swift's undocumented functions: (line, text) each"""
     raw = text.split("\n")
     lines = blank(text).split("\n")
     bad = []
@@ -98,6 +100,7 @@ def check_kt_swift(path, text):
 
 
 def check_sh(path, text):
+    """a shell script's functions without a # comment above: (line, text) each"""
     raw = text.split("\n")
     bad = []
     for i, l in enumerate(raw):
@@ -109,6 +112,7 @@ def check_sh(path, text):
 
 
 def check_py(path, text):
+    """Python's functions without a docstring or a # comment above: (line, text) each"""
     raw = text.split("\n")
     bad = []
     for i, l in enumerate(raw):
@@ -130,6 +134,7 @@ def check_py(path, text):
 
 
 def main(argv):
+    """the files checked (all tracked ones without arguments): 1 if any is undocumented"""
     files = argv[1:] or tracked()
     total = 0
     c_files = []

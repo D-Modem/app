@@ -14,6 +14,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     private let lock = NSLock()
     private var running = false
 
+    /// the tunnel up with the app's address, DNS and MTU, all IPv4 routed to it, and the packets passed to and from the app's port
     override func startTunnel(options: [String: NSObject]?, completionHandler: @escaping (Error?) -> Void) {
         guard let o = options, let address = o["address"] as? String, let port = (o["port"] as? NSNumber)?.uint16Value else {
             completionHandler(NSError(domain: "DModemTunnel", code: 1, userInfo: [NSLocalizedDescriptionKey: "start it from D-Modem's Internet screen"]))
@@ -49,6 +50,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         }
     }
 
+    /// the passing stopped and the socket to the app closed
     override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
         lock.lock()
         running = false
@@ -61,6 +63,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
 
     private var isRunning: Bool { lock.lock(); defer { lock.unlock() }; return running }
 
+    /// [d] as one datagram to the app's port on the loopback
     private func sendToApp(_ d: Data) {
         var to = app
         d.withUnsafeBytes { p in

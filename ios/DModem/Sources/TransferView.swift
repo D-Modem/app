@@ -76,6 +76,7 @@ struct TransferView: View {
         }
     }
 
+    /// the transfer: which way or how it ended, the file and how far, files done, blocks resent, and Cancel or Dismiss
     @ViewBuilder private func progress(_ t: TransferState) -> some View {
         Section {
             let p = t.progress
@@ -101,7 +102,9 @@ struct TransferView: View {
         }
     }
 
+    /// [n] bytes as a file size (KB, MB …)
     private func bytes(_ n: Int64) -> String { ByteCountFormatter.string(fromByteCount: n, countStyle: .file) }
 
+    /// the received files listed again from Documents/Received
     private func reload() { received = AppFolders.files(AppFolders.received) }
 }

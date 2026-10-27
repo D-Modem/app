@@ -17,6 +17,7 @@
 
 #include "pipe_modem.h"
 
+/* m's clock as the environment asks: the sample clock, LINE_SPEED times as fast, or (MODEM_REALTIME=0) as fast as it goes */
 static inline void line_speed(dmd::PipeModem &m)
 {
 	const char *s = getenv("LINE_SPEED");

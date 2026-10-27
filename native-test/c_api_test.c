@@ -33,12 +33,15 @@ static int line_fd = -1, line_caller = -1, exits = 0, exit_result = 99;
 static int statuses, speaker_on, logs;
 static char line_dial[64];
 
+/* a log line counted */
 static void on_log(void *ctx, const char *l) { (void)ctx; (void)l; __sync_fetch_and_add(&logs, 1); }
+/* a status report counted */
 static void on_status(void *ctx, int link, int offhook, unsigned tx, unsigned rx)
 {
 	(void)ctx; (void)link; (void)offhook; (void)tx; (void)rx;
 	__sync_fetch_and_add(&statuses, 1);
 }
+/* the modem's exit counted, its result kept */
 static void on_exit_(void *ctx, int r)
 {
 	(void)ctx;
@@ -47,6 +50,7 @@ static void on_exit_(void *ctx, int r)
 	exit_result = r;
 	pthread_mutex_unlock(&mu);
 }
+/* a peer line's fd, which end and the number dialled kept */
 static void on_line(void *ctx, int caller, const char *dial, int fd)
 {
 	(void)ctx;
@@ -56,6 +60,7 @@ static void on_line(void *ctx, int caller, const char *dial, int fd)
 	snprintf(line_dial, sizeof(line_dial), "%s", dial);
 	pthread_mutex_unlock(&mu);
 }
+/* the speaker seen on */
 static void on_speaker(void *ctx, int level) { (void)ctx; if (level > 0) speaker_on = 1; }
 
 /* text from fd until want (or secs) */
@@ -80,12 +85,14 @@ static int expect(int fd, const char *want, int secs)
 	return 0;
 }
 
+/* s written to fd */
 static void put(int fd, const char *s)
 {
 	if (write(fd, s, strlen(s)) < 0)
 		perror("write");
 }
 
+/* the engine on a peer line through its C API, each step checked: 1 if any failed */
 int main(void)
 {
 	dmodem_config c;

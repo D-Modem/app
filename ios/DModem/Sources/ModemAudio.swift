@@ -21,6 +21,7 @@ final class ModemAudio: @unchecked Sendable {
     private var running = false
     private var gain: Float = 0
 
+    /// the speaker's player and the quiet's into the mixer, at the modem's 8000 Hz
     init() {
         engine.attach(player)
         engine.attach(quiet)
@@ -60,6 +61,7 @@ final class ModemAudio: @unchecked Sendable {
         }
     }
 
+    /// the players and engine stopped and the session given up (others' audio told it may resume)
     func end() {
         lock.lock(); defer { lock.unlock() }
         if !running { return }

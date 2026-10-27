@@ -48,6 +48,7 @@ public struct ModemSettings: Codable, Equatable, Sendable {
     public var ispScript = ""
     public var ispInit = ""
 
+    /// the defaults
     public init() {}
 
     /// the settings' secrets, kept apart from the rest (the Keychain), by name
@@ -140,6 +141,7 @@ public final class SettingsStore: @unchecked Sendable {
     private let key: String
     private let secrets: SecretStore
 
+    /// settings kept under [key] in [defaults], their secrets in [secrets]
     public init(defaults: UserDefaults = .standard, key: String = "modemSettings", secrets: SecretStore = defaultSecrets()) {
         self.defaults = defaults
         self.key = key

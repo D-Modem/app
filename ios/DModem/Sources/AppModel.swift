@@ -39,6 +39,7 @@ final class AppModel: ObservableObject {
     private var typedLine = ""
     private var lastDial = ""
 
+    /// the settings kept, and the session's changes, data, speaker and sound and the phone's call screen wired to it
     init() {
         settings = store.settings
         jobs = JobsModel(session: session) { [store] in store.settings }
@@ -76,6 +77,7 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// a RING: the phone's call screen rings (with the caller's number), and a fax is answered if it's set to (not while a job runs)
     private func ring() {
         if jobs.running { return }
         calls.ringing(from: callerId)
@@ -123,6 +125,7 @@ final class AppModel: ObservableObject {
 
     var connectLabel: String { status.link == .online ? ConnectInfo.label(console) : "" }
 
+    /// the modem started with the settings: the background audio, the peer line if there's one, then the session
     func start() {
         error = nil
         audio.enabled = settings.speaker
@@ -145,6 +148,7 @@ final class AppModel: ObservableObject {
         watchPeer(s.peer && !s.noLine)
     }
 
+    /// the modem, the peer line and the background audio stopped
     func stop() {
         Task.detached { [session, audio, peer] in
             session.stop()
@@ -172,6 +176,7 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// the modem's call hung up (off the main thread)
     func hangUp() {
         Task.detached { [session] in session.hangUp() }
     }
@@ -179,6 +184,7 @@ final class AppModel: ObservableObject {
     /// an AT command (Home's line)
     func command(_ cmd: String) { session.command(cmd) }
 
+    /// the session's state copied in, and the call screen, the jobs and the audio told what changed
     private func refresh() {
         let wasOnline = status.link == .online
         let wasRunning = run == .running

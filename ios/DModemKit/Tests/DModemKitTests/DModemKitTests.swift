@@ -24,15 +24,21 @@ final class DModemKitTests: XCTestCase {
         var dial = ""
         var fd: Int32 = -1
         let lock = NSLock()
+        /// a listener passing the engine's news on to [s], but for its peer lines
         init(_ s: ModemSession) { session = s }
+        /// the log line to the session
         func engineLog(_ line: String) { session.engineLog(line) }
+        /// the status to the session
         func engineStatus(_ status: ModemStatus) { session.engineStatus(status) }
+        /// the exit to the session
         func engineExited(_ result: Int) { session.engineExited(result) }
+        /// the peer line's dial and samples kept for the test (not closed)
         func engineLine(caller: Bool, dial: String, fd: Int32) {
             lock.lock(); self.dial = dial; self.fd = fd; lock.unlock()
         }
     }
 
+    /// a session on a peer line starts, answers AT commands, logs and changes, ignores a second start, and stops
     func testASessionOnAPeerLine() {
         signal(SIGPIPE, SIG_IGN)
         let session = ModemSession()
@@ -58,6 +64,7 @@ final class DModemKitTests: XCTestCase {
         XCTAssertFalse(Engine.shared.running)
     }
 
+    /// a dial is handed to the listener with its number, BUSY comes back for a busy far end, and closing the DTE stops the modem
     func testADialHandedToTheApp() throws {
         signal(SIGPIPE, SIG_IGN)
         let session = ModemSession()
@@ -83,6 +90,7 @@ final class DModemKitTests: XCTestCase {
         Engine.shared.stop()
     }
 
+    /// a session's dial on a peer line goes to [ModemSession.onLine], and the line gone ends it
     func testThePeerLineGoesToTheApp() {
         signal(SIGPIPE, SIG_IGN)
         let session = ModemSession()
@@ -105,6 +113,7 @@ final class DModemKitTests: XCTestCase {
         session.stop()
     }
 
+    /// the DTE lent to a job gets all the modem says (one job at a time, none while it's off), and its leftover goes back to the terminal
     func testTheDteLentToAJob() {
         signal(SIGPIPE, SIG_IGN)
         let session = ModemSession()
@@ -134,6 +143,7 @@ final class DModemKitTests: XCTestCase {
         session.stop()
     }
 
+    /// with no line, the modem starts without a SIP account, dials get NO DIALTONE, and the setting is kept
     func testNoLine() {
         signal(SIGPIPE, SIG_IGN)
         let session = ModemSession()
@@ -155,6 +165,7 @@ final class DModemKitTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(ModemSettings.self, from: JSONEncoder().encode(settings)).line, .none)
     }
 
+    /// without a SIP account (on a SIP line) the session doesn't start, and says why
     func testIncompleteSettingsDontStart() {
         let session = ModemSession()
         XCTAssertFalse(session.start(ModemSettings()))
@@ -162,6 +173,7 @@ final class DModemKitTests: XCTestCase {
         XCTAssertEqual(session.run, .stopped)
     }
 
+    /// user:password@domain parsed (an @ in the password, a port in the domain); one without a user, password or domain isn't
     func testLogins() {
         let a = ModemSettings.parseLogin("alice:secret@sip.example.com")
         XCTAssertEqual(a?.user, "alice"); XCTAssertEqual(a?.password, "secret"); XCTAssertEqual(a?.domain, "sip.example.com")
@@ -174,6 +186,7 @@ final class DModemKitTests: XCTestCase {
         XCTAssertNil(ModemSettings.parseLogin("u:x@"))
     }
 
+    /// settings kept with their secrets apart, a cleared secret removed, an old version's moved out of the JSON, missing fields defaulted
     func testSettingsKeptAndOldOnesRead() throws {
         let defaults = UserDefaults(suiteName: "dmodemkit-test-\(UUID())")!
         let secrets = MemorySecrets()
@@ -210,6 +223,7 @@ final class DModemKitTests: XCTestCase {
         XCTAssertEqual(ModemSettings().engineConfig(dns: ["1.1.1.1"]).dns, ["1.1.1.1"])
     }
 
+    /// the label of the last CONNECT's protocols, empty for one with none
     func testWhatTheConnectSaid() {
         XCTAssertEqual(ConnectInfo.label("ATD5550002\r\nCONNECT 1200/CVM/LAPM\r\n"), "V.cvm · LAPM")
         XCTAssertEqual(ConnectInfo.label("CONNECT 48000/V92/LAPM/V44\r\nhello"), "V.92 · LAPM · V.44")

@@ -13,8 +13,10 @@ import com.neodesktop.dmodem.io.*
 class FaxPage(val width: Int, val rows: Int, val fine: Boolean, val bits: ByteArray = ByteArray(width / 8 * rows)) {
     val stride: Int get() = width / 8
 
+    /** whether the pel at [x], [y] is black */
     fun black(x: Int, y: Int): Boolean = (bits[y * stride + x / 8].toInt() shr (7 - x % 8)) and 1 == 1
 
+    /** the pel at [x], [y] made black ([on]) or white */
     fun set(x: Int, y: Int, on: Boolean) {
         val i = y * stride + x / 8
         val m = 0x80 shr (x % 8)
@@ -78,6 +80,7 @@ object T4 {
     )
     private const val EOL = "000000000001"
 
+    /** a table's "run:bits" pairs, apart by spaces, as codes */
     private fun codes(s: String) = s.trim().split(Regex("\\s+")).map { it.split(':').let { (r, b) -> Code(r.toInt(), b) } }
 
     private val whiteByRun = (WHITE + EXTENDED).associateBy { it.run }
@@ -107,6 +110,7 @@ object T4 {
             }
         }
 
+        /** the node arrays twice the size, the new nodes empty */
         private fun grow() {
             val s = zero.size * 2
             zero = zero.copyOf(s).also { it.fill(-1, s / 2, s) }
@@ -126,6 +130,7 @@ object T4 {
         var count = 0L
             private set
 
+        /** a bit into the byte's next bit up (each full byte to [out]) */
         fun bit(b: Int) {
             if (b != 0) cur = cur or (1 shl n)
             n++
@@ -133,8 +138,10 @@ object T4 {
             if (n == 8) { out.write(cur); cur = 0; n = 0 }
         }
 
+        /** [s]'s '0's and '1's as bits, in order */
         fun bits(s: String) { for (c in s) bit(if (c == '1') 1 else 0) }
 
+        /** the bits so far, the last byte's top bits zero */
         fun bytes(): ByteArray {
             if (n > 0) { out.write(cur); cur = 0; n = 0 }
             return out.toByteArray()
@@ -168,6 +175,7 @@ object T4 {
         return w.bytes()
     }
 
+    /** a [run] of white or [black] in its codes: 2560 make-ups, a make-up, then the terminating code */
     private fun runCode(w: BitWriter, run: Int, black: Boolean) {
         val table = if (black) blackByRun else whiteByRun
         var left = run
@@ -189,6 +197,7 @@ object T4 {
         var bad = 0
         val total = data.size * 8L
         var pos = 0L
+        /** the data's next bit, or -1 at its end */
         fun bit(): Int {
             if (pos >= total) return -1
             val b = (data[(pos / 8).toInt()].toInt() shr (pos % 8).toInt()) and 1

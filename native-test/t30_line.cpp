@@ -94,6 +94,7 @@ s16 next_page(void *, T4Page *p)
 	return 1;
 }
 
+/* a page the machine received, written as <dir>/got<n>.pbm */
 void page_received(void *, T4Page *p)
 {
 	write_pbm(dir + "/got" + std::to_string(++pages_got) + ".pbm", p);
@@ -146,6 +147,7 @@ void machine(int in, int out, struct t30_config cfg, double snr)
 
 } // namespace
 
+/* the modem and the T.30 machine on a line, sending or receiving as argv says */
 int main(int argc, char *argv[])
 {
 	dmd::Options opt;

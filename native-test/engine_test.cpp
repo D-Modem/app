@@ -66,6 +66,7 @@ bool spk_was_on;
 long spk_samples;
 std::string logs;
 
+/* the engine's status kept, and the rates once it's online; the waiters woken */
 void on_engine_status(const Status &s)
 {
 	std::lock_guard<std::mutex> lk(mu);
@@ -78,6 +79,7 @@ void on_engine_status(const Status &s)
 	cv.notify_all();
 }
 
+/* the engine's exit counted, its result kept; the waiters woken */
 void on_engine_exit(int r)
 {
 	std::lock_guard<std::mutex> lk(mu);
@@ -86,6 +88,7 @@ void on_engine_exit(int r)
 	cv.notify_all();
 }
 
+/* whether the engine has exited n times within secs */
 bool wait_exits(int n, int secs)
 {
 	std::unique_lock<std::mutex> lk(mu);
@@ -121,6 +124,7 @@ bool expect(int fd, const char *re, int secs, std::string *got = nullptr)
 	return false;
 }
 
+/* s written to fd */
 void put(int fd, const std::string &s)
 {
 	if (write(fd, s.data(), s.size()) != (ssize_t)s.size())
@@ -182,6 +186,7 @@ pid_t start_dmodemd(const char *path, int *pty)
 	return pid;
 }
 
+/* the engine's settings: user e at dmodemd's loopback port, SIP on ENGINE_PORT, listening or not */
 Config config(bool listen)
 {
 	Config c;
@@ -268,6 +273,7 @@ void call_out(int app, int pty, const char *what, bool speaker)
 
 } // namespace
 
+/* the engine against the dmodemd at argv[1], call by call (see above): 1 if any check failed */
 int main(int argc, char *argv[])
 {
 	int pty = -1, app;

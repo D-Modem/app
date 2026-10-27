@@ -31,6 +31,7 @@ final class CallController: NSObject {
     /// the ringing call turned down: its RINGs passed over until they stop
     private var declined = false
 
+    /// a CallKit provider for one voice call at a time, by number or not, kept in Recents
     override init() {
         let c = CXProviderConfiguration()
         c.supportsVideo = false
@@ -112,6 +113,7 @@ final class CallController: NSObject {
         }
     }
 
+    /// no RING for a while: a turned-down call's RINGs heeded again, and an unanswered ringing call reported missed
     private func ringStopped() {
         declined = false
         guard let id = current, incoming, !answered else { return }
@@ -119,6 +121,7 @@ final class CallController: NSObject {
         forget(id)
     }
 
+    /// call [id] no longer the current one (if it still was)
     private func forget(_ id: UUID) {
         if current == id {
             current = nil
@@ -128,15 +131,18 @@ final class CallController: NSObject {
 }
 
 extension CallController: CXProviderDelegate {
+    /// CallKit dropped its calls: none current
     nonisolated func providerDidReset(_ provider: CXProvider) {
         Task { @MainActor in self.current = nil }
     }
 
+    /// a call the modem dials: reported connecting
     nonisolated func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
         provider.reportOutgoingCall(with: action.callUUID, startedConnectingAt: nil)
         action.fulfill()
     }
 
+    /// the ringing call answered: the modem told to answer, unless the app answered it already
     nonisolated func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
         Task { @MainActor in
             // (answered here already, a fax: nothing to tell the modem)
@@ -148,6 +154,7 @@ extension CallController: CXProviderDelegate {
         action.fulfill()
     }
 
+    /// the call ended: if by the user, the modem told (and a ringing call's RINGs passed over)
     nonisolated func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
         Task { @MainActor in
             let byUser = !self.endingOurselves
@@ -158,10 +165,12 @@ extension CallController: CXProviderDelegate {
         action.fulfill()
     }
 
+    /// the call's audio session active: [onAudio] told
     nonisolated func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
         Task { @MainActor in self.onAudio?(true) }
     }
 
+    /// the call's audio session gone: [onAudio] told
     nonisolated func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
         Task { @MainActor in self.onAudio?(false) }
     }

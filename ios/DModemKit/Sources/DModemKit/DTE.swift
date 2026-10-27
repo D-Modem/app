@@ -15,6 +15,7 @@ public final class DTE: @unchecked Sendable {
     private var reader: Thread?
     private var handler: ((Data) -> Void)?
 
+    /// the DTE on the modem's end [fd] (closed with it)
     init(fd: Int32) {
         self.fd = fd
     }
@@ -62,6 +63,7 @@ public final class DTE: @unchecked Sendable {
         }
     }
 
+    /// [text] to the modem as UTF-8; false once it's gone
     @discardableResult
     public func write(_ text: String) -> Bool { write(Data(text.utf8)) }
 
@@ -82,5 +84,6 @@ public final class DTE: @unchecked Sendable {
         }
     }
 
+    /// closed with the last reference (the modem stops)
     deinit { close() }
 }

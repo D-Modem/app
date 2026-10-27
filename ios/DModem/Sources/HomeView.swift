@@ -137,6 +137,7 @@ struct HomeView: View {
         model.console.split(whereSeparator: \.isNewline).suffix(6).joined(separator: "\n")
     }
 
+    /// a speed under its [label], in kbit/s from 1000 up
     private func rate(_ label: String, _ bps: Int) -> some View {
         VStack(alignment: .leading) {
             Text(label).font(.caption)
@@ -145,11 +146,13 @@ struct HomeView: View {
         }
     }
 
+    /// the time from [since] to [now] as m:ss
     private func elapsed(_ since: Date, _ now: Date) -> String {
         let s = max(0, Int(now.timeIntervalSince(since)))
         return String(format: "%d:%02d", s / 60, s % 60)
     }
 
+    /// the typed AT command sent (AT put in front if it's missing), and the field cleared
     private func sendAt() {
         let c = at.trimmingCharacters(in: .whitespaces)
         guard !c.isEmpty else { return }

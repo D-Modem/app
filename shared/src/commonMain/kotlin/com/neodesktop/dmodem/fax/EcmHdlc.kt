@@ -21,6 +21,7 @@ object EcmHdlc {
         var bits = 0L
             private set
 
+        /** a bit on, into the octet's next bit up (each full octet to [out]) */
         fun bit(b: Int) {
             if (b != 0) cur = cur or (1 shl n)
             bits++
@@ -31,6 +32,7 @@ object EcmHdlc {
             }
         }
 
+        /** a flag, 0x7e, bottom bit first (not stuffed) */
         fun flag() {
             for (i in 0 until 8) bit((0x7e shr i) and 1)
         }
@@ -53,6 +55,7 @@ object EcmHdlc {
         for (f in frames) {
             val fcs = Hdlc.fcs(f) xor 0xffff
             var ones = 0
+            /** [octet]'s bits, bottom first, a zero stuffed after five ones */
             fun put(octet: Int) {
                 for (i in 0 until 8) {
                     val b = (octet shr i) and 1
@@ -97,6 +100,7 @@ object EcmHdlc {
             inFrame = true
         }
 
+        /** a bit (unstuffed) into the frame's octets, while in one; one too long dropped as noise */
         fun put(b: Int) {
             if (!inFrame) return
             if (b != 0) octet = octet or (1 shl nbits)

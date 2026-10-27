@@ -22,6 +22,7 @@ class UsbPluggedTest {
     @get:Rule
     val compose = createComposeRule()
 
+    /** "Plugged in" names the modem once it's attached and says none again once it's detached */
     @Test
     fun followsPlugAndUnplug() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()

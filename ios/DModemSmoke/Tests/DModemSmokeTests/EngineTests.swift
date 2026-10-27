@@ -35,10 +35,12 @@ final class EngineTests: XCTestCase {
         return false
     }
 
+    /// [s] written to [fd]
     func put(_ fd: Int32, _ s: String) {
         _ = s.withCString { write(fd, $0, strlen($0)) }
     }
 
+    /// on a peer line the modem answers AT commands, hands a dial's line to the callback with the speaker on, says BUSY when told, and ends once its DTE is closed
     func testThePeerLine() throws {
         signal(SIGPIPE, SIG_IGN)
         let seen = Seen()

@@ -12,16 +12,20 @@ import com.neodesktop.dmodem.io.*
  * Small, and the pels exactly those that came.
  */
 object FaxPdf {
+    /** [pages] as a PDF to [out] */
     fun write(pages: List<FaxPage>, out: Sink) {
         val o = Bytes()
         val offsets = ArrayList<Int>()
+        /** the next object, [body], its offset kept for the xref */
         fun obj(body: ByteArray) {
             offsets.add(o.size)
             o.write("${offsets.size} 0 obj\n".encodeToByteArray())
             o.write(body)
             o.write("\nendobj\n".encodeToByteArray())
         }
+        /** the next object, its text Latin-1 */
         fun obj(s: String) = obj(latin1(s))
+        /** the next object a stream of [data], its [dict] and length before it */
         fun stream(dict: String, data: ByteArray) =
             obj("<< $dict /Length ${data.size} >>\nstream\n".encodeToByteArray() + data + "\nendstream".encodeToByteArray())
 
@@ -51,6 +55,7 @@ object FaxPdf {
         out.write(o.toByteArray())
     }
 
+    /** [b] with its bits the other way round */
     private fun reverse(b: Byte): Byte {
         var c = b.toInt() and 0xff
         c = (c and 0xf0 shr 4) or (c and 0x0f shl 4)

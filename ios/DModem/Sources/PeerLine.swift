@@ -38,6 +38,7 @@ final class PeerLineController: NSObject, NetServiceDelegate, @unchecked Sendabl
         }
     }
 
+    /// the line stopped, and no longer offered on the network
     func stop() {
         lock.lock()
         let h = host
@@ -62,6 +63,7 @@ final class PeerLineController: NSObject, NetServiceDelegate, @unchecked Sendabl
         return host?.lastError ?? error
     }
 
+    /// this phone offered with Bonjour as taking calls on [port]
     private func advertise(port: Int) {
         let s = NetService(domain: "local.", type: PeerFinder.type, name: "D-Modem on \(UIDevice.current.name)", port: Int32(port))
         s.delegate = self
@@ -79,26 +81,31 @@ final class PeerFinder: NSObject, NetServiceBrowserDelegate, NetServiceDelegate 
     private var resolving: [NetService] = []
     private let found: (String, String) -> Void
 
+    /// a finder whose phones go to [found]
     init(found: @escaping (String, String) -> Void) {
         self.found = found
         super.init()
         browser.delegate = self
     }
 
+    /// the network searched for phones taking calls
     func start() { browser.searchForServices(ofType: Self.type, inDomain: "local.") }
 
+    /// the search stopped, and the ones still resolving
     func stop() {
         browser.stop()
         resolving.forEach { $0.stop() }
         resolving.removeAll()
     }
 
+    /// a phone seen: its address looked up (for 5 s at most)
     func netServiceBrowser(_ browser: NetServiceBrowser, didFind service: NetService, moreComing: Bool) {
         service.delegate = self
         resolving.append(service)
         service.resolve(withTimeout: 5)
     }
 
+    /// a phone's address found: to [found] as its name and host:port
     func netServiceDidResolveAddress(_ sender: NetService) {
         // (an IPv4 address of it, else its host name; its port)
         let host = sender.addresses?.compactMap(Self.ipv4).first ?? sender.hostName
@@ -106,6 +113,7 @@ final class PeerFinder: NSObject, NetServiceBrowserDelegate, NetServiceDelegate 
         resolving.removeAll { $0 === sender }
     }
 
+    /// a phone whose address couldn't be found: dropped
     func netService(_ sender: NetService, didNotResolve errorDict: [String: NSNumber]) {
         resolving.removeAll { $0 === sender }
     }

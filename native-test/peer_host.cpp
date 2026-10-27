@@ -48,6 +48,7 @@ namespace {
 std::mutex out_mu;
 
 void say(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+/* a line (printf's) on stdout, flushed, one writer at a time */
 void say(const char *fmt, ...)
 {
 	std::lock_guard<std::mutex> lk(out_mu);
@@ -129,6 +130,7 @@ void offer(int fd, std::string what, std::string after = "")
 
 } // namespace
 
+/* the engine on a peer line, its DTE and lines offered on ports and its news on stdout, the app's lines from stdin */
 int main(int argc, char *argv[])
 {
 	Config cfg;

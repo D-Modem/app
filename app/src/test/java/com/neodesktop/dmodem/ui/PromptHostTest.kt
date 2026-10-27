@@ -41,6 +41,7 @@ class PromptHostTest {
     @get:Rule
     val compose = createAndroidComposeRule<MainActivity>()
 
+    /** [p] asked of the terminal's prompts on another thread; its answer, once there is one */
     private fun asked(p: Prompt): AtomicReference<Answer> {
         val got = AtomicReference<Answer>()
         Thread { got.set(Terminal.prompts.ask(p, this)) }.start()
@@ -51,10 +52,12 @@ class PromptHostTest {
     @After
     fun tearDown() = Terminal.prompts.cancel(this)
 
+    /** (up to 15 s) until some node shows [text] */
     private fun waitFor(text: String) {
         compose.waitUntil(15_000) { compose.onAllNodesWithText(text, substring = true).fetchSemanticsNodes().isNotEmpty() }
     }
 
+    /** the dialog on screen drawn into build/screens/[name].png */
     private fun shotDialog(name: String) {
         compose.waitForIdle()
         val bmp = compose.onNode(isDialog()).captureToImage().asAndroidBitmap()
@@ -69,6 +72,7 @@ class PromptHostTest {
         return r.get()
     }
 
+    /** an unknown host's key is shown, and "Accept and keep" accepts and remembers it */
     @Test
     fun anUnknownHostsKey() {
         val got = asked(Prompt.HostKey("Unknown host", "bbs.example.org", 2222, "ssh-ed25519", "SHA256:Ng3jZbE6x1yJr9q0sJ4Ylm5o2p8Qe7Rk0vT1uW2xY3z", null))
@@ -79,6 +83,7 @@ class PromptHostTest {
         assertTrue(a.accepted && a.remember)
     }
 
+    /** a changed host key accepted "Once" connects but isn't kept */
     @Test
     fun aChangedHostKeyOnlyOnce() {
         val got = asked(
@@ -95,6 +100,7 @@ class PromptHostTest {
         assertFalse("not kept", a.remember)
     }
 
+    /** the broker ignores an answer to a question other than the one being asked */
     @Test
     fun anAnswerToAnotherQuestionIsIgnored() {
         val b = PromptBroker()

@@ -19,7 +19,9 @@ subprojects {
         val dir = File(testRunDir, "${project.name}-$name")
         if (this is Test) systemProperty("dmodem.testRunDir", dir.path)
         val writers = java.util.concurrent.ConcurrentHashMap<String, java.io.Writer>()
+        /** [s] safe as a file name: other characters as _, at most 150 */
         fun fileName(s: String) = s.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(150)
+        /** the log [d]'s output goes to (its class's _class.log if it's no test), opened once */
         fun writer(d: TestDescriptor): java.io.Writer {
             val cls = d.className ?: d.parent?.className ?: "_run"
             val key = if (d.className != null && d.name != d.className) "${fileName(cls.substringAfterLast('.'))}/${fileName(d.name)}.log"
@@ -30,6 +32,7 @@ subprojects {
         }
         doFirst { dir.deleteRecursively() }
         addTestOutputListener(object : TestOutputListener {
+            /** what a test printed, into its log as it comes */
             override fun onOutput(d: TestDescriptor, e: TestOutputEvent) {
                 val w = writer(d)
                 synchronized(w) {
@@ -39,8 +42,11 @@ subprojects {
             }
         })
         addTestListener(object : TestListener {
+            /** (nothing before a suite) */
             override fun beforeSuite(suite: TestDescriptor) {}
+            /** (nothing before a test) */
             override fun beforeTest(d: TestDescriptor) {}
+            /** a failed test's stack traces at the end of its log */
             override fun afterTest(d: TestDescriptor, r: TestResult) {
                 // (a failure's stack trace at the end of its log)
                 if (r.resultType == TestResult.ResultType.FAILURE) {
@@ -52,6 +58,7 @@ subprojects {
                     }
                 }
             }
+            /** at the run's end the logs closed, and the task's folder removed if nothing failed (else where it is said) */
             override fun afterSuite(suite: TestDescriptor, r: TestResult) {
                 if (suite.parent != null) return
                 writers.values.forEach { runCatching { it.close() } }

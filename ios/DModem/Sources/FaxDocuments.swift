@@ -39,6 +39,7 @@ enum FaxDocuments {
         throw Failure.unreadable("not a PDF, an image or text: \(url.lastPathComponent)")
     }
 
+    /// each page of the PDF at [url] drawn to fill a fax page (no dithering)
     private static func pdf(_ url: URL, fine: Bool) throws -> [FaxPage] {
         guard let doc = CGPDFDocument(url as CFURL) else { throw Failure.unreadable("can't open the PDF") }
         guard doc.numberOfPages > 0 else { return [] }

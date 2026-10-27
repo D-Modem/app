@@ -22,6 +22,7 @@
 #include "line_speed.h"
 #include "pipe_modem.h"
 
+/* two modems back to back on pipes at the line's pace, their ptys on stderr, until they end */
 int main(int argc, char *argv[])
 {
 	dmd::Options opt;

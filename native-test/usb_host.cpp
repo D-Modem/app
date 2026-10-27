@@ -48,6 +48,7 @@ bool pass(int from, int to)
 
 } // namespace
 
+/* the engine on the fake stick at the rate in argv[1] (9600), its DTE between stdin/stdout until it exits */
 int main(int argc, char *argv[])
 {
 	Config cfg;

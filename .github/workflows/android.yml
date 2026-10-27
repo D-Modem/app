@@ -1,3 +1,4 @@
+# docs: every function documented (tools/doc_check.py).
 # build: the APK (all four ABIs), the unit tests and lint.
 # native: the native engine on the runner against a dmodemd over loopback
 #   SIP (native-test).
@@ -18,6 +19,17 @@ env:
   CMAKE_VERSION: "3.31.6"
 
 jobs:
+  docs:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.DMODEM_RE_TOKEN || github.token }}
+
+      - name: Every function documented
+        run: python3 tools/doc_check.py
+
   build:
     runs-on: ubuntu-24.04
     steps:

@@ -37,6 +37,7 @@ final class VpnTunnel: NSObject, TunnelStarter, @unchecked Sendable {
     /// (whether it started, set by the task the start waits for)
     private final class Started: @unchecked Sendable { var ok = false }
 
+    /// the packet tunnel stopped (if it was started)
     func stop() {
         manager?.connection.stopVPNTunnel()
         manager = nil

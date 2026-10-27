@@ -14,6 +14,7 @@ public struct ModemStatus: Equatable, Sendable {
     public var txRate = 0
     public var rxRate = 0
 
+    /// a status as given (on hook and idle by default)
     public init(link: Link = .idle, offHook: Bool = false, txRate: Int = 0, rxRate: Int = 0) {
         self.link = link
         self.offHook = offHook
@@ -39,12 +40,15 @@ public struct EngineConfig: Sendable {
     public var peer = false
     public var peerLeadMs = 100
 
+    /// the defaults: SIP on 5060, not listening, T.38 on
     public init() {}
 }
 
 /// what the engine tells, from its threads
 public protocol EngineListener: AnyObject {
+    /// a line of the engine's log (its newline gone)
     func engineLog(_ line: String)
+    /// the call's state changed: link, hook, rates
     func engineStatus(_ status: ModemStatus)
     /// the modem stopped: 0 asked for (or the DTE closed), -1 an error
     func engineExited(_ result: Int)
@@ -57,8 +61,11 @@ public protocol EngineListener: AnyObject {
 }
 
 public extension EngineListener {
+    /// (no peer line taken: its samples closed)
     func engineLine(caller: Bool, dial: String, fd: Int32) { close(fd) }
+    /// (the speaker ignored)
     func engineSpeaker(_ level: Int) {}
+    /// (the sound ignored)
     func engineSound(_ pcm: UnsafeBufferPointer<Int16>) {}
 }
 
@@ -80,6 +87,7 @@ public final class Engine: @unchecked Sendable {
         return _listener
     }
 
+    /// the engine's callbacks set once, each to the listener of the moment
     private init() {
         var cb = dmodem_callbacks()
         // (one engine, one Engine: the callbacks find it through this, not a context)

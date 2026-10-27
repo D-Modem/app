@@ -4,6 +4,7 @@ import Foundation
 
 /// The phone's network's DNS servers (SystemDNS.c), for the engine's SIP.
 enum SystemDNS {
+    /// the network's IPv4 DNS servers, as addresses ([] for none)
     static func servers() -> [String] {
         var buf = [CChar](repeating: 0, count: 512)
         guard dmodem_dns_servers(&buf, Int32(buf.count)) > 0 else { return [] }

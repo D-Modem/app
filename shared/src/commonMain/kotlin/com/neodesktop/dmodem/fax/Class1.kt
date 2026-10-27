@@ -169,6 +169,7 @@ class Class1(private val io: TransferIo, private val log: (String) -> Unit = {})
         const val T2_MS = 6000L
         val RESULTS = setOf("OK", "ERROR", "NO CARRIER", "NO DIALTONE", "NO DIAL TONE", "BUSY", "NO ANSWER", "RING", "FCERROR")
 
+        /** [b]'s octets in hex, apart by spaces (for the log) */
         fun hex(b: ByteArray) = b.joinToString(" ") { hex2(it.toInt() and 0xff) }
 
         /** a frame: address, control (set when sent), FCF, FIF */

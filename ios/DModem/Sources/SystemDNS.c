@@ -12,6 +12,7 @@
 
 #include "SystemDNS.h"
 
+/* see SystemDNS.h */
 int dmodem_dns_servers(char *buf, int len)
 {
 	struct __res_state st;

@@ -19,6 +19,7 @@ final class TerminalModel: ObservableObject {
     /// to the modem
     var send: ((Data) -> Void)?
 
+    /// the emulator set up for BBSes: CP437, bold as bright, the VGA colours
     init() {
         // (BBSes: CP437, bold as bright; the VGA colours)
         bridge.setLook(themeId: "vga", boldBright: true, iceColors: false, charset: "CP437")
@@ -58,6 +59,7 @@ final class TerminalModel: ObservableObject {
     /// a row's runs
     func runs(_ row: Int) -> [StyledRun] { bridge.runs(row: Int32(row)) }
 
+    /// the emulator's Latin-1 output as octets to the modem (nothing if there's none)
     private func out(_ latin1: String) {
         guard !latin1.isEmpty, let d = latin1.data(using: .isoLatin1) else { return }
         send?(d)

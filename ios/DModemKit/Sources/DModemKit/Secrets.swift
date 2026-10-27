@@ -20,13 +20,16 @@ public final class MemorySecrets: SecretStore, @unchecked Sendable {
     private let lock = NSLock()
     private var values: [String: String] = [:]
 
+    /// none yet
     public init() {}
 
+    /// the secret named [key], nil when there's none
     public func get(_ key: String) -> String? {
         lock.lock(); defer { lock.unlock() }
         return values[key]
     }
 
+    /// [value] kept under [key] (empty: removed)
     public func set(_ key: String, _ value: String) {
         lock.lock(); defer { lock.unlock() }
         values[key] = value.isEmpty ? nil : value
@@ -40,16 +43,19 @@ public final class MemorySecrets: SecretStore, @unchecked Sendable {
 public final class KeychainSecrets: SecretStore, @unchecked Sendable {
     private let service: String
 
+    /// the Keychain's items under [service]
     public init(service: String = "com.neodesktop.dmodem") {
         self.service = service
     }
 
+    /// the Keychain query for [key]'s generic password under [service]
     private func query(_ key: String) -> [String: Any] {
         [kSecClass as String: kSecClassGenericPassword,
          kSecAttrService as String: service,
          kSecAttrAccount as String: key]
     }
 
+    /// the secret named [key] from the Keychain, nil when there's none (or it can't be read)
     public func get(_ key: String) -> String? {
         var q = query(key)
         q[kSecReturnData as String] = true
@@ -59,6 +65,7 @@ public final class KeychainSecrets: SecretStore, @unchecked Sendable {
         return String(data: d, encoding: .utf8)
     }
 
+    /// [value] kept under [key], updated or added, this device only (empty: removed)
     public func set(_ key: String, _ value: String) {
         let q = query(key)
         if value.isEmpty {

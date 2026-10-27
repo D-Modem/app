@@ -143,6 +143,7 @@ void on_signal(int)
 
 } // namespace
 
+/* the engine and dmodemd (argv's, T.38 unless --no-t38) on a loopback SIP call, until killed */
 int main(int argc, char *argv[])
 {
 	bool t38 = true;

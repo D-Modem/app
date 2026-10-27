@@ -39,6 +39,7 @@ public final class ModemSession: EngineListener, @unchecked Sendable {
 
     private let engine: Engine
 
+    /// a session on [engine] (the process's one by default), stopped
     public init(engine: Engine = .shared) {
         self.engine = engine
     }
@@ -101,6 +102,7 @@ public final class ModemSession: EngineListener, @unchecked Sendable {
         return d?.write(data) ?? false
     }
 
+    /// an AT command, its CR added, to the modem; false if it's off
     @discardableResult
     public func command(_ cmd: String) -> Bool { send(Data((cmd + "\r").utf8)) }
 
@@ -134,6 +136,7 @@ public final class ModemSession: EngineListener, @unchecked Sendable {
     /// whether a job has the DTE
     public var claimed: Bool { lock.lock(); defer { lock.unlock() }; return claimant != nil }
 
+    /// what the modem said: to the job that has the DTE, else onto the console and to [onData]
     private func received(_ data: Data) {
         lock.lock()
         if let c = claimant {
@@ -151,15 +154,18 @@ public final class ModemSession: EngineListener, @unchecked Sendable {
         changed()
     }
 
+    /// [error] set, and [onChange] told
     private func setError(_ e: String) {
         lock.lock(); _error = e; lock.unlock()
         changed()
     }
 
+    /// [onChange] told
     private func changed() { onChange?() }
 
     // EngineListener
 
+    /// the engine's line kept in the log (the last [logMax] of them)
     public func engineLog(_ line: String) {
         lock.lock()
         _log.append(line)
@@ -168,11 +174,13 @@ public final class ModemSession: EngineListener, @unchecked Sendable {
         changed()
     }
 
+    /// the engine's status kept
     public func engineStatus(_ status: ModemStatus) {
         lock.lock(); _status = status; lock.unlock()
         changed()
     }
 
+    /// the modem stopped by itself: stopped, and an error if it failed while it ran
     public func engineExited(_ result: Int) {
         lock.lock()
         let wasRunning = _run == .running && dte != nil
@@ -183,6 +191,7 @@ public final class ModemSession: EngineListener, @unchecked Sendable {
         changed()
     }
 
+    /// a peer line's call: to [onLine]; with no line, failed as nothing plugged in (closed either way without a handler)
     public func engineLine(caller: Bool, dial: String, fd: Int32) {
         lock.lock(); let none = noLine; lock.unlock()
         if none {
@@ -194,7 +203,9 @@ public final class ModemSession: EngineListener, @unchecked Sendable {
         if let h = onLine { h(caller, dial, fd) } else { close(fd) }
     }
 
+    /// the speaker's level to [onSpeaker]
     public func engineSpeaker(_ level: Int) { onSpeaker?(level) }
 
+    /// the line's sound to [onSound]
     public func engineSound(_ pcm: UnsafeBufferPointer<Int16>) { onSound?(pcm) }
 }

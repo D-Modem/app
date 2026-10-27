@@ -43,6 +43,7 @@ struct CellMetrics {
     let width: CGFloat
     let height: CGFloat
 
+    /// the monospaced system font at [fontSize], and its "M"'s width and line height rounded up
     init(fontSize: Double) {
         font = UIFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
         width = ceil(("M" as NSString).size(withAttributes: [.font: font]).width)
@@ -107,6 +108,7 @@ private struct ExtraKeys: View {
         .background(.bar)
     }
 
+    /// a bordered key showing [label] that runs [action]
     private func key(_ label: String, _ action: @escaping () -> Void) -> some View {
         Button(action: action) { Text(label).frame(minWidth: 32, minHeight: 32) }
             .buttonStyle(.bordered)
@@ -119,12 +121,14 @@ struct KeyInput: UIViewRepresentable {
     let model: TerminalModel
     @Binding var focused: Bool
 
+    /// the view, typing into [model]
     func makeUIView(context: Context) -> KeyInputView {
         let v = KeyInputView()
         v.model = model
         return v
     }
 
+    /// the view's model kept, and the keyboard brought up once it's [focused]
     func updateUIView(_ v: KeyInputView, context: Context) {
         v.model = model
         if focused && !v.isFirstResponder {
@@ -149,10 +153,12 @@ final class KeyInputView: UIView, UIKeyInput {
     var smartInsertDeleteType: UITextSmartInsertDeleteType = .no
     var keyboardType: UIKeyboardType = .asciiCapable
 
+    /// the keyboard's text to the terminal
     func insertText(_ text: String) {
         model?.typed(text)
     }
 
+    /// the keyboard's delete as the terminal's BACKSPACE
     func deleteBackward() {
         model?.key("BACKSPACE")
     }
@@ -170,6 +176,7 @@ final class KeyInputView: UIView, UIKeyInput {
         }
     }
 
+    /// a hardware key (named in its command's title) to the terminal
     @objc private func keyCommand(_ c: UIKeyCommand) {
         guard let name = c.title.isEmpty ? nil : c.title else { return }
         model?.key(name)

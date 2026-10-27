@@ -117,6 +117,7 @@ struct FaxView: View {
         }
     }
 
+    /// the received faxes listed again from the faxes folder
     private func reload() { received = AppFolders.files(AppFolders.faxes) }
 
     /// a picked file copied where the app may read it later (a picked one may only be read while open to us)

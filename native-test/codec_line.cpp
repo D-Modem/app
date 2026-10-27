@@ -57,6 +57,7 @@ const int FRAME = 160;  /* 20 ms at 8000 Hz */
 /* a frame through the codec, in place */
 class Codec {
 public:
+	/* the codec called name (none, gsm or an AMR-NB rate); the program exits if it hasn't it */
 	explicit Codec(const std::string &name) : name_(name)
 	{
 #ifdef HAVE_GSM
@@ -85,6 +86,7 @@ public:
 		}
 	}
 
+	/* the frame s (FRAME samples) encoded and decoded back, in place (as it is for none) */
 	void run(short *s)
 	{
 #ifdef HAVE_GSM
@@ -144,6 +146,7 @@ void channel(int in, int out, std::string codec)
 
 } // namespace
 
+/* a filter (--filter), or two modems run on a line through the codec, their ptys on stderr */
 int main(int argc, char *argv[])
 {
 	dmd::Options opt;

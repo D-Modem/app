@@ -78,12 +78,15 @@ object T30 {
         Rate(4800, 0x2, 0, 48, 48), Rate(2400, 0x0, 0, 24, 24),
     )
 
+    /** whether a FIF's bit [n] is set (T.30's numbering: 1 is the first octet's bottom bit; false past its end) */
     fun bit(fif: ByteArray, n: Int): Boolean = (n - 1) / 8 < fif.size && (fif[(n - 1) / 8].toInt() shr ((n - 1) % 8)) and 1 == 1
 
+    /** a FIF's bit [n] set (T.30's numbering) */
     fun setBit(fif: ByteArray, n: Int) {
         fif[(n - 1) / 8] = (fif[(n - 1) / 8].toInt() or (1 shl ((n - 1) % 8))).toByte()
     }
 
+    /** a DIS or DCS's rate field, bits 11-14, as a number (bit 11 the lowest) */
     private fun rateBits(fif: ByteArray) =
         (if (bit(fif, 11)) 1 else 0) or (if (bit(fif, 12)) 2 else 0) or (if (bit(fif, 13)) 4 else 0) or (if (bit(fif, 14)) 8 else 0)
 
@@ -163,6 +166,7 @@ object T30 {
         return ByteArray(20) { k -> if (k < s.length) s[s.length - 1 - k].code.toByte() else ' '.code.toByte() }
     }
 
+    /** a CSI or TSI's text: its 20 characters back the right way, what isn't printable as spaces, trimmed */
     fun readIdent(fif: ByteArray): String =
         fif.take(20).reversed().map { b -> val c = b.toInt() and 0xff; if (c in 32..126) c.toChar() else ' ' }.joinToString("").trim()
 
@@ -238,6 +242,7 @@ object T30 {
 
         // training: down the rates until one takes
         var ri = 0
+        /** TSI, DCS and training at each rate in turn (three tries without an answer) until a CFR: that rate */
         fun train(): Rate {
             var tries = 0
             while (ri < rates.size) {
@@ -462,11 +467,13 @@ object T30 {
             var count = 0
             var long = false
             var last: ByteArray? = null
+            /** our answer [fr] sent (and kept, to send again) */
             fun respond(fr: ByteArray) {
                 last = fr
                 c.command("+FTS=8")
                 c.transmitFrames(listOf(fr))
             }
+            /** the page's data decoded and, unless empty or over 5% bad rows, to [page]; the page ended by [post] */
             fun pageDone(post: Int): EcmEnd {
                 val dec = T4.decode(doc.toByteArray(), FaxPage.WIDTH, fine)
                 if (dec.page.rows > 0 && dec.badRows * 20 < dec.page.rows) {
