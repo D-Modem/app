@@ -33,16 +33,20 @@ class ChatScriptTest {
             }
         }
 
+        /** [s] said by the host, unasked */
         fun say(s: String) = io.feed(s.toByteArray(Charsets.ISO_8859_1))
+        /** all the host was sent, as text */
         fun sent() = synchronized(got) { String(got.toByteArray(), Charsets.ISO_8859_1) }
     }
 
+    /** a script split into its tokens: quotes, escapes, a comment and newlines between */
     @Test
     fun tokensAndEscapes() {
         val c = ChatScript("ABORT 'NO CARRIER' \"\" ATZ\nogin:--ogin: \\U  'word: ' \\P\n# a comment\n\"\" ^M\\c", "alice", "pw")
         assertEquals(listOf("ABORT", "NO CARRIER", "", "ATZ", "ogin:--ogin:", "\\U", "word: ", "\\P", "", "^M\\c"), c.tokens())
     }
 
+    /** a login through its prompts (ogin:--ogin:'s return first), the user and password sent, the password kept out of the log */
     @Test
     fun aLoginWithItsPrompts() {
         // the host says its banner and "login:" only after a return (ogin:--ogin: sends one)
@@ -61,6 +65,7 @@ class ChatScriptTest {
         assertTrue(log.toString(), log.none { it.contains("s3cret") } && log.any { it.contains("(the password)") })
     }
 
+    /** an ABORT string seen: its IOException; a quiet host: TIMEOUT's, after about its seconds */
     @Test
     fun abortAndTimeout() {
         val h = Host { l -> if (l == "alice") "Password: " else "\r\nLogin incorrect\r\n" }
@@ -75,6 +80,7 @@ class ChatScriptTest {
         assertTrue(System.currentTimeMillis() - t0 in 900..3000)
     }
 
+    /** ^C as a control character, \c for no return, \t as a tab */
     @Test
     fun controlCharactersAndNoReturn() {
         val h = Host { null }

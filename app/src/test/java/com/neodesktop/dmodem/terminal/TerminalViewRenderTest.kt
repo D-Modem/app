@@ -31,6 +31,7 @@ class TerminalViewRenderTest {
     private val w = 960
     private val h = 520
 
+    /** [art] drawn by a view at 80 columns in CP437 with [settings] (no blinking cursor): the picture, and the view */
     private fun render(art: ByteArray, settings: TerminalSettings = TerminalSettings()): Pair<Bitmap, TerminalView> {
         val ctx = ApplicationProvider.getApplicationContext<Context>()
         val session = TerminalSession(DteHub()) { null }
@@ -46,10 +47,13 @@ class TerminalViewRenderTest {
         return bmp to v
     }
 
+    /** [s] in CP437 */
     private fun cp437(s: String): ByteArray = TermCharset.CP437.encode(s)
 
+    /** [p] without its alpha */
     private fun rgb(p: Int) = p and 0xffffff
 
+    /** ANSI art drawn: VGA colours, a full block filling its cell, double lines to the edges, inverse, 24-bit backgrounds; kept in build/terminal-render.png */
     @Test
     fun ansiArtInCp437() {
         val e = "\u001b"
@@ -69,6 +73,7 @@ class TerminalViewRenderTest {
         assertEquals(80, e2.cols)
         val cw = w / 80f
         val ch = h.toFloat() / e2.rows
+        /** the pixel at the middle of cell [col], [row] */
         fun center(col: Int, row: Int) = bmp.getPixel((col * cw + cw / 2).toInt(), (row * ch + ch / 2).toInt())
 
         // the box's inside: VGA blue (bold white on blue)
@@ -96,6 +101,7 @@ class TerminalViewRenderTest {
         println("rendered: ${out.absolutePath}")
     }
 
+    /** bold blue as bright blue when bold is bright, as blue when not */
     @Test
     fun boldAsBrightOrNot() {
         val art = cp437("\u001b[1;34m█\u001b[0m")
@@ -106,6 +112,7 @@ class TerminalViewRenderTest {
         assertEquals(0x0000aa, rgb(plain.getPixel(cw / 2, 3)))
     }
 
+    /** with iCE colours, blink on red a bright red background */
     @Test
     fun iceColorsMakeBlinkABrightBackground() {
         val art = cp437("\u001b[5;41m \u001b[0m")

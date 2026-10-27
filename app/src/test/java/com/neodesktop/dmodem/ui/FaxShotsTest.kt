@@ -36,6 +36,7 @@ class FaxShotsTest {
     @get:Rule
     val compose = createAndroidComposeRule<MainActivity>()
 
+    /** the screen (or the dialog, when [dialog]) as it is, into build/screens/[name].png */
     private fun shot(name: String, dialog: Boolean = false) {
         compose.waitForIdle()
         val node = if (dialog) compose.onNode(isDialog()) else compose.onRoot()
@@ -44,6 +45,7 @@ class FaxShotsTest {
         File(dir, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
+    /** Home with a fax being sent and the last ones, drawn */
     @Test
     fun faxOnHome() {
         val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
@@ -62,6 +64,7 @@ class FaxShotsTest {
         Fax.show(null)
     }
 
+    /** Home connected to the internet, with its address and counts, drawn */
     @Test
     fun internetOnHome() {
         val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
@@ -83,6 +86,7 @@ class FaxShotsTest {
         com.neodesktop.dmodem.ppp.Internet.show(null)
     }
 
+    /** the fax settings page, drawn */
     @Test
     fun faxSettings() {
         SettingsNav.open(SettingsPage.FAX)

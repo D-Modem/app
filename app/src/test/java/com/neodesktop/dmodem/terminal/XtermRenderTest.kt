@@ -33,9 +33,11 @@ class XtermRenderTest {
     private val w = 1080
     private val h = 760
 
+    /** the test resource [name], from the module's directory or the repo's */
     private fun resource(name: String): File =
         listOf(File("src/test/resources/$name"), File("app/src/test/resources/$name")).first { it.exists() }
 
+    /** wide and combining characters, underlines, OSC 4's colour, a sixel image drawn where it is and like its picture, kept in build/xterm-render.png */
     @Test
     fun theExtensionsDrawn() {
         val ctx = ApplicationProvider.getApplicationContext<Context>()

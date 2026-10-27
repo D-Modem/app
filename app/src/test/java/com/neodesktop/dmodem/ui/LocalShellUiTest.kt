@@ -43,6 +43,7 @@ class LocalShellUiTest {
     @get:Rule
     val tmp = TemporaryFolder()
 
+    /** skipped without mksh; the host's pty library loaded, the local shell on mksh with a home to list */
     @Before
     fun setUp() {
         assumeTrue("mksh isn't installed", File("/usr/bin/mksh").canExecute())
@@ -56,11 +57,13 @@ class LocalShellUiTest {
         File(files, "home/backup.sh").writeText("#!/system/bin/sh\n")
     }
 
+    /** the sessions but the modem's closed */
     @After
     fun tearDown() {
         Terminal.sessions.value.filter { it.kind != TerminalSession.Kind.MODEM }.forEach { Terminal.close(it) }
     }
 
+    /** the screen as it is, into build/screens/[name].png */
     private fun shot(name: String) {
         compose.waitForIdle()
         val bmp = compose.onRoot().captureToImage().asAndroidBitmap()
@@ -68,9 +71,11 @@ class LocalShellUiTest {
         File("build/screens/$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
+    /** [s]'s screen, as text */
     private fun screen(s: TerminalSession) =
         synchronized(s.emulator) { (0 until s.emulator.rows).joinToString("\n") { s.emulator.line(it).text() } }
 
+    /** waited until [s]'s screen has [text], or an AssertionError with the screen after 10 seconds */
     private fun waitShell(s: TerminalSession, text: String) {
         val end = System.currentTimeMillis() + 10_000
         while (!screen(s).contains(text)) {
@@ -79,6 +84,7 @@ class LocalShellUiTest {
         }
     }
 
+    /** a shell opened from Home and used, drawn; its exit status shown, a new one in its place */
     @Test
     fun aShellFromHome() {
         compose.onNodeWithText("Shell").performScrollTo().performClick()

@@ -14,8 +14,10 @@ class ResultCodeStatusTest {
     private val seen = mutableListOf<NativeModem.Status>()
     private val r = ResultCodeStatus { seen += it }
 
+    /** [s] fed to the status as the modem's output */
     private fun say(s: String) = s.toByteArray(Charsets.ISO_8859_1).let { r.feed(it, it.size) }
 
+    /** online from a CONNECT line (with its rate, in pieces), idle from NO CARRIER or BUSY, not from CONNECT mid-line */
     @Test
     fun onlineFromConnectIdleFromItsEnd() {
         say("ATDT5551234\r\r\nOK\r\n")
@@ -35,6 +37,7 @@ class ResultCodeStatusTest {
         assertEquals(ModemState.IDLE, seen.last())
     }
 
+    /** a Bluetooth modem line needs no SIP account and is no peer line, complete with its address */
     @Test
     fun theLine() {
         val s = ModemSettings(line = ModemSettings.LINE_BT_MODEM, btModemAddress = "00:11:22:33:44:55")

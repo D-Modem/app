@@ -57,11 +57,17 @@ class SshLinkTest {
         private lateinit var inp: InputStream
         private lateinit var out: OutputStream
         private var exit: ExitCallback? = null
+        /** the channel's input, kept */
         override fun setInputStream(i: InputStream) { inp = i }
+        /** the channel's output, kept */
         override fun setOutputStream(o: OutputStream) { out = o }
+        /** stderr: not used */
         override fun setErrorStream(e: OutputStream) {}
+        /** how to say the shell's ended, kept */
         override fun setExitCallback(cb: ExitCallback) { exit = cb }
+        /** [s] written to the client */
         private fun say(s: String) = synchronized(out) { out.write(s.toByteArray()); out.flush() }
+        /** the shell started: its TERM and size said, window changes told, each line echoed until "exit" or the end */
         override fun start(channel: ChannelSession, env: Environment) {
             val e = env.env
             say("TERM=${e[Environment.ENV_TERM]} COLS=${e[Environment.ENV_COLUMNS]} LINES=${e[Environment.ENV_LINES]}\r\n")
@@ -88,9 +94,11 @@ class SshLinkTest {
                 exit?.onExit(0)
             }.start()
         }
+        /** nothing to let go */
         override fun destroy(channel: ChannelSession) {}
     }
 
+    /** the server started on [port] with an EC host key in [hostKeyFile]: alice by password, bob by [allowedKeys], our [Shell] */
     private fun startServer(port: Int = 0, hostKeyFile: String = "hostkey") {
         SshSecurity.ensure()
         server = SshServer.setUpDefaultServer()
@@ -102,9 +110,11 @@ class SshLinkTest {
         server.start()
     }
 
+    /** the server started, on a free port */
     @Before
     fun setUp() = startServer()
 
+    /** the server stopped */
     @After
     fun tearDown() {
         server.stop(true)
@@ -121,6 +131,7 @@ class SshLinkTest {
         }
     }
 
+    /** waited until [cond], or an AssertionError naming [what] after [secs] */
     private fun waitFor(what: String, secs: Int = 20, cond: () -> Boolean) {
         val end = System.currentTimeMillis() + secs * 1000
         while (!cond()) {
@@ -131,9 +142,11 @@ class SshLinkTest {
 
     private class Screen : TerminalLink.Listener {
         val text = StringBuffer()
+        /** what came, appended as text */
         override fun onData(data: ByteArray, length: Int) { text.append(String(data, 0, length)) }
     }
 
+    /** an SSH link to the test server as [user], 100x30, with a [saved] password and the ones it keeps added to [kept] */
     private fun link(
         user: String,
         ask: (Prompt, Any?) -> Answer,
@@ -143,6 +156,7 @@ class SshLinkTest {
         kept: MutableList<String> = mutableListOf(),
     ) = SshLink("127.0.0.1", server.port, user, key, known, ask, savedPassword = saved, keepPassword = { kept.add(it) }, cols = 100, rows = 30)
 
+    /** a password login, the host key asked and kept, the password kept; the shell's TERM and size, echo and window change; again, nothing asked */
     @Test
     fun passwordLoginAndTheHostKeyKeptOnFirstUse() {
         val known = KnownHosts(tmp.newFile("known_hosts")) { p, o -> user()(p, o) }
@@ -178,6 +192,7 @@ class SshLinkTest {
         l2.close()
     }
 
+    /** a saved password that's wrong: the password asked for, and logged in */
     @Test
     fun aWrongPasswordIsAskedAgain() {
         val known = KnownHosts(tmp.newFile("known_hosts")) { p, o -> user()(p, o) }
@@ -190,6 +205,7 @@ class SshLinkTest {
         l.close()
     }
 
+    /** no password given: the link closed with an authentication failure */
     @Test
     fun noPasswordFailsTheLogin() {
         val known = KnownHosts(tmp.newFile("known_hosts")) { p, o -> user()(p, o) }
@@ -201,6 +217,7 @@ class SshLinkTest {
         assertTrue(r!!, r.contains("authentication", ignoreCase = true))
     }
 
+    /** another key at a known host: asked as CHANGED with the old fingerprint, refused, no password asked, the old key still kept */
     @Test
     fun aChangedHostKeyIsCaughtAndRefused() {
         // (the host keys are asked through KnownHosts' own question: accepted at first, then refused)
@@ -232,6 +249,7 @@ class SshLinkTest {
         assertEquals(1, known.keysFor("127.0.0.1", port).size)
     }
 
+    /** each kind of key made here logging in, no password asked; the key list there again in a new store */
     @Test
     fun keyLoginWithAKeyMadeHere() {
         val keys = SshKeys(tmp.newFolder("keys"), PlainBox())
@@ -260,6 +278,7 @@ class SshLinkTest {
         assertEquals(KeyKind.entries.size, SshKeys(keys.let { tmp.root.resolve("keys") }, PlainBox()).keys.value.size)
     }
 
+    /** OpenSSH keys with and without a passphrase and a PEM RSA key imported, their fingerprints, and a login with one */
     @Test
     fun importedKeysOpenSshWithAPassphraseAndPem() {
         val keys = SshKeys(tmp.newFolder("keys"), PlainBox())
@@ -290,10 +309,13 @@ class SshLinkTest {
         l.close()
     }
 
+    /** a kept password through the [SecretBox]: given back, not in the file in the clear, removed */
     @Test
     fun keptPasswordsAreSealed() {
         val box = object : SecretBox {
+            /** [plain] XORed with 0x5a */
             override fun seal(plain: ByteArray) = plain.map { (it.toInt() xor 0x5a).toByte() }.toByteArray()
+            /** [sealed] XORed back */
             override fun open(sealed: ByteArray) = seal(sealed)
         }
         val f = tmp.newFile("passwords.json")

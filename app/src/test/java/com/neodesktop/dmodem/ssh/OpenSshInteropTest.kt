@@ -45,8 +45,10 @@ class OpenSshInteropTest {
     private val links = ArrayList<SshLink>()
     private val asked = AtomicInteger()
 
+    /** whether [tool] is installed, in one of the usual bin directories */
     private fun have(tool: String) = listOf("/usr/bin", "/usr/sbin", "/bin", "/usr/local/bin").any { File(it, tool).canExecute() }
 
+    /** [cmd] run, [input] its stdin: its exit code and its output (stderr in it) */
     private fun run(vararg cmd: String, input: String? = null): Pair<Int, String> {
         val p = ProcessBuilder(*cmd).redirectErrorStream(true).start()
         if (input != null) p.outputStream.use { it.write(input.toByteArray()) } else p.outputStream.close()
@@ -55,6 +57,7 @@ class OpenSshInteropTest {
         return p.exitValue() to out
     }
 
+    /** BouncyCastle there, and an empty key store */
     @Before
     fun setUp() {
         SshSecurity.ensure()
@@ -105,6 +108,7 @@ class OpenSshInteropTest {
         if (root) throw AssertionError(why) else assumeTrue(why, false)
     }
 
+    /** the links closed, sshd stopped */
     @After
     fun tearDown() {
         links.forEach { it.close() }
@@ -112,8 +116,10 @@ class OpenSshInteropTest {
         sshd?.waitFor(5, TimeUnit.SECONDS)
     }
 
+    /** [k] let in by sshd: its public key added to authorized_keys */
     private fun authorize(k: SshKey) = File(home, "authorized_keys").appendText(k.publicKey + "\n")
 
+    /** a link to sshd as this user with [k], its [forwards] and [agent], opened (the host key accepted) */
     private fun connect(
         k: SshKey,
         forwards: List<ForwardSpec> = emptyList(),
@@ -154,6 +160,7 @@ class OpenSshInteropTest {
         return s.localPort
     }
 
+    /** [line] sent on [s], and the line it answers */
     private fun roundTrip(s: Socket, line: String): String {
         s.soTimeout = 10_000
         s.getOutputStream().write("$line\n".toByteArray())
@@ -161,6 +168,7 @@ class OpenSshInteropTest {
         return s.getInputStream().bufferedReader().readLine()
     }
 
+    /** the port [spec] listens on, once it does, or its error as an AssertionError */
     private fun bound(l: SshLink, spec: ForwardSpec): Int {
         val end = System.currentTimeMillis() + 10_000
         while (System.currentTimeMillis() < end) {
@@ -174,6 +182,7 @@ class OpenSshInteropTest {
 
     // ssh-keygen
 
+    /** each kind of key, exported with and without a passphrase, read by ssh-keygen and imported back; fingerprints and randomart as ssh-keygen shows them */
     @Test
     fun keysAsSshKeygenReadsThem() {
         assumeTrue("ssh-keygen isn't installed", have("ssh-keygen"))
@@ -209,6 +218,7 @@ class OpenSshInteropTest {
 
     // forwards
 
+    /** -L, -R and SOCKS 4a/5 forwards through sshd, their counts; one added and one stopped while connected, a taken port's error */
     @Test
     fun localRemoteAndSocksForwards() {
         startSshd()
@@ -275,6 +285,7 @@ class OpenSshInteropTest {
 
     // the agent
 
+    /** the forwarded agent listing the app's keys to the server, and ssh there logging in onward with them (RSA too) when confirmed, not when refused */
     @Test
     fun theForwardedAgentLogsInOnward() {
         startSshd()
@@ -315,6 +326,7 @@ class OpenSshInteropTest {
         assertTrue(l.events.value.any { it.contains("refused") })
     }
 
+    /** no agent on the server unless one is forwarded */
     @Test
     fun noAgentUnlessAsked() {
         startSshd()
@@ -328,6 +340,7 @@ class OpenSshInteropTest {
 
     // ssh-copy-id
 
+    /** ssh-copy-id's command run twice: the key on the server once, and logging in with it */
     @Test
     fun copyIdPutsTheKeyOnTheServerOnce() {
         startSshd()
@@ -352,8 +365,10 @@ class OpenSshInteropTest {
         return java.security.Signature.getInstance(alg, "BC").run { initVerify(pub); update(data); verify(sig) }
     }
 
+    /** a file with the passphrase [p] in it, for puttygen: its path */
     private fun passFile(p: String) = tmp.newFile().apply { writeText(p) }.path
 
+    /** each kind of key as v2 and v3 .ppk, opened and converted by puttygen, imported back; puttygen's own keys imported, the wrong passphrase refused */
     @Test
     fun ppkAsPuttygenReadsAndWritesThem() {
         assumeTrue("puttygen isn't installed", have("puttygen"))

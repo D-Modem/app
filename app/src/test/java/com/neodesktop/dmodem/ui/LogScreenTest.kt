@@ -8,6 +8,7 @@ import org.junit.Test
 
 /** The log saved: its text (a line each), the file's name offered. */
 class LogScreenTest {
+    /** the saved log's text a line each, and its file's name with the date and time */
     @Test
     fun theFilesTextAndName() {
         assertEquals("app: one\ndmodem0: two\n", logText(listOf("app: one", "dmodem0: two")))

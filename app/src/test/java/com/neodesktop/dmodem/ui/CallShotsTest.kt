@@ -29,6 +29,7 @@ class CallShotsTest {
     @get:Rule
     val compose = createAndroidComposeRule<MainActivity>()
 
+    /** the incoming call's popup with the caller, drawn; ignored, out of sight while it rings on; the next one answered, to the terminal */
     @Test
     fun aCallRingingIn() {
         ModemState.incoming.end()

@@ -11,18 +11,23 @@ class TestIsp(val auth: Int, val user: String, val password: String, val echo: B
     private var challenge = ByteArray(0)
     private val dec = Hdlc.Decoder { f -> frame(f) }
 
+    /** bytes from the client, unframed */
     fun input(b: ByteArray) = dec.feed(b)
 
+    /** our LCP Configure-Request, asking for [auth] (CHAP with MD5) */
     fun start() {
         val opt = if (auth == Ppp.PROTO_PAP) byteArrayOf(3, 4, 0xc0.toByte(), 0x23) else byteArrayOf(3, 5, 0xc2.toByte(), 0x23, 5)
         out(Ppp.PROTO_LCP, pkt(1, 1, opt + byteArrayOf(5, 6, 1, 2, 3, 4)))
     }
 
+    /** [info] sent to the client as a [proto] frame, every control character escaped */
     private fun out(proto: Int, info: ByteArray) =
         line(Hdlc.encode(byteArrayOf(0xff.toByte(), 3, (proto ushr 8).toByte(), proto.toByte()) + info, -1))
 
+    /** an LCP-style packet: [code], [id], its length and [d] */
     private fun pkt(code: Int, id: Int, d: ByteArray) = byteArrayOf(code.toByte(), id.toByte(), ((d.size + 4) ushr 8).toByte(), (d.size + 4).toByte()) + d
 
+    /** a frame from the client answered: LCP acked (CHAP's challenge after), the login checked, IPCP's addresses given, IP echoed when [echo] */
     private fun frame(f: ByteArray) {
         val proto = ((f[2].toInt() and 0xff) shl 8) or (f[3].toInt() and 0xff)
         val p = f.copyOfRange(4, f.size)
@@ -78,6 +83,7 @@ private fun echo(p: ByteArray) {
     out(Ppp.PROTO_IP, reply)
 }
 
+/** our IPCP Configure-Request, with our address 192.168.7.1 */
 private fun ipcp() = out(Ppp.PROTO_IPCP, pkt(1, 1, byteArrayOf(3, 6, 192.toByte(), 168.toByte(), 7, 1)))
 }
 

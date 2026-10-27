@@ -28,6 +28,7 @@ import kotlin.random.Random
 class PppHostTest {
     private val closers = ArrayList<() -> Unit>()
 
+    /** each test's hosts and sockets closed */
     @After
     fun tearDown() = closers.forEach { runCatching { it() } }
 
@@ -63,6 +64,7 @@ class PppHostTest {
             }.apply { isDaemon = true; start() }
         }
 
+        /** [s] typed to the host */
         fun type(s: String) { toHost.add(s.toByteArray()) }
 
         /** text from the host until [want] */
@@ -80,8 +82,11 @@ class PppHostTest {
         /** the computer's PPP client started on the line */
         fun startPpp(): Ppp.IpConfig {
             ppp = Ppp({ b -> toHost.add(b) }, events = object : Ppp.Events {
+                /** the link up: its addresses, kept */
                 override fun up(config: Ppp.IpConfig) { up.add(config) }
+                /** a packet from the host, kept unless [drop] loses it */
                 override fun ip(packet: ByteArray) { if (!drop(packet)) packets.add(packet) }
+                /** the link down: nothing to do */
                 override fun down(reason: String) {}
             }, retryMs = 500)
             pppOn = true
@@ -92,6 +97,7 @@ class PppHostTest {
         }
     }
 
+    /** a dialer's AT commands answered, CONNECT, an address and DNS by PPP; hung up: NO CARRIER and commands again */
     @Test
     fun aDialerDialsAndGetsAnAddress() {
         val c = Computer()
@@ -118,6 +124,7 @@ class PppHostTest {
         c.expect("OK")
     }
 
+    /** Windows' CLIENT answered CLIENTSERVER then PPP; a PPP that just starts, with no dial, answered too */
     @Test
     fun windowsDirectCableAndPppStraightAway() {
         val c = Computer()
@@ -137,14 +144,20 @@ class PppHostTest {
         var seq = Random.nextInt()
         var ack = 0
 
+        /** a segment with [flags] and [data] sent at our seq and ack */
         fun seg(flags: Int, data: ByteArray = ByteArray(0), window: Int = 8192) =
             c.ppp.sendIp(Ip.tcp(me, dst, sport, dport, seq, ack, flags, window, data, if (flags and Ip.SYN != 0) 1460 else 0))
 
+        /** the next packet to the computer, within 10 seconds */
         fun next(): ByteArray = c.packets.poll(10, TimeUnit.SECONDS) ?: throw AssertionError("nothing came")
+        /** [p]'s TCP flags */
         fun flags(p: ByteArray) = p[33].toInt() and 0xff
+        /** [p]'s TCP sequence number */
         fun pseq(p: ByteArray) = java.nio.ByteBuffer.wrap(p, 24, 4).int
+        /** [p]'s TCP payload, past its header */
         fun data(p: ByteArray): ByteArray = p.copyOfRange(20 + ((p[32].toInt() and 0xff) ushr 4) * 4, p.size)
 
+        /** the three-way handshake: SYN, the SYN-ACK taken, ACK */
         fun open() {
             seg(Ip.SYN)
             seq += 1
@@ -155,6 +168,7 @@ class PppHostTest {
         }
     }
 
+    /** TCP to a server here through the NAT: data both ways, 200 KB back with a segment lost and resent, its FIN */
     @Test
     fun tcpThroughTheNat() {
         val c = Computer()
@@ -203,6 +217,7 @@ class PppHostTest {
         t.seg(Ip.FIN or Ip.ACK)
     }
 
+    /** a SYN to a port nobody listens on: an RST back */
     @Test
     fun aRefusedConnectionIsReset() {
         val c = Computer()
@@ -216,6 +231,7 @@ class PppHostTest {
         assertTrue(t.flags(r) and Ip.RST != 0)
     }
 
+    /** DNS to the gateway answered by the phone's server, UDP elsewhere passed as it is, a ping to the gateway answered */
     @Test
     fun udpDnsAndPing() {
         // a "DNS server" on this host (its answer: the query back with "A")

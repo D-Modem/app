@@ -25,6 +25,7 @@ import java.net.Socket
 /** The Telnet client against a scripted server on a loopback socket. */
 class TelnetLinkTest {
 
+    /** [v] as bytes */
     private fun bytes(vararg v: Int) = ByteArray(v.size) { v[it].toByte() }
 
     /** what the server reads, until it has n octets (or 5 s) */
@@ -40,11 +41,13 @@ class TelnetLinkTest {
         return out.toByteArray()
     }
 
+    /** waited until [cond], or 5 seconds */
     private fun waitFor(cond: () -> Boolean) {
         val end = System.currentTimeMillis() + 5000
         while (!cond() && System.currentTimeMillis() < end) Thread.sleep(10)
     }
 
+    /** options answered (TTYPE, NAWS with the size, ECHO, SGA, an unknown one refused), TTYPE's IS, IAC in data both ways, CR NUL, a resize, the echo dropped, closed */
     @Test
     fun negotiationDataAndTheWindowsSize() {
         ServerSocket(0).use { ss ->
@@ -98,6 +101,7 @@ class TelnetLinkTest {
         }
     }
 
+    /** nobody listening: closed */
     @Test
     fun noServerThere() {
         val port = ServerSocket(0).use { it.localPort }

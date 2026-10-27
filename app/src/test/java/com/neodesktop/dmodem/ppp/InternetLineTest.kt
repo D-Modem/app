@@ -38,9 +38,11 @@ class InternetLineTest {
     private lateinit var b: String
     private val closers = ArrayList<() -> Unit>()
 
+    /** native-test's fax_line binary: DMODEM_FAX_LINE's or build-host's, or null when not built */
     private fun faxLine(): File? = listOfNotNull(System.getenv("DMODEM_FAX_LINE"), "../build-host/fax_line", "build-host/fax_line")
         .map { File(it) }.firstOrNull { it.canExecute() }
 
+    /** fax_line started, its two modems' ttys read from its log, modemA as the app's DTE and running */
     @Before
     fun setUp() {
         val fl = faxLine()
@@ -57,6 +59,7 @@ class InternetLineTest {
         ModemState.setRun(ModemState.Run.RUNNING)
     }
 
+    /** the logs written to build/internet-log.txt, the internet disconnected, the modem detached and stopped, fax_line ended */
     @After
     fun tearDown() {
         File("build/internet-log.txt").writeText((ModemState.log.flow.value + listOf("----") + log).joinToString("\n"))
@@ -68,6 +71,7 @@ class InternetLineTest {
         line?.waitFor(5, TimeUnit.SECONDS)
     }
 
+    /** whether fax_line's log has [what] within [secs] */
     private fun waitLog(what: String, secs: Int = 30): Boolean {
         val end = System.currentTimeMillis() + secs * 1000L
         while (System.currentTimeMillis() < end) {
@@ -77,8 +81,10 @@ class InternetLineTest {
         return false
     }
 
+    /** the last of the app's log and fax_line's, for a failure's message */
     private fun dump() = (ModemState.log.flow.value.takeLast(40) + log.takeLast(40)).joinToString("\n")
 
+    /** straight to PPP: dialled, an address and DNS from CHAP's ISP, a packet echoed, disconnected and hung up */
     @Test
     fun onlineAndPacketsBothWays() = online(script = false)
 
@@ -86,6 +92,7 @@ class InternetLineTest {
     @Test
     fun aLoginScriptBeforePpp() = online(script = true)
 
+    /** a call to the ISP on modemB (a text login first when [script]), its PPP up, a UDP packet echoed back, then disconnected with the DTE free */
     private fun online(script: Boolean) {
         // the ISP's modem, and its PPP once the call is up
         ProcessBuilder("stty", "-F", b, "raw", "-echo").start().waitFor()
@@ -113,7 +120,9 @@ class InternetLineTest {
         val err = Internet.connect(isp0) { cfg ->
             tunnels.add(cfg)
             object : Internet.Tunnel {
+                /** a packet from the link, kept */
                 override fun write(packet: ByteArray) { fromLink.add(packet) }
+                /** closed, noted */
                 override fun close() { closed = true }
             }
         }
@@ -124,6 +133,7 @@ class InternetLineTest {
             // the host's text login: a banner, login:, Password:, then PPP
             fun say(s: String) { output.write(s.toByteArray()); output.flush() }
             say("\r\nD-Modem test ISP\r\nlogin: ")
+            /** a line the app typed to the ISP, up to its return */
             fun typed(): String {
                 val sb = StringBuilder()
                 while (true) {

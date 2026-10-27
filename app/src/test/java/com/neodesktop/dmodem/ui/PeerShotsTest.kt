@@ -33,6 +33,7 @@ class PeerShotsTest {
     @get:Rule
     val compose = createAndroidComposeRule<MainActivity>()
 
+    /** the screen as it is, into build/screens/[name].png */
     private fun shot(name: String) {
         compose.waitForIdle()
         val bmp = compose.onRoot().captureToImage().asAndroidBitmap()
@@ -40,11 +41,13 @@ class PeerShotsTest {
         File(dir, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
+    /** [s] saved as the modem's settings */
     private fun save(s: ModemSettings) {
         val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
         runBlocking { SettingsStore(ctx).save(s) }
     }
 
+    /** the line settings for another phone on Wi-Fi, drawn */
     @Test
     fun theSettings() {
         save(ModemSettings(line = ModemSettings.LINE_WIFI, peerAddress = "192.168.1.20", listen = true))
@@ -55,6 +58,7 @@ class PeerShotsTest {
         compose.onNodeWithText("Another phone with D-Modem, on Wi-Fi").assertExists()
     }
 
+    /** another phone on Wi-Fi picked from the line's menu: its settings, drawn */
     @Test
     fun theLineFromItsMenu() {
         save(ModemSettings(line = ModemSettings.LINE_SIP))
@@ -66,6 +70,7 @@ class PeerShotsTest {
         shot("peer-0-line-menu")
     }
 
+    /** no line picked: a dial gets NO DIALTONE, no SIP account asked for; drawn */
     @Test
     fun noLine() {
         save(ModemSettings(line = ModemSettings.LINE_SIP))
@@ -79,6 +84,7 @@ class PeerShotsTest {
         shot("peer-4-no-line")
     }
 
+    /** a USB modem picked: the ones known, none plugged in, no SIP account asked for; drawn */
     @Test
     fun aUsbModem() {
         save(ModemSettings(line = ModemSettings.LINE_SIP))
@@ -93,6 +99,7 @@ class PeerShotsTest {
         shot("peer-5-usb-modem")
     }
 
+    /** Home on a call with another phone, drawn: who it's with */
     @Test
     fun homeOnACall() {
         save(ModemSettings(line = ModemSettings.LINE_WIFI, peerAddress = "192.168.1.20:5070", peerName = "D-Modem on Pixel 8", listen = true))
@@ -105,6 +112,7 @@ class PeerShotsTest {
         ModemState.setRun(ModemState.Run.STOPPED)
     }
 
+    /** the mobile call line's settings, drawn: V.cvm first, V.21 for other modems */
     @Test
     fun theMobileCallLine() {
         save(ModemSettings(line = ModemSettings.LINE_CELL, listen = true))

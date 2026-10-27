@@ -17,6 +17,7 @@ import kotlin.random.Random
  */
 class PppTest {
 
+    /** FCS-16 as RFC 1662's, frames encoded (flags and control characters escaped) and decoded in pieces, a damaged one dropped and counted */
     @Test
     fun framingBothWays() {
         // FCS-16 of "123456789": 0x906e (RFC 1662's, complemented)
@@ -47,12 +48,17 @@ class PppTest {
         val down = ArrayBlockingQueue<String>(1)
         val packets = ArrayBlockingQueue<ByteArray>(100)
         val lines = ArrayList<String>()
+        /** the link up: its addresses, kept */
         override fun up(config: Ppp.IpConfig) { up.add(config) }
+        /** a packet, kept */
         override fun ip(packet: ByteArray) { packets.add(packet) }
+        /** the link down: why, kept */
         override fun down(reason: String) { down.add(reason) }
+        /** a line of PPP's log, kept */
         override fun log(line: String) { synchronized(lines) { lines.add(line) } }
     }
 
+    /** our PPP logging in as alice with [password] to a [TestIsp] asking for [auth], the two joined directly: its events, and the ISP */
     private fun login(auth: Int, password: String): Pair<Events, TestIsp> {
         val ev = Events()
         lateinit var isp: TestIsp
@@ -69,6 +75,7 @@ class PppTest {
         return ev to isp
     }
 
+    /** PAP and CHAP both logged in, the address, DNS and peer from IPCP */
     @Test
     fun papAndChap() {
         for (auth in listOf(Ppp.PROTO_PAP, Ppp.PROTO_CHAP)) {
@@ -81,6 +88,7 @@ class PppTest {
         }
     }
 
+    /** a wrong password, with PAP or CHAP: the link down saying the login was refused, never up */
     @Test
     fun aWrongPasswordIsSaid() {
         for (auth in listOf(Ppp.PROTO_PAP, Ppp.PROTO_CHAP)) {

@@ -34,6 +34,7 @@ class LrzszInteropTest {
     private val links = ArrayList<LocalLink>()
 
     companion object {
+        /** skipped without lrzsz; the host's pty library loaded */
         @BeforeClass
         @JvmStatic
         fun setUp() {
@@ -42,6 +43,7 @@ class LrzszInteropTest {
         }
     }
 
+    /** the links closed */
     @After
     fun tearDown() = links.forEach { it.close() }
 
@@ -79,12 +81,14 @@ class LrzszInteropTest {
         return l to io
     }
 
+    /** the program's exit status, once it's ended (or 30 seconds) */
     private fun waitExit(l: LocalLink): Int? {
         val end = System.currentTimeMillis() + 30_000
         while (l.state.value !is TerminalLink.State.Closed && System.currentTimeMillis() < end) Thread.sleep(20)
         return l.exitStatus
     }
 
+    /** four files to send, made in [dir]: random binary, every byte value (ZDLE's escaped ones many times), text, an empty one */
     private fun files(dir: File): List<File> {
         dir.mkdirs()
         val big = File(dir, "binary.bin").apply { writeBytes(Random(7).nextBytes(300_000)) }
@@ -97,12 +101,15 @@ class LrzszInteropTest {
 
     // ZMODEM ------------------------------------------------------------
 
+    /** files from sz received by ZMODEM, the same */
     @Test
     fun zmodemReceivedFromSz() = receivedFromSz(damage = 0)
 
+    /** files from sz received by ZMODEM with bytes damaged on the line: the same, errors corrected */
     @Test
     fun zmodemReceivedFromSzOnANoisyLine() = receivedFromSz(damage = 20_011)
 
+    /** [files] from sz -b received by ZMODEM, every [damage]th byte damaged: the same, errors corrected when damaged, four counted */
     private fun receivedFromSz(damage: Int) {
         val src = files(tmp.newFolder("src"))
         val (l, io) = line(src[0].parentFile!!, listOf("/usr/bin/sz", "-b") + src.map { it.path }, damageIn = damage)
@@ -116,12 +123,15 @@ class LrzszInteropTest {
         assertEquals(4, last.files)
     }
 
+    /** files sent to rz by ZMODEM, the same */
     @Test
     fun zmodemSentToRz() = sentToRz(damage = 0)
 
+    /** files sent to rz by ZMODEM with bytes damaged on the line: the same, errors corrected */
     @Test
     fun zmodemSentToRzOnANoisyLine() = sentToRz(damage = 30_011)
 
+    /** [files] sent to rz -b by ZMODEM, every [damage]th byte damaged: the same there, their times kept, errors corrected when damaged */
     private fun sentToRz(damage: Int) {
         val src = files(tmp.newFolder("src"))
         val dest = tmp.newFolder("dest")
@@ -135,6 +145,7 @@ class LrzszInteropTest {
         if (damage > 0) assertTrue("errors corrected: ${last.errors}", last.errors > 0)
     }
 
+    /** a cancel sent to sz mid-file: the receive fails, and no half a file kept */
     @Test
     fun aCancelFromTheOtherSideStopsIt() {
         val src = File(tmp.newFolder("src"), "big").apply { writeBytes(Random(1).nextBytes(2_000_000)) }
@@ -152,6 +163,7 @@ class LrzszInteropTest {
 
     // YMODEM and XMODEM ---------------------------------------------------
 
+    /** files from sb received by YMODEM, the same */
     @Test
     fun ymodemReceivedFromSb() {
         val src = files(tmp.newFolder("src")).filter { it.length() > 0 }
@@ -163,6 +175,7 @@ class LrzszInteropTest {
         assertEquals(0, waitExit(l))
     }
 
+    /** files sent to rb by YMODEM, the same there */
     @Test
     fun ymodemSentToRb() {
         val src = files(tmp.newFolder("src")).filter { it.length() > 0 }
@@ -173,6 +186,7 @@ class LrzszInteropTest {
         for (f in src) assertArrayEquals(f.name, f.readBytes(), File(dest, f.name).readBytes())
     }
 
+    /** from sx in 1K blocks on a noisy line (the padding taken off), and to rx in 128-byte blocks (its padding kept) */
     @Test
     fun xmodemBothWaysWithOneKBlocksAndNoise() {
         val data = Random(3).nextBytes(100_000)

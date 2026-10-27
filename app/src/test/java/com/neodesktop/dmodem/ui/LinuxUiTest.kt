@@ -46,6 +46,7 @@ class LinuxUiTest {
 
     private lateinit var base: File
 
+    /** skipped off x86_64, without Alpine's mirror or the tools; proot built for this host, a phone's storage made, Linux placed in a temporary directory */
     @Before
     fun setUp() {
         assumeTrue("not an x86_64 host", System.getProperty("os.arch") in listOf("amd64", "x86_64"))
@@ -67,12 +68,14 @@ class LinuxUiTest {
         Linux.place = { Linux.Place(File(base, "linux"), programs, File(base, "tmp"), Machine.forAbi("x86_64"), storage = { storage }) }
     }
 
+    /** the sessions but the modem's closed, the temporary directory removed */
     @After
     fun tearDown() {
         Terminal.sessions.value.filter { it.kind != TerminalSession.Kind.MODEM }.forEach { Terminal.close(it) }
         if (::base.isInitialized) Tar.removeTree(base)
     }
 
+    /** the screen as it is, into build/screens/[name].png */
     private fun shot(name: String) {
         compose.waitForIdle()
         val bmp = compose.onRoot().captureToImage().asAndroidBitmap()
@@ -80,9 +83,11 @@ class LinuxUiTest {
         File("build/screens/$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
+    /** [s]'s screen, as text */
     private fun screen(s: TerminalSession) =
         synchronized(s.emulator) { (0 until s.emulator.rows).joinToString("\n") { s.emulator.line(it).text() } }
 
+    /** waited until [s]'s screen has [text], or an AssertionError with the screen after [secs] */
     private fun waitShell(s: TerminalSession, text: String, secs: Int = 20) {
         val end = System.currentTimeMillis() + secs * 1000L
         while (!screen(s).contains(text)) {
@@ -91,6 +96,7 @@ class LinuxUiTest {
         }
     }
 
+    /** Alpine picked from the catalog in the Linux settings and installed, its shell opened and used (the phone's storage in it), listed in Settings; drawn */
     @Test
     fun installedFromSettingsAndUsed() {
         SettingsNav.open(SettingsPage.LINUX)
@@ -121,6 +127,7 @@ class LinuxUiTest {
         shot("linux-4-installed")
     }
 
+    /** the dialog as it is, into build/screens/[name].png */
     private fun saveDialog(name: String) {
         val bmp = compose.onNode(androidx.compose.ui.test.isDialog()).captureToImage().asAndroidBitmap()
         File("build/screens").mkdirs()

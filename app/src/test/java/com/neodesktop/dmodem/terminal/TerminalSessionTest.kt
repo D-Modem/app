@@ -25,9 +25,11 @@ class TerminalSessionTest {
         val written = ByteArrayOutputStream()
         val toHub = PipedOutputStream()
         val hubIn = PipedInputStream(toHub, 65536)
+        /** what the modem was sent since last asked, as text */
         fun sent() = written.toString(Charsets.ISO_8859_1).also { written.reset() }
     }
 
+    /** a hub with a fake modem on it, and a session on the hub capturing to the temporary folder */
     private fun setup(): Triple<DteHub, TerminalSession, Modem> {
         val hub = DteHub()
         val m = Modem()
@@ -35,11 +37,13 @@ class TerminalSessionTest {
         return Triple(hub, TerminalSession(hub) { tmp.root }, m)
     }
 
+    /** waited until [cond], or 5 seconds */
     private fun waitFor(cond: () -> Boolean) {
         val end = System.currentTimeMillis() + 5000
         while (!cond() && System.currentTimeMillis() < end) Thread.sleep(10)
     }
 
+    /** a latched Ctrl or Alt goes with the next key, then is let go */
     @Test
     fun latchedModifiersGoWithTheNextKeyOnly() {
         val (hub, s, m) = setup()
@@ -55,6 +59,7 @@ class TerminalSessionTest {
         hub.detach()
     }
 
+    /** what's sent, in the session's charset (CP437's box lines) */
     @Test
     fun theSessionsCharset() {
         val (hub, s, m) = setup()
@@ -64,6 +69,7 @@ class TerminalSessionTest {
         hub.detach()
     }
 
+    /** a paste's newlines sent as returns, and bracketed once the remote asks for it */
     @Test
     fun pasteAndBracketedPaste() {
         val (hub, s, m) = setup()
@@ -75,6 +81,7 @@ class TerminalSessionTest {
         hub.detach()
     }
 
+    /** local echo on the screen, and the modem's output after it */
     @Test
     fun localEchoAndTheModemsOutputOnTheScreen() {
         val (hub, s, m) = setup()
@@ -87,6 +94,7 @@ class TerminalSessionTest {
         hub.detach()
     }
 
+    /** the remote's cursor position report asked for, answered */
     @Test
     fun theRemotesQuestionsAreAnswered() {
         val (hub, s, m) = setup()
@@ -96,6 +104,7 @@ class TerminalSessionTest {
         hub.detach()
     }
 
+    /** a capture file with what the modem sent, stopped, named dmodem-... */
     @Test
     fun captureKeepsWhatTheModemSent() {
         val (hub, s, m) = setup()
@@ -110,6 +119,7 @@ class TerminalSessionTest {
         hub.detach()
     }
 
+    /** a snippet's escapes: \r, ^C, \e, \t, \\, \x01; ^ before a lower-case letter as it is */
     @Test
     fun snippetEscapes() {
         assertEquals("ATH\r", Snippet.unescape("ATH\\r"))

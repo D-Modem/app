@@ -10,6 +10,7 @@ import org.junit.Test
 
 class ModemSettingsTest {
 
+    /** user:password@host logins as dmodemd takes them (an @ in the password, a port), the others not */
     @Test
     fun loginsAsDmodemdTakesThem() {
         assertEquals(Triple("alice", "secret", "sip.example.com"), ModemSettings.parseLogin("alice:secret@sip.example.com"))
@@ -21,6 +22,7 @@ class ModemSettingsTest {
         assertNull(ModemSettings.parseLogin("u:x@"))
     }
 
+    /** settings without a user and domain aren't complete */
     @Test
     fun anAccountIsNeededToStart() {
         assertFalse(ModemSettings().complete)
@@ -28,6 +30,7 @@ class ModemSettingsTest {
         assertTrue(ModemSettings(user = "u", domain = "h").complete)
     }
 
+    /** a USB modem needs no SIP account and is no peer line; the other lines as they were */
     @Test
     fun aUsbModemNeedsNoAccountAndIsNoPeer() {
         val s = ModemSettings(line = ModemSettings.LINE_USB)
@@ -43,6 +46,7 @@ class ModemSettingsTest {
         assertFalse(ModemSettings().usb)
     }
 
+    /** a USB line's transmit level: auto by default, else its gain, no lower than -20; none when not USB */
     @Test
     fun aUsbLinesTransmitLevelIsAutomaticByDefault() {
         val usb = ModemSettings(line = ModemSettings.LINE_USB)

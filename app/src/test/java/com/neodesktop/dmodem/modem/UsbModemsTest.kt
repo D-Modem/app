@@ -8,6 +8,7 @@ import org.junit.Test
 
 class UsbModemsTest {
 
+    /** the USB modems known by vendor and product ID, other devices not */
     @Test
     fun theTwoModemsByTheirIds() {
         assertEquals(UsbModems.Kind.SMART_USB56, UsbModems.kindOf(0x0483, 0x7554))
@@ -20,6 +21,7 @@ class UsbModemsTest {
         assertNull(UsbModems.kindOf(0x0483, 0x5740))
     }
 
+    /** each USB modem's description with its IDs, and its sample rate */
     @Test
     fun describedWithTheirIds() {
         assertEquals("SmartUSB56 (USB 0483:7554)", UsbModems.Kind.SMART_USB56.described)

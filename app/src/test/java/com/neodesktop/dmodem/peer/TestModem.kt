@@ -87,6 +87,7 @@ open class TestModem(
     /** where a dial string calls */
     open fun target(dial: String): String? = dial
 
+    /** peer_host's next line starting [prefix], within 10 seconds, or an AssertionError */
     private fun next(prefix: String): String {
         val end = System.currentTimeMillis() + 10_000
         while (System.currentTimeMillis() < end) {
@@ -96,6 +97,7 @@ open class TestModem(
         throw AssertionError("$name: no $prefix")
     }
 
+    /** [s] sent to the modem from the DTE */
     fun send(s: String) {
         dte.getOutputStream().write(s.toByteArray(Charsets.ISO_8859_1))
         dte.getOutputStream().flush()
@@ -118,6 +120,7 @@ open class TestModem(
         throw AssertionError("$name: no \"$want\" in \"${dteText.toString().takeLast(300)}\"\n${log.joinToString("\n")}")
     }
 
+    /** the command [c] sent, and its [reply] waited for */
     fun command(c: String, reply: String = "OK") {
         send("$c\r")
         expect(reply, 10)
@@ -127,6 +130,7 @@ open class TestModem(
     fun connectLine(): String = expect("CONNECT", 90) + expect("\r\n", 5)
 
     companion object {
+        /** the peer_host binary: DMODEM_PEER_HOST's or build-host's, or null when not built */
         fun peerHost(): File? = listOfNotNull(
             System.getenv("DMODEM_PEER_HOST"),
             "../build-host/peer_host",

@@ -34,6 +34,7 @@ class DashboardShotsTest {
     @get:Rule
     val compose = createAndroidComposeRule<MainActivity>()
 
+    /** the screen as it is, into build/screens/[name].png */
     private fun shot(name: String) {
         compose.waitForIdle()
         val bmp = compose.onRoot().captureToImage().asAndroidBitmap()
@@ -41,6 +42,7 @@ class DashboardShotsTest {
         File(dir, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
+    /** Home on a fresh install, drawn: Set up SIP and Start without a line */
     @Test
     fun firstRun() {
         // (the store and the directory are the process's: as a fresh install has them)
@@ -57,6 +59,7 @@ class DashboardShotsTest {
         compose.onNodeWithText("Start without a line").assertExists()
     }
 
+    /** Home with an account and a directory, ready, then online, drawn */
     @Test
     fun readyAndOnline() {
         val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()

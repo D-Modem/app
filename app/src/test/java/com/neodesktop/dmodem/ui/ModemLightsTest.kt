@@ -37,6 +37,7 @@ class ModemLightsTest {
     @get:Rule
     val compose = createComposeRule()
 
+    /** the panel off, ready, online, compact and bare, drawn into build/screens/lights.png; what's lit said, the lit LEDs bright red */
     @Test
     fun theirStates() {
         compose.setContent {

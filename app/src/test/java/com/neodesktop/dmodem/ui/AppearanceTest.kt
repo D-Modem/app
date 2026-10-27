@@ -43,6 +43,7 @@ class AppearanceTest {
     private val ctx get() = ApplicationProvider.getApplicationContext<Context>()
     private val store get() = AppearanceStore(ctx)
 
+    /** the screen as it is, into build/screens/[name].png */
     private fun shot(name: String) {
         compose.waitForIdle()
         val bmp = compose.onRoot().captureToImage().asAndroidBitmap()
@@ -50,8 +51,10 @@ class AppearanceTest {
         File("build/screens/$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
+    /** the tab or choice with the text [name], clicked */
     private fun tab(name: String) = compose.onNode(hasText(name) and isSelectable()).performClick()
 
+    /** each palette's light and dark: light and dark surfaces, text on them at 4.5:1 or more; black's surface black */
     @Test
     fun everyPaletteReadsInLightAndDark() {
         for (p in AppPalette.entries.filter { it != AppPalette.DYNAMIC }) {
@@ -74,6 +77,7 @@ class AppearanceTest {
         assertEquals(0f, black.surface.luminance())
     }
 
+    /** the app's home (and settings, for two) drawn in four of the looks, into build/screens/ */
     @Test
     fun theAppInEach() {
         val looks = listOf(
@@ -96,6 +100,7 @@ class AppearanceTest {
         }
     }
 
+    /** waited until the saved appearance is [want], or an AssertionError after 5 seconds */
     private fun saved(want: (Appearance) -> Boolean) {
         val end = System.currentTimeMillis() + 5000
         while (true) {
@@ -107,6 +112,7 @@ class AppearanceTest {
         }
     }
 
+    /** dark, a palette and the system's default chosen in the Appearance settings, and saved */
     @Test
     fun chosenInSettings() {
         runBlocking { store.save(Appearance()) }

@@ -14,11 +14,15 @@ class ModemSpeakerTest {
         var bytes = 0
         var volume = -1f
         var closed = false
+        /** bytes played, counted */
         override fun write(pcm: ByteArray, n: Int) { bytes += n }
+        /** the volume, kept */
         override fun volume(v: Float) { volume = v }
+        /** closed, noted */
         override fun close() { closed = true }
     }
 
+    /** nothing played while off, ATL's volume when on, the player let go off, and the app's switch over the modem's */
     @Test
     fun onlyWhileOn() {
         val sinks = ArrayList<FakeSink>()
@@ -53,6 +57,7 @@ class ModemSpeakerTest {
         assertEquals(2, sinks.size)
     }
 
+    /** what the modem's speaker socket sends, all played, at ATL1's volume */
     @Test
     fun fromItsSocket() {
         val sink = FakeSink()

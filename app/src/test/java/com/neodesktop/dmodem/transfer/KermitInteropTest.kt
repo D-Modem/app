@@ -35,6 +35,7 @@ class KermitInteropTest {
     private val links = ArrayList<LocalLink>()
 
     companion object {
+        /** skipped without gkermit; the host's pty library loaded */
         @BeforeClass
         @JvmStatic
         fun setUp() {
@@ -43,9 +44,11 @@ class KermitInteropTest {
         }
     }
 
+    /** the links closed */
     @After
     fun tearDown() = links.forEach { it.close() }
 
+    /** [cmd] started in [dir] on a pty, and a line to it: every [damageIn]th or [damageOut]th byte damaged, the 8th bit stripped when [strip8] */
     private fun line(dir: File, cmd: List<String>, damageIn: Int = 0, damageOut: Int = 0, strip8: Boolean = false): Pair<LocalLink, TransferIo> {
         val l = LocalLink(cmd, mapOf("PATH" to "/usr/bin:/bin", "HOME" to dir.path), dir.path, 80, 24)
         links.add(l)
@@ -71,6 +74,7 @@ class KermitInteropTest {
         return l to io
     }
 
+    /** the line both ways, in the test's log */
     private fun traceTo(io: TransferIo) {
         io.trace = { inbound, b ->
             TestLogs.note(if (inbound) "<<" else ">>", b.joinToString("") { c ->
@@ -80,12 +84,14 @@ class KermitInteropTest {
         }
     }
 
+    /** the program's exit status, once it's ended (or 30 seconds) */
     private fun waitExit(l: LocalLink): Int? {
         val end = System.currentTimeMillis() + 30_000
         while (l.state.value !is TerminalLink.State.Closed && System.currentTimeMillis() < end) Thread.sleep(20)
         return l.exitStatus
     }
 
+    /** three files to send, made in [dir]: random binary, every byte value with runs, text */
     private fun files(dir: File): List<File> {
         dir.mkdirs()
         val big = File(dir, "binary.bin").apply { writeBytes(Random(7).nextBytes(64_000)) }
@@ -96,11 +102,13 @@ class KermitInteropTest {
         return listOf(big, every, text)
     }
 
+    /** [names] are [src]'s, and each came into [into] the same */
     private fun received(src: List<File>, into: FolderIncoming, names: List<String>) {
         assertEquals(src.map { it.name }, names)
         for (f in src) assertArrayEquals(f.name, f.readBytes(), into.received.first { it.name == f.name }.readBytes())
     }
 
+    /** files from gkermit -s received, the same, its progress counting three */
     @Test
     fun receivedFromGkermit() {
         val src = files(tmp.newFolder("src"))
@@ -113,6 +121,7 @@ class KermitInteropTest {
         assertEquals(3, last.files)
     }
 
+    /** files sent to gkermit -r, the same there */
     @Test
     fun sentToGkermit() {
         val src = files(tmp.newFolder("src"))
@@ -123,6 +132,7 @@ class KermitInteropTest {
         for (f in src) assertArrayEquals(f.name, f.readBytes(), File(dest, f.name).readBytes())
     }
 
+    /** received and sent with gkermit with bytes damaged on the line: the same, errors corrected */
     @Test
     fun bothWaysOnANoisyLine() {
         val src = files(tmp.newFolder("src"))
@@ -142,6 +152,7 @@ class KermitInteropTest {
         assertTrue("errors corrected: ${last2.errors}", last2.errors > 0)
     }
 
+    /** from gkermit on a line that strips the 8th bit: prefixed, the files the same */
     @Test
     fun aSevenBitLine() {
         val src = files(tmp.newFolder("src"))
@@ -152,6 +163,7 @@ class KermitInteropTest {
         assertEquals(0, waitExit(l))
     }
 
+    /** from and to C-Kermit: the files the same, the time kept by the attributes */
     @Test
     fun ckermitBothWays() {
         assumeTrue("C-Kermit isn't installed", File("/usr/bin/kermit").canExecute())
@@ -173,6 +185,7 @@ class KermitInteropTest {
         assertEquals(src[0].lastModified() / 1000, File(dest, src[0].name).lastModified() / 1000)
     }
 
+    /** kermit -s's first packet recognised, plain text not; CRC-16/KERMIT's check value */
     @Test
     fun theStartIsRecognised() {
         // what kermit -s sends first

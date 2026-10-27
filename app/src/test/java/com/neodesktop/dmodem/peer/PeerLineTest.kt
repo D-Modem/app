@@ -30,18 +30,22 @@ import kotlin.random.Random
 class PeerLineTest {
     private val closers = ArrayList<() -> Unit>()
 
+    /** each test's phones, sockets and lines closed, the last made first */
     @After
     fun tearDown() = closers.asReversed().forEach { runCatching { it() } }
 
     /** a phone: its modem (peer_host), its DTE, its line on TCP */
     private inner class Phone(name: String, listen: Boolean, leadMs: Int = 100, var callTo: String = "", pin: String = "") :
         TestModem(name, TcpPeerTransport(0, InetAddress.getLoopbackAddress()), listen, leadMs, closers, pin) {
+        /** where this phone's line calls a dial string: its address, or [callTo] */
         override fun target(dial: String) = PeerLine.wifiTarget(dial, callTo)
         val port: Int get() = (transport as TcpPeerTransport).localPort
     }
 
+    /** [p]'s CONNECT and the rest of its line */
     private fun connectLine(p: Phone): String = p.expect("CONNECT", 90) + p.expect("\r\n", 5)
 
+    /** a call dialled, answered (S0=1, then ATA), data both ways, the caller's speaker on until CONNECT, hung up */
     @Test
     fun aCallBetweenTwoPhones() {
         val b = Phone("B", listen = true)
@@ -123,6 +127,7 @@ class PeerLineTest {
         return server.localPort
     }
 
+    /** over a link that delays and jitters: connected at 28800 or more, 8 KB through in order */
     @Test
     fun overASlowUnevenLink() {
         // (Bluetooth's kind of link: the phones' lead as the app has it there)
@@ -142,6 +147,7 @@ class PeerLineTest {
         assertTrue(b.expect(data.takeLast(64), 60).endsWith(data))
     }
 
+    /** a third phone calling one in a call: BUSY (486), the call going on */
     @Test
     fun aPhoneInACallIsBusy() {
         val b = Phone("B", listen = true)
@@ -158,6 +164,7 @@ class PeerLineTest {
         b.expect("still here")
     }
 
+    /** a phone with a PIN: the wrong one refused (403) without a ring, the right one connected */
     @Test
     fun aPinToCall() {
         val b = Phone("B", listen = true, pin = "2468")
@@ -177,6 +184,7 @@ class PeerLineTest {
         b.expect("let me in")
     }
 
+    /** nothing listening: NO ANSWER; a phone ringing but not answered: the caller gives up (S7), its ringing cancelled */
     @Test
     fun nobodyThereAndNoAnswer() {
         // nothing listening: NO ANSWER
@@ -200,6 +208,7 @@ class PeerLineTest {
         assertEquals(PeerLine.State.Ready(true), b.line.state.value)
     }
 
+    /** dial strings to Wi-Fi targets, host:port parsed (IPv6 too), the handshake's lines read */
     @Test
     fun dialStrings() {
         assertEquals("192.168.1.20", PeerLine.wifiTarget("T192*168*1*20", "x"))

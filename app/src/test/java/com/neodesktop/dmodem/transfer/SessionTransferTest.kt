@@ -31,6 +31,7 @@ class SessionTransferTest {
     private var session: TerminalSession? = null
 
     companion object {
+        /** skipped without lrzsz; the host's pty library loaded */
         @BeforeClass
         @JvmStatic
         fun setUp() {
@@ -39,11 +40,13 @@ class SessionTransferTest {
         }
     }
 
+    /** the session closed */
     @After
     fun tearDown() {
         session?.close()
     }
 
+    /** a session on /bin/sh in [dir], started */
     private fun shell(dir: File): TerminalSession {
         val l = LocalLink(listOf("/bin/sh"), mapOf("PATH" to "/usr/bin:/bin", "HOME" to dir.path, "PS1" to "$ "), dir.path, 80, 24)
         val s = TerminalSession(l, kind = TerminalSession.Kind.LOCAL) { null }
@@ -52,8 +55,10 @@ class SessionTransferTest {
         return s
     }
 
+    /** [s]'s screen, as text */
     private fun screen(s: TerminalSession) = synchronized(s.emulator) { (0 until s.emulator.rows).joinToString("\n") { s.emulator.line(it).text() } }
 
+    /** waited until [ok] of [s]'s screen, or an AssertionError naming [what] with the screen after [secs] */
     private fun waitFor(what: String, s: TerminalSession, secs: Int = 60, ok: (String) -> Boolean) {
         val end = System.currentTimeMillis() + secs * 1000
         while (System.currentTimeMillis() < end) {
@@ -63,6 +68,7 @@ class SessionTransferTest {
         throw AssertionError("$what; the screen:\n${screen(s)}")
     }
 
+    /** a remote's sz noticed and received by itself, the shell's output after it and typing reaching it again */
     @Test
     fun aRemoteSzReceivedByItself() {
         val src = File(tmp.newFolder("remote"), "data.bin").apply { writeBytes(Random(5).nextBytes(150_000)) }
@@ -80,6 +86,7 @@ class SessionTransferTest {
         waitFor("typing after it", s) { it.lines().any { l -> l.trim() == "typed-again" } }
     }
 
+    /** a remote's rz asking for files by ZMODEM, and sent them */
     @Test
     fun aRemoteRzAsksForFiles() {
         val dir = tmp.newFolder("remote")
@@ -97,6 +104,7 @@ class SessionTransferTest {
         assertArrayEquals(local.readBytes(), got.readBytes())
     }
 
+    /** a remote's gkermit -s noticed and received by itself */
     @Test
     fun aKermitSendReceivedByItself() {
         assumeTrue(File("/usr/bin/gkermit").canExecute())

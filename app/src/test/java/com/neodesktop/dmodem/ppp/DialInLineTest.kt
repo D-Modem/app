@@ -43,9 +43,11 @@ class DialInLineTest {
     private lateinit var b: String
     private val closers = ArrayList<() -> Unit>()
 
+    /** native-test's fax_line binary: DMODEM_FAX_LINE's or build-host's, or null when not built */
     private fun faxLine(): File? = listOfNotNull(System.getenv("DMODEM_FAX_LINE"), "../build-host/fax_line", "build-host/fax_line")
         .map { File(it) }.firstOrNull { it.canExecute() }
 
+    /** fax_line started, its two modems' ttys read from its log, modemA as the app's DTE and running */
     @Before
     fun setUp() {
         val fl = faxLine()
@@ -62,6 +64,7 @@ class DialInLineTest {
         ModemState.setRun(ModemState.Run.RUNNING)
     }
 
+    /** the logs written to build/dial-in-log.txt, the ISP settings reset, the modem detached and stopped, fax_line ended */
     @After
     fun tearDown() {
         File("build/dial-in-log.txt").writeText((ModemState.log.flow.value + listOf("----") + log).joinToString("\n"))
@@ -74,8 +77,10 @@ class DialInLineTest {
         line?.waitFor(5, TimeUnit.SECONDS)
     }
 
+    /** the last of the app's log and fax_line's, for a failure's message */
     private fun dump() = (ModemState.log.flow.value.takeLast(40) + log.takeLast(40)).joinToString("\n")
 
+    /** a caller dials in: answered, its PPP given an address, DNS and a ping through the gateway, hung up after with the DTE free */
     @Test
     fun aCallerGetsTheInternet() {
         // the phone's "DNS server" (its answer: the query back with "A")
@@ -129,8 +134,11 @@ class DialInLineTest {
         val up = ArrayBlockingQueue<Ppp.IpConfig>(1)
         val packets = LinkedBlockingQueue<ByteArray>()
         val p = Ppp({ f -> output.write(f); output.flush() }, events = object : Ppp.Events {
+            /** the link up: its addresses, kept */
             override fun up(config: Ppp.IpConfig) { up.add(config) }
+            /** a packet from the app, kept */
             override fun ip(packet: ByteArray) { packets.add(packet) }
+            /** the link down: nothing to do */
             override fun down(reason: String) {}
         }, retryMs = 1000)
         pppRef.set(p)
@@ -164,6 +172,7 @@ class DialInLineTest {
         assertTrue(dump(), waitLog("modemA: run cmd: ATH"))
     }
 
+    /** whether fax_line's log has [what] within [secs] */
     private fun waitLog(what: String, secs: Int = 30): Boolean {
         val end = System.currentTimeMillis() + secs * 1000L
         while (System.currentTimeMillis() < end) {

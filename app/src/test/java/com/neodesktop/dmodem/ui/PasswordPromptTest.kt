@@ -39,9 +39,11 @@ class PasswordPromptTest {
     @get:Rule
     val compose = createComposeRule()
 
+    /** this test's question, if still asked, cancelled */
     @After
     fun tearDown() = Terminal.prompts.cancel(this)
 
+    /** [p] asked on a thread, the prompt shown: where its answer comes */
     private fun asked(p: Prompt): AtomicReference<Answer> {
         val got = AtomicReference<Answer>()
         Thread { got.set(Terminal.prompts.ask(p, this)) }.start()
@@ -50,9 +52,11 @@ class PasswordPromptTest {
         return got
     }
 
+    /** waited until something with [text] in it is shown */
     private fun waitFor(text: String) =
         compose.waitUntil(15_000) { compose.onAllNodesWithText(text, substring = true).fetchSemanticsNodes().isNotEmpty() }
 
+    /** the dialog as it is, into build/screens/[name].png */
     private fun shotDialog(name: String) {
         compose.waitForIdle()
         val bmp = compose.onNode(isDialog()).captureToImage().asAndroidBitmap()
@@ -60,12 +64,14 @@ class PasswordPromptTest {
         File("build/screens/$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
+    /** [r]'s answer, once there (or 5 seconds) */
     private fun <T> answerOf(r: AtomicReference<T>): T {
         val end = System.currentTimeMillis() + 5000
         while (r.get() == null && System.currentTimeMillis() < end) Thread.sleep(10)
         return r.get()
     }
 
+    /** a password typed and remembered: the answer has it, to be kept; drawn */
     @Test
     fun aPasswordRemembered() {
         val got = asked(Prompt.Password("Password", "alice@pi.lan", canRemember = true))
@@ -79,6 +85,7 @@ class PasswordPromptTest {
         assertTrue(a.remember)
     }
 
+    /** the server's question answered in its field: the answer's text; drawn */
     @Test
     fun theServersQuestions() {
         val got = asked(Prompt.Questions("pi.lan", "Two-factor login", listOf("Verification code: " to true)))

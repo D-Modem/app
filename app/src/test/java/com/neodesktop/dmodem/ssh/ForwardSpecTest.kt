@@ -8,6 +8,7 @@ import org.junit.Test
 
 /** The forwards' lines, as ssh's -L, -R and -D take them. */
 class ForwardSpecTest {
+    /** -L, -R and -D lines parsed as ssh takes them (IPv6 in brackets), and written back the same */
     @Test
     fun linesAsSshTakesThem() {
         val l = ForwardSpec.parse("L 8080:localhost:80")!!
@@ -26,6 +27,7 @@ class ForwardSpecTest {
         }
     }
 
+    /** lines that aren't forwards: null */
     @Test
     fun notForwards() {
         for (bad in listOf("", "X 1:a:2", "L 8080", "L 8080:host", "L 99999:a:1", "L a:b:c", "D", "D 1:2:3", "L 1::2", "R [::1:8080:a:1")) {

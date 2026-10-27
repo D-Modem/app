@@ -35,6 +35,7 @@ class TerminalFontsRenderTest {
     private val w = 960
     private val h = 66
 
+    /** each bundled font loaded (not the system's), a block on its cell at column 40 with fallback glyphs before it, all drawn to build/terminal-fonts.png */
     @Test
     fun everyFontLoadsAndKeepsTheGrid() {
         val ctx = ApplicationProvider.getApplicationContext<Context>()
@@ -75,6 +76,7 @@ class TerminalFontsRenderTest {
         File("build/terminal-fonts.png").outputStream().use { sheet.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
+    /** each variable font's bold a real one: a W in it with more ink than the regular's */
     @Test
     fun variableFontsHaveARealBold() {
         val ctx = ApplicationProvider.getApplicationContext<Context>()
@@ -86,6 +88,7 @@ class TerminalFontsRenderTest {
             p.typeface = FontCache.typeface(ctx, f, true)
             val bold = Bitmap.createBitmap(120, 120, Bitmap.Config.ARGB_8888)
             Canvas(bold).drawText("W", 0f, 100f, p)
+            /** how many of [b]'s pixels are inked (mostly opaque) */
             fun ink(b: Bitmap): Int {
                 var n = 0
                 for (y in 0 until 120) for (x in 0 until 120) if ((b.getPixel(x, y) ushr 24) > 128) n++
