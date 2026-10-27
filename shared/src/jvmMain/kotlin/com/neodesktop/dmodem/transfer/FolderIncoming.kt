@@ -14,18 +14,21 @@ fun Outgoing.Companion.of(f: File) = Outgoing(f.name, f.length(), f.lastModified
 class FolderIncoming(private val dir: File) : Incoming {
     val received = ArrayList<File>()
 
+    /** a new file in [dir] for [name], made safe and unique: its stream and the name it got */
     override fun create(name: String, size: Long): Pair<Sink, String> {
         dir.mkdirs()
         val f = unique(dir, safeName(name))
         return f.outputStream().asSink() to f.name
     }
 
+    /** the file finished: its time set (if known) and it added to [received] */
     override fun done(name: String, mtime: Long) {
         val f = File(dir, name)
         if (mtime > 0) f.setLastModified(mtime * 1000)
         received.add(f)
     }
 
+    /** the unfinished file deleted */
     override fun abandon(name: String) {
         File(dir, name).delete()
     }

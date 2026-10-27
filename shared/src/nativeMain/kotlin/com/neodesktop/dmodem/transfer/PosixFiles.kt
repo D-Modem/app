@@ -55,11 +55,13 @@ object PosixFiles {
         }
     }
 
+    /** the file at [path] to read; an error when it can't be opened */
     fun source(path: String): Source {
         val f = fopen(path, "rb") ?: throw IOException("can't open $path")
         return FileSource(f)
     }
 
+    /** the file at [path] to write, made or emptied; an error when it can't be */
     fun sink(path: String): Sink {
         val f = fopen(path, "wb") ?: throw IOException("can't write $path")
         return FileSink(f)
@@ -85,6 +87,7 @@ object PosixFiles {
     }
 
     private class FileSource(private var f: CPointer<FILE>?) : Source {
+        /** up to [len] bytes of the file into [b]: how many, -1 at its end or once closed */
         override fun read(b: ByteArray, off: Int, len: Int): Int {
             val file = f ?: return -1
             if (len <= 0) return 0
@@ -92,6 +95,7 @@ object PosixFiles {
             return if (n == 0) -1 else n
         }
 
+        /** the file closed (once) */
         override fun close() {
             f?.let { fclose(it) }
             f = null
@@ -99,6 +103,7 @@ object PosixFiles {
     }
 
     private class FileSink(private var f: CPointer<FILE>?) : Sink {
+        /** all of [len] bytes of [b] from [off] to the file; an error when the disk is full or it's closed */
         override fun write(b: ByteArray, off: Int, len: Int) {
             val file = f ?: throw IOException("closed")
             if (len <= 0) return
@@ -106,6 +111,7 @@ object PosixFiles {
             if (n != len) throw IOException("the disk is full")
         }
 
+        /** the file closed (once); an error if what was written didn't all get there */
         override fun close() {
             val file = f ?: return
             f = null
@@ -120,12 +126,14 @@ class PosixFolderIncoming(private val dir: String) : Incoming {
     /** the names the files got, those finished */
     val received = ArrayList<String>()
 
+    /** a new file in [dir] (made if it isn't there) for [name], made safe and unique: its stream and the name it got */
     override fun create(name: String, size: Long): Pair<Sink, String> {
         mkdir(dir, 0x1edu.convert())
         val actual = PosixFiles.unique(dir, PosixFiles.safeName(name))
         return PosixFiles.sink("$dir/$actual") to actual
     }
 
+    /** the file finished: its time set (if known) and its name added to [received] */
     override fun done(name: String, mtime: Long) {
         if (mtime > 0) memScoped {
             val t = alloc<utimbuf>()
@@ -136,6 +144,7 @@ class PosixFolderIncoming(private val dir: String) : Incoming {
         received.add(name)
     }
 
+    /** the unfinished file deleted */
     override fun abandon(name: String) {
         unlink("$dir/$name")
     }

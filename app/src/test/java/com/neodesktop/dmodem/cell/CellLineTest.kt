@@ -19,16 +19,20 @@ import org.junit.Test
 class CellLineTest {
     private val closers = ArrayList<() -> Unit>()
 
+    /** the modems, transports and processes closed, last first */
     @After
     fun tearDown() = closers.asReversed().forEach { runCatching { it() } }
 
     private inner class CellModem(name: String, val phone: FakeNetwork.Phone, listen: Boolean) :
         TestModem(name, CellTransport(phone, phone.audio, audioMs = 2000), listen, 60, closers) {
+        /** the number dialled: its digits, or null for none */
         override fun target(dial: String) = dial.filter { it.isDigit() }.ifEmpty { null }
     }
 
+    /** the speed a CONNECT line gives */
     private fun rate(connect: String) = Regex("CONNECT (\\d+)").find(connect)!!.groupValues[1].toInt()
 
+    /** two modems connect over a clean mobile call at 9600 or more, carry data both ways, and hang up */
     @Test
     fun aMobileCall() {
         val net = FakeNetwork(closers = closers)
@@ -58,6 +62,7 @@ class CellLineTest {
         assertEquals(CellPhone.State.IDLE, b.phone.state.value)
     }
 
+    /** through AMR 12.2 two V.21 modems connect at 300 and the data's start gets through */
     @Test
     fun throughAmr() {
         assumeTrue("codec_line isn't built (native-test)", FakeNetwork.codecLine() != null)
@@ -81,6 +86,7 @@ class CellLineTest {
         assertTrue(b.expect(data.take(40), 30).endsWith(data.take(40)))
     }
 
+    /** V.cvm through AMR 12.2: connected at 600 or more, LAPM data whole each way, +CVM? its figures */
     @Test
     fun throughAmrInVcvm() {
         assumeTrue("codec_line isn't built (native-test)", FakeNetwork.codecLine() != null)
@@ -116,6 +122,7 @@ class CellLineTest {
         assertTrue(fig, Regex("\\+CVM: \\d+,\\d+,\\d+,\\d+,").containsMatchIn(fig))
     }
 
+    /** a number nobody has ends the call; a modem not taking calls leaves its phone ringing, no RING */
     @Test
     fun nobodyAndNotForTheModem() {
         val net = FakeNetwork(closers = closers)

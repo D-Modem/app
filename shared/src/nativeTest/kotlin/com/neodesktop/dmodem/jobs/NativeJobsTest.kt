@@ -40,6 +40,7 @@ import kotlin.test.assertTrue
  */
 @OptIn(ExperimentalForeignApi::class)
 class NativeJobsTest {
+    /** files received into a folder get safe, unique names, are sent back by path, and an abandoned one is removed */
     @Test
     fun filesInAFolder() {
         val dir = "/tmp/dmodem-files-${getpid()}"
@@ -69,6 +70,7 @@ class NativeJobsTest {
         assertEquals(null, PosixFiles.outgoing("$dir/none"))
     }
 
+    /** the tunnel's port gets the link's settings, the extension's packet reaches the link, the link's reaches the extension, and closing stops it */
     @Test
     fun packetsOverTheLoopback() {
         // the link's job (never connected: its packets only counted), the tunnel's "extension" a UDP socket
@@ -76,10 +78,12 @@ class NativeJobsTest {
         var started = ""
         var stopped = false
         val t = UdpPacketTunnel(job, object : TunnelStarter {
+            /** the tunnel's settings noted: started */
             override fun start(address: String, dns: String, mtu: Int, port: Int): Boolean {
                 started = "$address $dns $mtu $port"
                 return true
             }
+            /** the tunnel noted stopped */
             override fun stop() { stopped = true }
         })
         assertTrue(t.port > 0)

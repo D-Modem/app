@@ -40,6 +40,7 @@ class PosixPeerTest {
             assertEquals(null, host.start(listen))
         }
 
+        /** what the phone was told so far, a copy */
         fun events() = synchronized(lock) { events.toList() }
 
         /** the modem off hook: a socket pair, our end answering samples with [mark], the other to the line */
@@ -70,6 +71,7 @@ class PosixPeerTest {
         }
     }
 
+    /** waits up to [ms] for [cond], else fails for want of [what] */
     private fun waitFor(what: String, ms: Long = 15_000, cond: () -> Boolean) {
         val end = monotonicMs() + ms
         while (!cond()) {
@@ -78,6 +80,7 @@ class PosixPeerTest {
         }
     }
 
+    /** a call over TCP rung, answered and heard both ways, a third caller busy, and the hang-up leaving the far side ready again */
     @Test
     fun aCallOverTcp() {
         val b = Phone("B", listen = true, mark = 2)
@@ -107,6 +110,7 @@ class PosixPeerTest {
         }
     }
 
+    /** a wrong PIN over TCP is turned away without ringing, the right one rings */
     @Test
     fun aPinOverTcp() {
         val b = Phone("B", listen = true, mark = 2, pin = "2468")
@@ -124,6 +128,7 @@ class PosixPeerTest {
         }
     }
 
+    /** a call to a port nobody listens on fails with 480, saying it can't reach it */
     @Test
     fun nobodyThere() {
         // a port nobody listens on: NO ANSWER's FAILED 480, why for the user
@@ -137,6 +142,7 @@ class PosixPeerTest {
         }
     }
 
+    /** host[:port] and IPv6 addresses, bracketed or not, parsed with the default port when none */
     @Test
     fun addresses() {
         assertEquals("host" to 5070, PosixTcpTransport.parse("host", 5070))

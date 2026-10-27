@@ -8,6 +8,7 @@ import org.junit.Test
 
 /** On mobile calls the modem starts at the speed chosen (+MS), with the init commands on the same line. */
 class CellSettingsTest {
+    /** mobile calls start with the +MS speed chosen and the init commands on the same line; other lines with the init commands alone */
     @Test
     fun startCommands() {
         val cell = ModemSettings(line = ModemSettings.LINE_CELL)
@@ -21,6 +22,7 @@ class CellSettingsTest {
         assertEquals("ATX3", ModemSettings(line = ModemSettings.LINE_WIFI).startCommands())
     }
 
+    /** a CONNECT's modulation and protocols as labelled, from the last one; none for a plain speed */
     @Test
     fun whatTheConnectSaid() {
         val label = com.neodesktop.dmodem.modem.ConnectInfo::label

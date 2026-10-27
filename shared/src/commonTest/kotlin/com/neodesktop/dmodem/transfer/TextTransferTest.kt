@@ -21,12 +21,15 @@ import kotlin.test.assertTrue
 class TextTransferTest {
     private class Memory : Incoming {
         val files = LinkedHashMap<String, Bytes>()
+        /** a new file [name] in memory: its stream and that name */
         override fun create(name: String, size: Long): Pair<Sink, String> = Bytes().let { b -> files[name] = b; b to name }
     }
 
+    /** [data] as a file [name] to send */
     private fun outgoing(name: String, data: ByteArray) = Outgoing(name, data.size.toLong(), 0) {
         object : Source {
             var at = 0
+            /** the next of [data], into [b]: how much, -1 at its end */
             override fun read(b: ByteArray, off: Int, len: Int): Int {
                 if (at >= data.size) return -1
                 val n = minOf(len, data.size - at)
@@ -40,6 +43,7 @@ class TextTransferTest {
     private val text = ("line one\r\nline two\nline three\rtabbed\there\r\n" + "é ü — 東京\n").encodeToByteArray() +
         ByteArray(3000) { (it % 256).toByte() }
 
+    /** a file's bytes go on the line unchanged and are received unchanged until the line goes quiet */
     @Test
     fun sentVerbatimAndReceivedUntilQuiet() = runBlocking {
         // the two ends of a line
@@ -56,6 +60,7 @@ class TextTransferTest {
         assertContentEquals(text, mem.files["capture.txt"]!!.toByteArray())
     }
 
+    /** through [Transfer] the text is sent as it is, and a cancel sends nothing */
     @Test
     fun throughTransferWithNothingAddedOrSentOnCancel() = runBlocking {
         val wire = Bytes()

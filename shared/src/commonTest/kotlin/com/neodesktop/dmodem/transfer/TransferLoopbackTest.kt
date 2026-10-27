@@ -23,15 +23,20 @@ class TransferLoopbackTest {
     private class Memory : Incoming {
         val files = LinkedHashMap<String, Bytes>()
         val times = HashMap<String, Long>()
+        /** a new file [name] in memory: its stream and that name */
         override fun create(name: String, size: Long): Pair<Sink, String> = Bytes().let { b -> files[name] = b; b to name }
+        /** file [name]'s time noted */
         override fun done(name: String, mtime: Long) { times[name] = mtime }
+        /** file [name] forgotten */
         override fun abandon(name: String) { files.remove(name) }
     }
 
+    /** [data] as a file [name] of time [mtime] to send */
     private fun outgoing(name: String, data: ByteArray, mtime: Long = 1_700_000_000) =
         Outgoing(name, data.size.toLong(), mtime) {
             object : Source {
                 var at = 0
+                /** the next of [data], into [b]: how much, -1 at its end */
                 override fun read(b: ByteArray, off: Int, len: Int): Int {
                     if (at >= data.size) return -1
                     val n = minOf(len, data.size - at)
@@ -62,6 +67,7 @@ class TransferLoopbackTest {
     private val data = Random(7).nextBytes(40_000)
     private val small = "hello, modem\n".encodeToByteArray()
 
+    /** XMODEM-1K: what came starts with the file (the last block padded) */
     @Test
     fun xmodem() {
         val m = Memory()
@@ -70,6 +76,7 @@ class TransferLoopbackTest {
         assertContentEquals(data, m.files.getValue("x.bin").toByteArray().copyOf(data.size))
     }
 
+    /** YMODEM: a batch of two, each file whole, with its time */
     @Test
     fun ymodem() {
         val m = Memory()
@@ -80,6 +87,7 @@ class TransferLoopbackTest {
         assertEquals(1_700_000_000, m.times["a.bin"])
     }
 
+    /** ZMODEM: a batch of two, each file whole */
     @Test
     fun zmodem() {
         val m = Memory()
@@ -89,6 +97,7 @@ class TransferLoopbackTest {
         assertContentEquals(small, m.files.getValue("small.txt").toByteArray())
     }
 
+    /** Kermit: a batch of two, each file whole, with its time there and back */
     @Test
     fun kermit() {
         val m = Memory()
@@ -99,6 +108,7 @@ class TransferLoopbackTest {
         assertEquals(1_700_000_000, m.times["k.bin"])
     }
 
+    /** Kermit's dates: days to the calendar and back */
     @Test
     fun kermitsCalendar() {
         assertEquals(Triple(1970, 1, 1), Kermit.civil(0))

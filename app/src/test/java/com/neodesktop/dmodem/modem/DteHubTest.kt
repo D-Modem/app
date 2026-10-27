@@ -21,6 +21,7 @@ class DteHubTest {
         val hubIn = PipedInputStream(toHub, 65536)
     }
 
+    /** every listener gets all the modem says */
     @Test
     fun everyListenerGetsTheModemsOutput() {
         val hub = DteHub()
@@ -39,6 +40,7 @@ class DteHubTest {
         hub.detach()
     }
 
+    /** writes reach the modem only while one's attached */
     @Test
     fun writesGoToTheModemUntilDetached() {
         val hub = DteHub()
@@ -57,6 +59,7 @@ class DteHubTest {
         assertFalse(hub.write("AT\r"))
     }
 
+    /** listeners stay across a new modem attached, writes going to the new one only */
     @Test
     fun listenersStayAcrossAModemRestart() {
         val hub = DteHub()

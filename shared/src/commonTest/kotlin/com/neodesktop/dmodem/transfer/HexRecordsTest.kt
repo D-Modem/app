@@ -24,9 +24,11 @@ import kotlin.test.assertTrue
  * ([HexTransfer], through [Transfer]).
  */
 class HexRecordsTest {
+    /** [lines] given to a decoder of [format]: it, after them */
     private fun decode(format: HexRecords.Format, lines: List<String>): HexRecords.Decoder =
         HexRecords.Decoder(format).apply { for (l in lines) line(l) }
 
+    /** Intel HEX encodes the spec's example exactly, and decodes back to its bytes at its address */
     @Test
     fun intelHexAsItsSpecHasIt() {
         // (Intel's example: 3 bytes at 0030, then the end)
@@ -38,6 +40,7 @@ class HexRecordsTest {
         assertContentEquals(byteArrayOf(0x02, 0x33, 0x7a), d.image())
     }
 
+    /** the well-known S-record example decodes to its header, address and bytes */
     @Test
     fun sRecordsAsTheirExampleHasThem() {
         // (the well-known S1 example: 16 bytes at 7AF0)
@@ -48,6 +51,7 @@ class HexRecordsTest {
         assertContentEquals(byteArrayOf(0x0a, 0x0a, 0x0d) + ByteArray(13), d.image())
     }
 
+    /** images of either format there and back at any base, across 64 KB, recognised as their own format only; S1, S2 or S3 by the end address */
     @Test
     fun imagesThereAndBack() {
         val data = Random(7).nextBytes(70_000)
@@ -68,6 +72,7 @@ class HexRecordsTest {
         assertTrue(HexRecords.encode(ByteArray(16), HexRecords.Format.SREC, 0x1000000)[1].startsWith("S3"))
     }
 
+    /** gaps between records are erased EPROM (0xff), and lines that aren't records are passed over */
     @Test
     fun gapsAreErasedEpromAndOtherLinesPassedOver() {
         val d = decode(
@@ -77,6 +82,7 @@ class HexRecordsTest {
         assertContentEquals(byteArrayOf(0x41, -1, -1, -1, 0x42), d.image())
     }
 
+    /** a wrong checksum or length is an error */
     @Test
     fun aWrongChecksumIsAnError() {
         assertFailsWith<IOException> { decode(HexRecords.Format.INTEL, listOf(":0300300002337A1F")) }
@@ -87,12 +93,15 @@ class HexRecordsTest {
     /** files in memory */
     private class Memory : Incoming {
         val files = LinkedHashMap<String, Bytes>()
+        /** a new file [name] in memory: its stream and that name */
         override fun create(name: String, size: Long): Pair<Sink, String> = Bytes().let { b -> files[name] = b; b to name }
     }
 
+    /** [data] as a file [name] to send */
     private fun outgoing(name: String, data: ByteArray) = Outgoing(name, data.size.toLong(), 0) {
         object : Source {
             var at = 0
+            /** the next of [data], into [b]: how much, -1 at its end */
             override fun read(b: ByteArray, off: Int, len: Int): Int {
                 if (at >= data.size) return -1
                 val n = minOf(len, data.size - at)
@@ -123,6 +132,7 @@ class HexRecordsTest {
         mem to text.toString()
     }
 
+    /** Intel HEX and S-records sent on a line arrive as the file, the line's text ending with the end record */
     @Test
     fun sentAndReceivedOnALine() {
         val data = Random(11).nextBytes(5000)
@@ -134,6 +144,7 @@ class HexRecordsTest {
         }
     }
 
+    /** a file that is records already is sent as it is, only its line ends made CR LF */
     @Test
     fun aFileOfRecordsAlreadyIsSentAsItIs() {
         val records = ":0300300002337A1E\n:00000001FF\n"

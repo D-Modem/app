@@ -19,6 +19,7 @@ import platform.posix.tm
 
 actual open class IOException actual constructor(message: String?) : Exception(message)
 
+/** the local time zone's offset from UTC at [epochSec], in seconds (localtime_r's; 0 if it fails) */
 @OptIn(ExperimentalForeignApi::class)
 actual fun localOffsetSeconds(epochSec: Long): Int = memScoped {
     val t = alloc<time_tVar>()

@@ -6,6 +6,7 @@ import java.net.InetAddress
 
 actual typealias Inet4 = java.net.Inet4Address
 
+/** the address of these four octets */
 actual fun inet4(octets: ByteArray): Inet4 = InetAddress.getByAddress(octets) as java.net.Inet4Address
 
 actual val Inet4.octets: ByteArray get() = address

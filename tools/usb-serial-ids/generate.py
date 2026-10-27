@@ -33,6 +33,7 @@ SKIP = r"jtag|8u2232c|stmclite|TIRA|UIRT"
 
 
 def fetch(where, path):
+    """the file at path of Linux at the tag where (from GitHub), or by its name in the directory where"""
     if os.path.isdir(where):
         return open(os.path.join(where, os.path.basename(path)), encoding="utf-8", errors="replace").read()
     url = "https://raw.githubusercontent.com/torvalds/linux/%s/%s" % (where, path)
@@ -49,6 +50,7 @@ def ids(texts):
     defs = dict(re.findall(r"^\s*#define\s+(\w+)\s+\(?\s*(0[xX][0-9a-fA-F]+|\d+|\w+)\s*\)?\s*$", text, flags=re.M))
 
     def value(tok):
+        """a number, or a #define's name followed to the number it stands for"""
         seen = 0
         while not re.fullmatch(r"0[xX][0-9a-fA-F]+|\d+", tok):
             tok = defs[tok]
@@ -66,6 +68,7 @@ def ids(texts):
 
 
 def main():
+    """each chip's IDs (each pair kept for the first chip that has it) into UsbSerialIds.kt and the XML's generated part"""
     where = sys.argv[1] if len(sys.argv) > 1 else "v6.12"
     tables, seen = [], {}
     for name, what, files in CHIPS:

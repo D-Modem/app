@@ -21,15 +21,20 @@ import kotlin.math.abs
 class XtermFeaturesTest {
 
     private val replies = StringBuilder()
+    /** a terminal of this size whose replies go to [replies] as UTF-8 */
     private fun term(cols: Int = 20, rows: Int = 6) =
         TerminalEmulator(cols, rows, 100) { replies.append(String(it, Charsets.UTF_8)) }
 
+    /** [s] fed in as UTF-8 */
     private fun TerminalEmulator.send(s: String) = append(s.toByteArray(Charsets.UTF_8))
+    /** row [r]'s text */
     private fun TerminalEmulator.row(r: Int) = line(r).text()
+    /** the replies so far, cleared */
     private fun takeReplies() = replies.toString().also { replies.setLength(0) }
 
     // characters ------------------------------------------------------
 
+    /** wide characters take two cells, wrap whole to the next line, and half of one overwritten blanks the other half */
     @Test
     fun wideCharactersTakeTwoCells() {
         val t = term(10, 3)
@@ -50,6 +55,7 @@ class XtermFeaturesTest {
         assertEquals(3, t.cursorX)
     }
 
+    /** combining marks and ZWJ sequences join their character's cell, and wcwidth's widths */
     @Test
     fun combiningMarksJoinTheirCharacter() {
         val t = term(10, 2)
@@ -66,6 +72,7 @@ class XtermFeaturesTest {
         assertEquals(2, Wcwidth.width(0xAC00))
     }
 
+    /** inserting and deleting characters moves their combining marks with them */
     @Test
     fun insertAndDeleteMoveTheExtras() {
         val t = term(10, 1)
@@ -77,6 +84,7 @@ class XtermFeaturesTest {
 
     // the rendition ---------------------------------------------------
 
+    /** underline styles, double underline and overline, and the underline's colour not taken for attributes */
     @Test
     fun underlineStylesAndTheUnderlinesColourReadPast() {
         val t = term()
@@ -93,6 +101,7 @@ class XtermFeaturesTest {
 
     // reports -----------------------------------------------------------
 
+    /** DA, XTVERSION, XTWINOPS, XTSMGRAPHICS, DECRQM and DECRQSS answered as xterm would */
     @Test
     fun theReportsProgramsAskFor() {
         val t = term(80, 24)
@@ -116,6 +125,7 @@ class XtermFeaturesTest {
         assertEquals(5, t.cursorStyle)
     }
 
+    /** colours asked about (OSC 4, 10, 11) answered, set, and reset (OSC 104, 110) */
     @Test
     fun coloursAskedAboutAndSet() {
         val t = term()
@@ -135,11 +145,13 @@ class XtermFeaturesTest {
         assertNull(TerminalEmulator.parseColor("red"))
     }
 
+    /** OSC 52 copies to the clipboard but never says what's on it, and OSC 8's link covers its text */
     @Test
     fun theClipboardAndHyperlinks() {
         val t = term()
         val copied = ArrayList<String>()
         t.listener = object : TerminalEmulator.Listener {
+            /** the copied text noted */
             override fun onClipboard(text: String) { copied.add(text) }
         }
         t.send("\u001b]52;c;" + java.util.Base64.getEncoder().encodeToString("héllo".toByteArray()) + "\u0007")
@@ -156,6 +168,7 @@ class XtermFeaturesTest {
 
     // the mouse ---------------------------------------------------------
 
+    /** mouse reports in the X10, normal, SGR and urxvt encodings as asked, motion only when asked, and focus reports */
     @Test
     fun mouseReportsInEachEncoding() {
         val t = term(300, 50)
@@ -192,6 +205,7 @@ class XtermFeaturesTest {
 
     // sixel ------------------------------------------------------------
 
+    /** a test image [name] from the app's test resources */
     private fun resource(name: String): File =
         // (the app's test images: from this module, or the project's root)
         listOf(File("../app/src/test/resources/$name"), File("app/src/test/resources/$name")).first { it.exists() }
@@ -230,6 +244,7 @@ class XtermFeaturesTest {
         assertEquals("the line after it, at its left", "  z", t.row(3))
     }
 
+    /** sixel colours by HLS and RGB, repeats, new lines, and a transparent background or register 0's behind */
     @Test
     fun sixelsColoursRepeatsAndTransparency() {
         val t = term(20, 4)
@@ -252,6 +267,7 @@ class XtermFeaturesTest {
         assertEquals(0xff000000.toInt(), img2.pixels[3])
     }
 
+    /** a sixel image scrolls with the text into the history, and text written over a cell takes its tile */
     @Test
     fun imagesScrollWithTheText() {
         val t = term(10, 3)
@@ -271,6 +287,7 @@ class XtermFeaturesTest {
         assertNotNull(t.line(0).extra(1)?.image)
     }
 
+    /** a sixel cut short by CAN, or an unknown DCS (answered as unknown), leaves the terminal working */
     @Test
     fun aDcsCutShortOrUnknownLeavesTheTerminalWorking() {
         val t = term(10, 2)

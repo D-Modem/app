@@ -37,7 +37,8 @@ MODS = (r"(?:public|private|internal|protected|open|override|final|abstract|inli
 ANNOT = r"@[\w.]+(?:\([^()]*(?:\([^()]*\)[^()]*)*\))?"
 FUN = re.compile(r"^\s*(?:" + ANNOT + r"\s+)*(?:" + MODS + r"\s+)*(?:fun|func)\s+(?!interface\b)[\w`<]")
 INIT = re.compile(r"^\s*(?:" + ANNOT + r"\s+)*(?:" + MODS + r"\s+)*(?:init[?!]?\s*[(<]|deinit\b)")
-SH_FUN = re.compile(r"^\s*(?:function\s+)?[A-Za-z_][\w-]*\s*\(\s*\)\s*\{?\s*$")
+ANNOT_LINE = re.compile(r"^\s*(?:" + ANNOT + r"\s*)+$")
+SH_FUN =re.compile(r"^\s*(?:function\s+)?[A-Za-z_][\w-]*\s*\(\s*\)\s*\{?\s*$")
 PY_DEF = re.compile(r"^(\s*)(?:async\s+)?def\s+\w+")
 
 
@@ -73,9 +74,10 @@ def blank(text):
 
 
 def commented(lines, i, raw):
-    """a comment on the line above line i, past its annotations"""
+    """a comment on the line above line i, past its annotations (lines of
+    annotations alone: not an annotated property's, as @Volatile var)"""
     j = i - 1
-    while j >= 0 and re.match(r"^\s*@", lines[j]):
+    while j >= 0 and ANNOT_LINE.match(lines[j]):
         j -= 1
     if j < 0:
         return False

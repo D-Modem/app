@@ -26,6 +26,7 @@ class FaxPdfTest {
             return dir.listFiles { f -> f.name.startsWith("img-") }!!.sortedBy { it.name }.map { readPbm(it) }
         }
 
+        /** a P4 PBM file as a page (1 black), its header's comments skipped */
         fun readPbm(f: File): FaxPage {
             val d = f.readBytes()
             var i = 0
@@ -45,6 +46,7 @@ class FaxPdfTest {
         }
     }
 
+    /** two pages written as a small PDF read back by pdfimages exactly, and drawn by pdftoppm 1728 pels across at 204 dpi */
     @Test
     fun pagesReadBackExactly() {
         assumeTrue("poppler-utils isn't installed", File("/usr/bin/pdfimages").canExecute())

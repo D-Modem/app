@@ -36,8 +36,11 @@ class UsbBridgeTest {
         override val state: StateFlow<TerminalLink.State> = MutableStateFlow(TerminalLink.State.Open)
         val listeners = CopyOnWriteArrayList<TerminalLink.Listener>()
         val got = ByteArrayOutputStream()
+        /** takes [l] for what the modem says */
         override fun addListener(l: TerminalLink.Listener) { listeners.add(l) }
+        /** no more of it to [l] */
         override fun removeListener(l: TerminalLink.Listener) { listeners.remove(l) }
+        /** kept as sent; a command's CR answered OK */
         override fun write(data: ByteArray, offset: Int, length: Int): Boolean {
             synchronized(got) { got.write(data, offset, length) }
             if (String(data, offset, length).endsWith("\r")) {
@@ -46,6 +49,7 @@ class UsbBridgeTest {
             }
             return true
         }
+        /** what the computer sent it, so far */
         fun sent() = synchronized(got) { String(got.toByteArray()) }
     }
 
@@ -59,50 +63,83 @@ class UsbBridgeTest {
         /** (a CDC adapter's driver: no DSR to read) */
         @Volatile var noDsr = false
         @Volatile var closed = false
+        /** the computer's next bytes, waiting up to [timeout] ms; 0 if none */
         override fun read(dest: ByteArray, timeout: Int): Int {
             if (closed) throw IOException("closed")
             val b = fromComputer.poll(timeout.toLong(), TimeUnit.MILLISECONDS) ?: return 0
             System.arraycopy(b, 0, dest, 0, b.size)
             return b.size
         }
+        /** as the other read, [length] aside */
         override fun read(dest: ByteArray, length: Int, timeout: Int): Int = read(dest, timeout)
+        /** kept, as said to the computer */
         override fun write(src: ByteArray, timeout: Int) { synchronized(toComputer) { toComputer.write(src) } }
+        /** its first [length] kept, as said to the computer */
         override fun write(src: ByteArray, length: Int, timeout: Int) { synchronized(toComputer) { toComputer.write(src, 0, length) } }
+        /** the computer's DCD, the modem's carrier */
         override fun setDTR(value: Boolean) { dtr = value }
+        /** kept, for the test to see */
         override fun setRTS(value: Boolean) { rts = value }
+        /** the computer's DTR; none for a CDC adapter's driver */
         override fun getDSR(): Boolean = if (noDsr) throw UnsupportedOperationException() else dsr
+        /** the DTR last set */
         override fun getDTR() = dtr
+        /** the RTS last set */
         override fun getRTS() = rts
+        /** (the computer's DTR again) */
         override fun getCD() = dsr
+        /** always clear to send */
         override fun getCTS() = true
+        /** never ringing */
         override fun getRI() = false
+        /** closed: reads fail from now on */
         override fun close() { closed = true }
+        /** until closed */
         override fun isOpen() = !closed
+        /** nothing to open */
         override fun open(connection: UsbDeviceConnection?) {}
+        /** any format taken */
         override fun setParameters(baudRate: Int, dataBits: Int, stopBits: Int, parity: Int) {}
+        /** no driver */
         override fun getDriver(): UsbSerialDriver? = null
+        /** no device */
         override fun getDevice(): UsbDevice? = null
+        /** the only port */
         override fun getPortNumber() = 0
+        /** no endpoint */
         override fun getWriteEndpoint(): UsbEndpoint? = null
+        /** no endpoint */
         override fun getReadEndpoint(): UsbEndpoint? = null
+        /** no serial number */
         override fun getSerial(): String? = null
+        /** none of the lines */
         override fun getControlLines(): EnumSet<UsbSerialPort.ControlLine> = EnumSet.noneOf(UsbSerialPort.ControlLine::class.java)
+        /** all of the lines */
         override fun getSupportedControlLines(): EnumSet<UsbSerialPort.ControlLine> = EnumSet.allOf(UsbSerialPort.ControlLine::class.java)
+        /** any flow control taken */
         override fun setFlowControl(flowControl: UsbSerialPort.FlowControl?) {}
+        /** no flow control */
         override fun getFlowControl() = UsbSerialPort.FlowControl.NONE
+        /** only none */
         override fun getSupportedFlowControl(): EnumSet<UsbSerialPort.FlowControl> = EnumSet.of(UsbSerialPort.FlowControl.NONE)
+        /** always XON */
         override fun getXON() = true
+        /** nothing to purge */
         override fun purgeHwBuffers(purgeWriteBuffers: Boolean, purgeReadBuffers: Boolean) {}
+        /** no break */
         override fun setBreak(value: Boolean) {}
+        /** what was said to the computer, so far */
         fun said() = synchronized(toComputer) { String(toComputer.toByteArray()) }
     }
 
+    /** [ok] within 5 s, or fails saying [what] */
     private fun waitUntil(what: String, ok: () -> Boolean) {
         val end = System.currentTimeMillis() + 5000
         while (!ok() && System.currentTimeMillis() < end) Thread.sleep(20)
         assertTrue(what, ok())
     }
 
+    /** an adapter's port carries the computer's commands and the modem's answers, DCD follows the carrier, its DTR dropped hangs up */
     @Test
     fun anAdapterCarriesTheModemAndItsLines() {
         val modem = FakeModem()
@@ -132,6 +169,7 @@ class UsbBridgeTest {
         assertEquals(null, bridge.client.value)
     }
 
+    /** the phone's USB gadget, a pty for /dev/ttyGS0, carries the computer's commands; its root scripts parse */
     @Test
     fun thePhonesUsbPortAsAGadget() {
         assumeTrue(File("/usr/bin/python3").canExecute())
@@ -196,6 +234,7 @@ for line in sys.stdin:
         @Volatile var mode = 0
         val requests = CopyOnWriteArrayList<String>()
 
+        /** GET_INFO, GET_INPUTS and GET_STATS answered as the firmware does, at most [length] bytes; null for others */
         override fun read(request: Int, value: Int, length: Int): ByteArray? = when (request) {
             PicoSerialProtocol.GET_INFO -> byteArrayOf(1, 0, 1, 2, 0, mode.toByte(), role.toByte(), 0, 0x0c, 0, 0x4b, 0, 0, 0)
             PicoSerialProtocol.GET_INPUTS -> byteArrayOf(role.toByte(), computer.toByte(), outputs.toByte(), 1, 1)
@@ -203,6 +242,7 @@ for line in sys.stdin:
             else -> null
         }?.copyOf(minOf(length, 64)).also { requests.add("in $request") }?.let { it.copyOf(minOf(it.size, length)) }
 
+        /** SET_OUTPUTS and SET_MODE as the firmware does them, each request kept */
         override fun write(request: Int, value: Int): Boolean {
             requests.add("out $request %04x".format(value))
             when (request) {
@@ -217,6 +257,7 @@ for line in sys.stdin:
         }
     }
 
+    /** the firmware's info, inputs and stats structures parsed, SET_OUTPUTS' wValue, a CDC SERIAL_STATE */
     @Test
     fun picoSerialStructuresAsTheFirmwareHasThem() {
         // (bytes from firmware/src/core/protocol.h's structs, compiled)
@@ -249,6 +290,7 @@ for line in sys.stdin:
         assertEquals(null, CdcSerialState.parse(byteArrayOf(0xA1.toByte(), 0x2A, 0, 0, 0, 0, 2, 0, 0, 0), 10))
     }
 
+    /** a pico-serial board's DCD, DSR and RI follow the modem, its computer's DTR read and dropped hangs up, the lines sent again after unplugging */
     @Test
     fun aPicoSerialBoardsLinesEachTheirOwn() {
         val modem = FakeModem()
@@ -296,6 +338,7 @@ for line in sys.stdin:
         assertEquals(PicoSerialProtocol.Mode.DCE, p.info()?.mode)
     }
 
+    /** a CDC adapter's SERIAL_STATE dropping DTR hangs up, though the port reads no DSR */
     @Test
     fun aCdcAdaptersNotificationsHangUp() {
         val modem = FakeModem()
@@ -310,6 +353,7 @@ for line in sys.stdin:
             System.arraycopy(n, 0, buf, 0, n.size)
             n.size
         }.start()
+        /** a SERIAL_STATE notification with [v] as its bits */
         fun state(v: Int) = byteArrayOf(0xA1.toByte(), 0x20, 0, 0, 0, 0, 2, 0, v.toByte(), 0)
         val link = UsbPortLink(port, bridge, signals, "CDC adapter", extra = cdc)
         val t = Thread { link.serve() }.apply { start() }
@@ -328,6 +372,7 @@ for line in sys.stdin:
         t.join(5000)
     }
 
+    /** a format string read, a bad one 8N1 at the speed */
     @Test
     fun formats() {
         assertEquals(SerialFormat(9600, 7, 'E', 1), Bridges.format(9600, "7e1"))

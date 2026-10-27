@@ -16,11 +16,13 @@ import org.junit.Test
 class CellFaxTest {
     private var line: FaxLineProcess? = null
 
+    /** the codec line stopped */
     @After
     fun tearDown() {
         line?.close()
     }
 
+    /** a page faxed through [codec], at most [maxBps]: what the sender sent (null if it failed) and the pages received */
     private fun call(codec: String, maxBps: Int, ecm: Boolean): Pair<FaxProgress?, List<FaxPage>> {
         val bin = nativeTool("DMODEM_CODEC_LINE", "codec_line")
         assumeTrue("codec_line isn't built (native-test)", bin != null)
@@ -62,6 +64,7 @@ class CellFaxTest {
         return sent to got
     }
 
+    /** without a codec the same modems and pacing get the page through */
     @Test
     fun throughNoCodecTheFaxGoes() {
         // (the line itself, the codec out of it: the same modems, the same pacing)
@@ -70,6 +73,7 @@ class CellFaxTest {
         assertEquals(1, got.size)
     }
 
+    /** through AMR 12.2 the fax fails: neither sent nor received */
     @Test
     fun throughAmrTheTrainingFails() {
         // AMR-NB 12.2, the best a mobile call has: V.27ter's training at 2400 bit/s

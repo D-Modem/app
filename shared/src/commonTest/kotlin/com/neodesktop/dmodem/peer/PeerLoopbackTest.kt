@@ -34,6 +34,7 @@ class PeerLoopbackTest {
     /** a pipe's end: reads [inw], writes [outw] */
     private class End(private val inw: Way, private val outw: Way, override val name: String) : Duplex {
         override val input = object : Source {
+            /** the next of what came the other way, into [b] (waited for): how much, -1 once closed */
             override fun read(b: ByteArray, off: Int, len: Int): Int {
                 while (inw.at >= inw.cur.size) {
                     if (inw.closed) return -1
@@ -47,17 +48,20 @@ class PeerLoopbackTest {
             }
         }
         override val output = object : Sink {
+            /** [b] sent the other way; an error once either way is closed */
             override fun write(b: ByteArray, off: Int, len: Int) {
                 if (outw.closed || inw.closed) throw com.neodesktop.dmodem.io.IOException("closed")
                 outw.q.put(b.copyOfRange(off, off + len))
             }
         }
+        /** both ways closed */
         override fun close() {
             inw.closed = true
             outw.closed = true
         }
     }
 
+    /** a pipe between [a] and [b]: each one's end */
     private fun pipe(a: String, b: String): Pair<Duplex, Duplex> {
         val ab = Way()
         val ba = Way()
@@ -67,15 +71,19 @@ class PeerLoopbackTest {
     /** phones by name: connect() to one listening */
     private class Exchange {
         val listeners = HashMap<String, (Duplex) -> Unit>()
+        /** the transport for phone [me]: listening by its name, connecting to another's */
         fun transport(me: String) = object : PeerTransport {
             override val label = "memory"
+            /** [accept] noted as this phone's, for calls to it */
             override fun listen(accept: (Duplex) -> Unit) { listeners[me] = accept }
+            /** a call to the phone listening at [address]: a pipe, its far end handed to that phone */
             override fun connect(address: String): Duplex {
                 val accept = listeners[address] ?: throw com.neodesktop.dmodem.io.IOException("nobody at $address")
                 val (mine, theirs) = (object {}).let { pipeOf(me, address) }
                 background("accept") { accept(theirs) }
                 return mine
             }
+            /** this phone no longer listening */
             override fun close() { listeners.remove(me) }
         }
         lateinit var pipeOf: (String, String) -> Pair<Duplex, Duplex>
@@ -92,6 +100,7 @@ class PeerLoopbackTest {
 
         init { line.start(listen) }
 
+        /** what the phone was told so far, a copy */
         fun events() = synchronized(lock) { events.toList() }
 
         /** the modem off hook: its side of the line, answering samples with ours */
@@ -116,6 +125,7 @@ class PeerLoopbackTest {
         }
     }
 
+    /** waits up to [ms] for [cond], else fails for want of [what] */
     private fun waitFor(what: String, ms: Long = 15_000, cond: () -> Boolean) {
         val end = monotonicMs() + ms
         while (!cond()) {
@@ -124,6 +134,7 @@ class PeerLoopbackTest {
         }
     }
 
+    /** a call rung and answered, each modem hearing the other's samples; a third caller busy; the hang-up ending the far side */
     @Test
     fun aCallRungAnsweredHeardAndHungUp() {
         val ex = Exchange().apply { pipeOf = { a, b -> pipe(a, b) } }
@@ -163,6 +174,7 @@ class PeerLoopbackTest {
         }
     }
 
+    /** a wrong PIN or none is turned down without ringing; the right one rings and is answered */
     @Test
     fun aPinToCall() {
         val ex = Exchange().apply { pipeOf = { a, b -> pipe(a, b) } }
@@ -192,6 +204,7 @@ class PeerLoopbackTest {
         }
     }
 
+    /** the PIN proof is md5 of the nonce and PIN, and differs with either */
     @Test
     fun theProof() {
         // (the PIN never on the line: md5("DMODEM/1:" nonce ":" PIN))

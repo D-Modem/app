@@ -39,16 +39,20 @@ import kotlin.test.assertTrue
 class JobsTest {
     private class Memory : Incoming {
         val files = LinkedHashMap<String, Bytes>()
+        /** a new file [name] in memory: its stream and that name */
         override fun create(name: String, size: Long): Pair<Sink, String> = Bytes().let { b -> files[name] = b; b to name }
+        /** file [name] forgotten */
         override fun abandon(name: String) { files.remove(name) }
     }
 
     private class Log : LogOut {
         val lock = SynchronizedObject()
         val lines = ArrayList<String>()
+        /** [line] kept, in order */
         override fun log(line: String) { synchronized(lock) { lines.add(line) } }
     }
 
+    /** waits up to [ms] for [cond], else fails for want of [what] */
     private fun waitFor(what: String, ms: Long = 30_000, cond: () -> Boolean) {
         val end = monotonicMs() + ms
         while (!cond()) {
@@ -57,6 +61,7 @@ class JobsTest {
         }
     }
 
+    /** a fax sent by one FaxJob and received by another, ECM, as a PDF, with the remote's identity and changes reported */
     @Test
     fun aFaxBothWays() {
         val line = FakeFaxLine()
@@ -90,6 +95,7 @@ class JobsTest {
         assertTrue(changes > 3)
     }
 
+    /** a modem that answers ERROR to every fax command: that's the result, and the modem is put back to data */
     @Test
     fun noFaxModeAnswered() {
         // a modem that answers ERROR to everything: why, and the modem back to data
@@ -106,9 +112,11 @@ class JobsTest {
         assertTrue("AT+FCLASS=0\r" in said, "$said")
     }
 
+    /** [data] as a file [name] to send */
     private fun outgoing(name: String, data: ByteArray) = Outgoing(name, data.size.toLong(), 0) {
         object : Source {
             var at = 0
+            /** the next of [data], into [b]: how much, -1 at its end */
             override fun read(b: ByteArray, off: Int, len: Int): Int {
                 if (at >= data.size) return -1
                 val n = minOf(len, data.size - at)
@@ -119,6 +127,7 @@ class JobsTest {
         }
     }
 
+    /** a ZMODEM file from one TransferJob to another arrives whole, and a ZMODEM start is detected in the stream */
     @Test
     fun aTransferBetweenTwoJobs() {
         val data = Random(7).nextBytes(40_000)
@@ -149,14 +158,19 @@ class JobsTest {
         val lock = SynchronizedObject()
         val serverPackets = ByteQueue()
 
+        /** an address of four octets */
         private fun a(vararg b: Int): Inet4 = inet4(ByteArray(4) { b[it].toByte() })
 
         val server = Ppp({ b -> job.feed(Latin1.string(b)) }, events = object : Ppp.Events {
+            /** (the server's link up: nothing to do) */
             override fun up(config: Ppp.IpConfig) {}
+            /** a packet from the client, kept for the test */
             override fun ip(packet: ByteArray) = serverPackets.put(packet)
+            /** the link gone down: offline */
             override fun down(reason: String) { online = false }
         }, retryMs = 300, server = Ppp.Server(a(10, 64, 64, 1), a(10, 64, 64, 2), a(10, 64, 64, 1)))
 
+        /** the ISP's thread: commands answered, ATD connected and PPP started, then the line to PPP's server */
         fun start() = background("isp") {
             val cmd = StringBuilder()
             while (!stopped) {
@@ -180,6 +194,7 @@ class JobsTest {
             }
         }
 
+        /** what the ISP has heard so far */
         fun said() = synchronized(lock) { said.toString() }
     }
 
@@ -188,11 +203,15 @@ class JobsTest {
         @Volatile var dns = emptyList<String>()
         @Volatile var closed = false
         val packets = ByteQueue()
+        /** a packet from the link, kept for the test */
         override fun packet(p: ByteArray) = packets.put(p)
+        /** the link's address and DNS noted: up */
         override fun up(address: String, dns: List<String>, mtu: Int): Boolean { this.address = address; this.dns = dns; return true }
+        /** the tunnel noted closed */
         override fun close() { closed = true }
     }
 
+    /** dial-up through the fake ISP: the link's address and DNS to the tunnel, a packet each way, counts, and the hang-up with +++ and ATH */
     @Test
     fun dialUpInternet() {
         val isp = FakeIsp()
@@ -228,6 +247,7 @@ class JobsTest {
         }
     }
 
+    /** a BUSY to the dial ends the call as busy, and the tunnel is closed */
     @Test
     fun dialUpBusy() {
         lateinit var job: DialUpJob
@@ -242,6 +262,7 @@ class JobsTest {
         assertTrue(tunnel.closed)
     }
 
+    /** grey images as fax pages: thresholded, white to the fax's width, dithered about half black, and A4's rows */
     @Test
     fun greyAsFaxPages() {
         // a 4 by 2 image: black, white, dark grey, light grey

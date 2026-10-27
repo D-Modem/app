@@ -40,12 +40,14 @@ class FaxCallTest {
     private lateinit var b: String
     private val ends = ArrayList<PtyEnd>()
 
+    /** native-test's fax_line (or DMODEM_FAX_LINE's), if built, or null */
     private fun modemTest(): File? = listOfNotNull(
         System.getenv("DMODEM_FAX_LINE"),
         "../build-host/fax_line",
         "build-host/fax_line",
     ).map { File(it) }.firstOrNull { it.canExecute() }
 
+    /** fax_line started, both modems' ptys from its log */
     @Before
     fun setUp() {
         val mt = modemTest()
@@ -61,6 +63,7 @@ class FaxCallTest {
         b = log.first { it.startsWith("created modemB: ") }.substringAfter(": ")
     }
 
+    /** the ptys closed, fax_line stopped */
     @After
     fun tearDown() {
         ends.forEach { it.close() }
@@ -95,6 +98,7 @@ class FaxCallTest {
             ends.add(this)
         }
 
+        /** its pty closed */
         fun close() {
             runCatching { input.close() }
             runCatching { output.close() }
@@ -102,6 +106,7 @@ class FaxCallTest {
 
         var rates: List<T30.Rate> = emptyList()
 
+        /** class 1 on, as caller (X3) or answerer, and the modem's rates up to [maxBps] */
         fun setUp(caller: Boolean, maxBps: Int = 14400) {
             assertEquals("OK", c1.command("E0"))
             assertEquals("OK", c1.command(if (caller) "X3+FCLASS=1" else "+FCLASS=1"))
@@ -109,6 +114,7 @@ class FaxCallTest {
         }
     }
 
+    /** whether fax_line or a pty logged [what] within [secs] s */
     private fun waitLog(what: String, secs: Int = 30): Boolean {
         val end = System.currentTimeMillis() + secs * 1000L
         while (System.currentTimeMillis() < end) {
@@ -118,14 +124,18 @@ class FaxCallTest {
         return false
     }
 
+    /** the log's last 80 lines */
     private fun dump() = log.takeLast(80).joinToString("\n")
 
+    /** our sender to our receiver with ECM */
     @Test
     fun ourSenderToOurReceiver() = ourCall(ecm = true)
 
+    /** our sender to our receiver without ECM */
     @Test
     fun ourSenderToOurReceiverWithoutEcm() = ourCall(ecm = false)
 
+    /** two fine pages from our sender to our receiver, [ecm] or not: both sides' IDs and ECM, a fast rate, every pel as sent */
     private fun ourCall(ecm: Boolean) {
         val pages = listOf(FaxTestPage.of(true, rows = 600, seed = 1), FaxTestPage.of(true, rows = 300, seed = 2))
         val tx = PtyEnd(a).apply { setUp(caller = true) }
@@ -166,11 +176,14 @@ class FaxCallTest {
 
     // efax ---------------------------------------------------------------
 
+    /** whether efax and efix are installed */
     private fun efaxThere() = File("/usr/bin/efax").canExecute() && File("/usr/bin/efix").canExecute()
 
+    /** [cmd] run in [dir], its output to a file there: its exit status */
     private fun run(vararg cmd: String, dir: File): Int =
         ProcessBuilder(*cmd).directory(dir).redirectErrorStream(true).redirectOutput(File(dir, "${File(cmd[0]).name}.out")).start().waitFor()
 
+    /** efax sends us a page: received, below efax's blank header band, as it was */
     @Test
     fun efaxSendsToUs() {
         assumeTrue("efax isn't installed", efaxThere())
@@ -208,6 +221,7 @@ class FaxCallTest {
         assertArrayEquals(page.bits, g.bits.copyOfRange(band * g.stride, g.bits.size))
     }
 
+    /** we send efax two pages, without ECM: its files, converted back, as they were sent */
     @Test
     fun weSendToEfax() {
         assumeTrue("efax isn't installed", efaxThere())

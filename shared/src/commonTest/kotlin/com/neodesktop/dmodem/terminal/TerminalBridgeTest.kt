@@ -8,6 +8,7 @@ import kotlin.test.assertTrue
 
 /** The terminal as Swift has it: octets as Latin-1 strings each way, rows as runs, keys, replies. */
 class TerminalBridgeTest {
+    /** octets in show on the screen as runs with the cursor after them, a position report's answer is taken once, and the title is set */
     @Test
     fun octetsInScreenOutRepliesBack() {
         val t = TerminalBridge(20, 4)
@@ -26,6 +27,7 @@ class TerminalBridgeTest {
         assertEquals("BBS", t.title)
     }
 
+    /** typed text and keys as the octets to send: CR for a newline, control characters, UTF-8, and application cursor keys when asked */
     @Test
     fun typedAndKeys() {
         val t = TerminalBridge(20, 4)
@@ -41,6 +43,7 @@ class TerminalBridgeTest {
         assertEquals("\u001bOA", t.key("UP"))
     }
 
+    /** CP437 shows 0xdb as a full block, and typing one sends 0xdb */
     @Test
     fun cp437ForTheBbs() {
         val t = TerminalBridge(10, 2)

@@ -94,15 +94,18 @@ class LinuxSystemTest {
         }
     }
 
+    /** a system under the test's folder, with the phone's storage, 9.9.9.9 and this host's proxy */
     private fun newSystem(id: String) = LinuxSystem(
         File(Setup.base, id), Setup.programs, File(Setup.base, "tmp"),
         storage = { Setup.storage }, nameServers = { listOf("9.9.9.9") }, extraEnv = proxyEnv(),
     )
 
+    /** once for the class: proot built, the storage, Alpine installed; skipped where it can't be */
     @Before
     fun setUp() {
         Setup.skipped?.let { assumeTrue(it, false) }
         if (Setup.done) return
+        /** skipped from now on, saying [why] */
         fun skip(why: String) { Setup.skipped = why; assumeTrue(why, false) }
         if (Setup.machine == null) skip("no Linux for ${System.getProperty("os.arch")}")
         if (!runCatching { URL(Distro.ALPINE_MIRROR).openConnection().apply { connectTimeout = 10_000 }.getInputStream().close(); true }.getOrDefault(false)) skip("Alpine can't be reached")
@@ -131,6 +134,7 @@ class LinuxSystemTest {
     /** the shell's output, its colours left out; the cursor's position told when asked (busybox's shell asks, as a terminal answers) */
     private class Screen(private val link: LocalLink) : TerminalLink.Listener {
         private val sb = StringBuilder()
+        /** kept, a cursor position report asked for answered */
         override fun onData(data: ByteArray, length: Int) {
             val t = String(data, 0, length)
             if (t.contains("\u001b[6n")) link.write("\u001b[1;1R".toByteArray())
@@ -142,6 +146,7 @@ class LinuxSystemTest {
         }
     }
 
+    /** a shell on [sys], 100 by 30, started */
     private fun shell(sys: LinuxSystem): Pair<LocalLink, Screen> {
         val l = sys.link(100, 30)
         val s = Screen(l)
@@ -150,6 +155,7 @@ class LinuxSystemTest {
         return l to s
     }
 
+    /** waits until [cond] holds for [s]'s text, up to [secs] s; fails with the screen */
     private fun waitFor(what: String, s: Screen, secs: Int = 30, cond: (String) -> Boolean) {
         val end = System.currentTimeMillis() + secs * 1000L
         while (!cond(s.text)) {
@@ -158,6 +164,7 @@ class LinuxSystemTest {
         }
     }
 
+    /** Alpine installed with its name, the resolver and the prompt set up; made-up /proc files only for those hidden */
     @Test
     fun alpineInstalledAndSetUp() {
         val sys = Setup.alpine
@@ -171,6 +178,7 @@ class LinuxSystemTest {
         assertTrue(hidden.command().any { it.endsWith(":/proc/stat") })
     }
 
+    /** a root shell with the phone's storage in /sdcard, its size and hard links; exit's status 0 */
     @Test
     fun aRootShellWithThePhonesStorage() {
         val (l, s) = shell(Setup.alpine)
@@ -191,6 +199,7 @@ class LinuxSystemTest {
         assertEquals(0, l.exitStatus)
     }
 
+    /** Alpine's apk adds Lua and runs it */
     @Test
     fun apkAddsPackages() = packageManager(Setup.alpine, "alpine")
 
@@ -266,6 +275,7 @@ class LinuxSystemTest {
         assertTrue(failures.joinToString("\n\n"), failures.isEmpty())
     }
 
+    /** a system removed without what its link to the phone's storage leads to */
     @Test
     fun removedLeavingTheStorage() {
         val other = newSystem("other")
@@ -284,8 +294,11 @@ class LinuxSystemTest {
         val modem = object : TerminalLink {
             override val state = kotlinx.coroutines.flow.MutableStateFlow<TerminalLink.State>(TerminalLink.State.Open)
             val listeners = java.util.concurrent.CopyOnWriteArrayList<TerminalLink.Listener>()
+            /** takes [l] for what the modem says */
             override fun addListener(l: TerminalLink.Listener) { listeners.add(l) }
+            /** no more of it to [l] */
             override fun removeListener(l: TerminalLink.Listener) { listeners.remove(l) }
+            /** kept as sent; a command's CR answered */
             override fun write(data: ByteArray, offset: Int, length: Int): Boolean {
                 val t = String(data, offset, length, Charsets.ISO_8859_1)
                 got.append(t)

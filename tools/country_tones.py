@@ -27,6 +27,7 @@ ALIAS = re.compile(r'\{\s*"([A-Z0-9_]+)",\s*"([A-Z0-9_]+)"\s*\}')
 
 
 def tone(g, i):
+    """the Kotlin Tone() of the tone at i in the match g: its frequencies, modulation and cadence (its first n values)"""
     f1, f2, mod, n, cad = g[i:i + 5]
     vals = [v.strip().rstrip("f") for v in cad.split(",") if v.strip()][: int(n)]
     m = float(mod)
@@ -35,6 +36,7 @@ def tone(g, i):
 
 
 def main():
+    """tones.cpp's countries and aliases as CountryTonesTable.kt, to stdout"""
     text = open(SRC).read()
     countries_part, _, aliases_part = text.partition("const Alias ALIASES[]")
     countries = COUNTRY.findall(countries_part)

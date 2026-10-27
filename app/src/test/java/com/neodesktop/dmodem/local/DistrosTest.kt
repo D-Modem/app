@@ -22,6 +22,7 @@ import java.nio.file.Paths
 import java.security.MessageDigest
 import java.util.zip.GZIPOutputStream
 
+/** [f]'s SHA-256, in hex */
 private fun sha256(f: File) = MessageDigest.getInstance("SHA-256").digest(f.readBytes()).joinToString("") { "%02x".format(it) }
 
 /**
@@ -40,8 +41,11 @@ class DistrosTest {
     /** URLs answered from a map, downloads copied from local files */
     private class FakeHttp(val pages: Map<String, String>, val files: Map<String, File> = emptyMap()) : Http() {
         val asked = ArrayList<String>()
+        /** the page at [url], kept as asked; a 404 if there's none */
         override fun text(url: String): String { asked.add(url); return pages[url] ?: throw IOException("404 $url") }
+        /** the local file's size for [url], or -1 */
         override fun size(url: String): Long = files[url]?.length() ?: -1
+        /** the local file for [url] copied to [to]: its SHA-256 */
         override fun download(url: String, to: File, size: Long, progress: (Float) -> Unit): String {
             val f = files[url] ?: throw IOException("404 $url")
             f.copyTo(to, overwrite = true)
@@ -62,6 +66,7 @@ class DistrosTest {
         archlinux;current;amd64;default;20261016_04:18;/images/archlinux/current/amd64/default/20261016_04:18/
     """.trimIndent()
 
+    /** the Linux Containers' index read: the newest Fedora by number, its checksum; Debian only for the machines it's built for, Arch not for this one */
     @Test
     fun theLinuxContainersIndex() {
         val rows = Distro.parseLxcIndex(index)
@@ -88,6 +93,7 @@ class DistrosTest {
         assertTrue(e?.message, e?.message!!.contains("isn't built for this phone's processor"))
     }
 
+    /** Ubuntu's newest point release for the machine, by number, with its checksum */
     @Test
     fun ubuntusNewestPointRelease() {
         val base = "${Distro.UBUNTU_MIRROR}/24.04/release"
@@ -107,6 +113,7 @@ class DistrosTest {
         assertEquals("Ubuntu 24.04.10 LTS", r.name)
     }
 
+    /** a custom system's ID from its name, lower-case and hyphenated */
     @Test
     fun customNames() {
         assertEquals("custom-my-arch-build-2", Distro.customId("My Arch build #2"))
@@ -132,6 +139,7 @@ class DistrosTest {
         return t
     }
 
+    /** [dir] as a tarball made by tar, gzipped or xz'd for "gz" and "xz" */
     private fun tar(dir: File, compress: String): File {
         assumeTrue("no tar here", File("/usr/bin/tar").canExecute() || File("/bin/tar").canExecute())
         val plain = File(tmp.root, "t-${System.nanoTime()}.tar")
@@ -145,8 +153,10 @@ class DistrosTest {
         }
     }
 
+    /** a system under the test's folder, its name server 10.0.0.53 */
     private fun system(id: String) = LinuxSystem(File(tmp.root, "linux/$id"), tmp.root, tmp.newFolder(), nameServers = { listOf("10.0.0.53") })
 
+    /** installed from a .tar.gz, a .tar.xz (its system in one folder, moved up) and a plain .tar, the download gone */
     @Test
     fun installedFromEachKindOfArchive() {
         for (kind in listOf("gz", "xz", "tar")) {
@@ -162,6 +172,7 @@ class DistrosTest {
         }
     }
 
+    /** set up for proot: the resolver a file, apt's and pacman's sandboxes off (once), mtab, the prompt, root's shell through links resolved inside */
     @Test
     fun setUpForProot() {
         val f = tar(tree(), "gz")
@@ -197,6 +208,7 @@ class DistrosTest {
         assertFalse(sys.existsInside("/bin/host-only/linux"))
     }
 
+    /** a wrong checksum leaves nothing; a tarball that isn't a Linux system isn't installed */
     @Test
     fun aWrongChecksumOrNotASystemLeavesNothing() {
         val f = tar(tree(), "gz")
@@ -214,6 +226,7 @@ class DistrosTest {
         assertNull(sys.info)
     }
 
+    /** an Alpine installed by the first release is still known by its name */
     @Test
     fun theFirstReleasesAlpineStillKnown() {
         val sys = system("alpine")

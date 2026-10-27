@@ -15,6 +15,7 @@ class LogFormatTest {
     private val t = 1792987923417L
     private val lastOfDay = 1793059199999L
 
+    /** the default stamp on each line, a line for each new day */
     @Test
     fun stampedWithADayLine() = assertEquals(
         listOf("---- Monday 26 October 2026 ----", "[04:12:03.417] app: one", "[23:59:59.999] app: two",
@@ -22,12 +23,14 @@ class LogFormatTest {
         LogFormat.render(listOf(LogLine(t, "app: one"), LogLine(lastOfDay, "app: two"), LogLine(lastOfDay + 1, "app: three")), LogFormat.DEFAULT, utc),
     )
 
+    /** no stamp: the lines as they are, still the day's line */
     @Test
     fun noStamp() = assertEquals(
         listOf("---- Monday 26 October 2026 ----", "app: one"),
         LogFormat.render(listOf(LogLine(t, "app: one")), "", utc),
     )
 
+    /** another pattern's stamp; one that isn't valid, the default's */
     @Test
     fun otherPatternsAndBadOnes() {
         assertEquals("2026-10-26T04:12:03 app: one", LogFormat.render(listOf(LogLine(t, "app: one")), "yyyy-MM-dd'T'HH:mm:ss", utc)[1])
@@ -37,6 +40,7 @@ class LogFormatTest {
         assertEquals("[04:12:03.417] app: one", LogFormat.render(listOf(LogLine(t, "app: one")), "HH:mm:ss.msec", utc)[1])
     }
 
+    /** the buffer keeps its last lines, each with the time it was added */
     @Test
     fun theBufferTimesItsLines() {
         var now = t

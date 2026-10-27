@@ -27,6 +27,7 @@ class LocalShellTest {
     private val links = ArrayList<LocalLink>()
 
     companion object {
+        /** pty.c built for the host and loaded, once for the class */
         @BeforeClass
         @JvmStatic
         fun buildPty() = Pty.load(hostPty())
@@ -50,18 +51,22 @@ class LocalShellTest {
         }
     }
 
+    /** the shells started closed */
     @After
     fun tearDown() = links.forEach { it.close() }
 
     private class Screen : TerminalLink.Listener {
         private val sb = StringBuilder()
+        /** kept, as it came */
         override fun onData(data: ByteArray, length: Int) {
             synchronized(sb) { sb.append(String(data, 0, length)) }
         }
         val text get() = synchronized(sb) { sb.toString() }
+        /** what came so far forgotten */
         fun clear() = synchronized(sb) { sb.setLength(0) }
     }
 
+    /** [link] started, a [Screen] taking what it says */
     private fun start(link: LocalLink): Screen {
         links.add(link)
         val s = Screen()
@@ -70,6 +75,7 @@ class LocalShellTest {
         return s
     }
 
+    /** waits until [cond] holds for [s]'s text, up to 10 s; fails with the screen */
     private fun waitFor(what: String, s: Screen, cond: (String) -> Boolean) {
         val end = System.currentTimeMillis() + 10_000
         while (!cond(s.text)) {
@@ -78,11 +84,14 @@ class LocalShellTest {
         }
     }
 
+    /** an interactive /bin/sh in the test's folder, [cols] by [rows] */
     private fun sh(cols: Int = 80, rows: Int = 24) =
         LocalLink(listOf("/bin/sh", "-i"), mapOf("PATH" to "/usr/bin:/bin", "PS1" to "$ ", "TERM" to "xterm-256color"), tmp.root.path, cols, rows)
 
+    /** [s] typed on the shell's terminal */
     private fun LocalLink.type(s: String) = assertTrue(write(s.toByteArray()))
 
+    /** a shell on its own pty: its output, its window's size and changes, the directory it started in */
     @Test
     fun aShellOnItsOwnTerminal() {
         val l = sh()
@@ -100,6 +109,7 @@ class LocalShellTest {
         waitFor("its directory", s) { it.contains(tmp.root.canonicalPath) || it.contains(tmp.root.path) }
     }
 
+    /** ^C interrupts the running job, not the shell */
     @Test
     fun ctrlCInterruptsTheJobNotTheShell() {
         val l = sh()
@@ -114,6 +124,7 @@ class LocalShellTest {
         assertEquals(TerminalLink.State.Open, l.state.value)
     }
 
+    /** the shell's exit: closed with its status, nothing written after */
     @Test
     fun itsExitAndItsStatus() {
         val l = sh()
@@ -126,6 +137,7 @@ class LocalShellTest {
         assertTrue("nothing written after", !l.write("x".toByteArray()))
     }
 
+    /** closed: the shell and its background jobs hung up */
     @Test
     fun closedHangsUpTheShellAndItsJobs() {
         val l = sh()
@@ -144,6 +156,7 @@ class LocalShellTest {
         assertTrue("the job went with it", !marker.exists())
     }
 
+    /** a shell that can't be run: status 127 and the exec failure on the screen */
     @Test
     fun noSuchShell() {
         val l = LocalLink(listOf("/nonexistent/sh"), emptyMap(), null)
@@ -154,6 +167,7 @@ class LocalShellTest {
         assertTrue(s.text, s.text.contains("exec failed: /nonexistent/sh"))
     }
 
+    /** mksh with the app's start-up file: the coloured prompt, the environment, the aliases; a start-up file the user changed kept */
     @Test
     fun theAppsShellWithItsStartUpFile() {
         assumeTrue("mksh (Android's shell) isn't installed", File("/usr/bin/mksh").canExecute())

@@ -79,6 +79,7 @@ class FakeNetwork(private val codec: String? = null, private val closers: Mutabl
             return frames.poll() ?: ByteArray(FRAME_BYTES).also { primed = false }
         }
 
+        /** the frames waiting dropped, the jitter buffer to prime again */
         @Synchronized
         fun clear() {
             frames.clear()
@@ -98,6 +99,7 @@ class FakeNetwork(private val codec: String? = null, private val closers: Mutabl
         /** the call up (both ends off hook) */
         @Volatile var connected = false
 
+        /** rings [number] if it's there and idle; else the call ends half a second later */
         override fun dial(number: String) {
             dialled.add(number)
             val to = phones[number]
@@ -112,6 +114,7 @@ class FakeNetwork(private val codec: String? = null, private val closers: Mutabl
             to.state.value = CellPhone.State.RINGING
         }
 
+        /** a ringing call taken: both ends connected */
         override fun answer() {
             answered++
             val o = other ?: return
@@ -121,6 +124,7 @@ class FakeNetwork(private val codec: String? = null, private val closers: Mutabl
             o.connected = true
         }
 
+        /** both ends idle again, their call and its sound gone */
         override fun hangUp() {
             hungUp++
             val o = other
@@ -134,7 +138,9 @@ class FakeNetwork(private val codec: String? = null, private val closers: Mutabl
 
         /** the phone's call sound (AudioRecord/AudioTrack on its clock) */
         val audio = object : CallAudio {
+            /** always available */
             override fun unavailable(): String? = null
+            /** the call's sound, a frame each 20 ms each way; only while off hook */
             override fun open(): CallStreams {
                 if (state.value != CellPhone.State.OFFHOOK) throw IOException("no call")
                 val me = this@Phone
@@ -144,7 +150,9 @@ class FakeNetwork(private val codec: String? = null, private val closers: Mutabl
                     override val input = object : InputStream() {
                         private var frame = ByteArray(0)
                         private var at = 0
+                        /** (only whole buffers read) */
                         override fun read(): Int = throw UnsupportedOperationException()
+                        /** the call's sound for this phone, up to [len] bytes, a frame each 20 ms on the clock: silence while the call isn't up; -1 once closed */
                         override fun read(b: ByteArray, off: Int, len: Int): Int {
                             if (!open) return -1
                             if (at >= frame.size) {
@@ -163,7 +171,9 @@ class FakeNetwork(private val codec: String? = null, private val closers: Mutabl
                         }
                     }
                     override val output = object : OutputStream() {
+                        /** (only whole buffers written) */
                         override fun write(b: Int) = throw UnsupportedOperationException()
+                        /** this phone's sound to the other's, while the call's up; nowhere otherwise */
                         override fun write(b: ByteArray, off: Int, len: Int) {
                             if (!open) throw IOException("closed")
                             // (before the call's up, and after: nowhere)
@@ -171,6 +181,7 @@ class FakeNetwork(private val codec: String? = null, private val closers: Mutabl
                             if (me.connected && o != null) o.incoming.write(b, off, len)
                         }
                     }
+                    /** both ways ended */
                     override fun close() { open = false }
                 }
             }
@@ -179,11 +190,13 @@ class FakeNetwork(private val codec: String? = null, private val closers: Mutabl
 
     val phones = HashMap<String, Phone>()
 
+    /** a new phone on the network with [number] */
     fun phone(number: String) = Phone(number).also { phones[number] = it }
 
     companion object {
         const val FRAME_BYTES = 320
 
+        /** native-test's codec_line, if built, or null */
         fun codecLine(): File? = listOfNotNull(
             System.getenv("DMODEM_CODEC_LINE"),
             "../build-host/codec_line",

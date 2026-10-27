@@ -10,8 +10,10 @@ import kotlin.test.assertTrue
 /** A screen's rows as styled runs (what the iOS app draws): the text, its cells, its colours resolved. */
 class TerminalRunsTest {
     private val vga = TermTheme.VGA
+    /** [rgb] opaque */
     private fun argb(rgb: Int) = 0xff000000.toInt() or rgb
 
+    /** a row's runs split where the style changes: colours, bold as bright (or heavy), inverse swapping the defaults, all cells counted */
     @Test
     fun plainColouredBoldInverse() {
         val t = TerminalEmulator(20, 3)
@@ -33,6 +35,7 @@ class TerminalRunsTest {
         assertEquals(argb(0xaa0000), heavy[1].fg)
     }
 
+    /** a wide character is one run's text over two cells, true colour resolved, and an unwritten row is spaces in the theme's colours */
     @Test
     fun wideCharactersAndTrueColour() {
         val t = TerminalEmulator(10, 2)
@@ -48,6 +51,7 @@ class TerminalRunsTest {
         assertEquals(vga.bgArgb, blank.bg)
     }
 
+    /** a colour the remote sets (OSC 4) is the one runs use */
     @Test
     fun theRemotesPalette() {
         val t = TerminalEmulator(10, 1)

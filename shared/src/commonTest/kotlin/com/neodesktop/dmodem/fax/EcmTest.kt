@@ -20,6 +20,7 @@ import kotlin.test.assertTrue
  */
 class EcmTest {
 
+    /** ECM's HDLC frames come back as sent (flags and ones stuffed), and a damaged bit costs a frame, not the rest */
     @Test
     fun hdlcThereAndBack() {
         val r = Random(7)
@@ -53,6 +54,7 @@ class EcmTest {
 
     private class Result(val sent: FaxProgress?, val received: FaxProgress?, val pages: List<FaxPage>, val txError: Throwable?, val rxError: Throwable?)
 
+    /** a fax of [pages] from A to B over [line] (ECM on either side as asked): what each side made of it */
     private fun call(line: FakeFaxLine, pages: List<FaxPage>, txEcm: Boolean = true, rxEcm: Boolean = true): Result {
         val tx = line.a.c1
         val rx = line.b.c1
@@ -86,6 +88,7 @@ class EcmTest {
         return Result(sent, received, got, txError, rxError)
     }
 
+    /** both sides done without an error, and B got [want] exactly */
     private fun assertPages(want: List<FaxPage>, r: Result) {
         assertEquals(null, r.txError)
         assertEquals(null, r.rxError)
@@ -97,6 +100,7 @@ class EcmTest {
         }
     }
 
+    /** a call in ECM: the noisy page in several blocks, each confirmed, nothing asked again nor a lower rate */
     @Test
     fun aCallInEcm() {
         val line = FakeFaxLine()
@@ -114,6 +118,7 @@ class EcmTest {
         assertTrue("B>8c" in seen)
     }
 
+    /** frames spoilt in the first block are asked for again once (PPR), at the same rate */
     @Test
     fun theFramesThatDidNotComeAgain() {
         val line = FakeFaxLine()
@@ -129,6 +134,7 @@ class EcmTest {
         assertEquals(14400, r.sent!!.bps)
     }
 
+    /** a burst spoilt four times brings the rate down a step (CTC), and the page still gets there */
     @Test
     fun aLowerRateAfterFourTries() {
         val line = FakeFaxLine()
@@ -146,6 +152,7 @@ class EcmTest {
         assertEquals(12000, r.sent!!.bps)
     }
 
+    /** a block that never gets through is given up (EOR), and the call goes on to the next page whole */
     @Test
     fun aBlockGivenUp() {
         val line = FakeFaxLine()
@@ -166,6 +173,7 @@ class EcmTest {
         assertContentEquals(pages[1].bits, r.pages.last().bits)
     }
 
+    /** a receiver without ECM gets the page without it */
     @Test
     fun withoutEcmWhenTheReceiverHasNone() {
         val line = FakeFaxLine()

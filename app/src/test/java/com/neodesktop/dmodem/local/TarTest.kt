@@ -20,6 +20,7 @@ class TarTest {
     @get:Rule
     val tmp = TemporaryFolder()
 
+    /** [dir] as a tarball the system's tar makes in [format] */
     private fun tar(dir: File, format: String): File {
         assumeTrue("no tar here", File("/usr/bin/tar").canExecute() || File("/bin/tar").canExecute())
         val out = File(tmp.root, "t-$format.tar")
@@ -30,6 +31,7 @@ class TarTest {
         return out
     }
 
+    /** a GNU and a pax tar unpacked as made: modes, symbolic and hard links, long names, a big file, an empty folder */
     @Test
     fun aTreeAsTarMadeIt() {
         val src = tmp.newFolder("src")
@@ -65,6 +67,7 @@ class TarTest {
     /** a tar written by hand: entries the system's tar wouldn't make */
     private class Writer {
         val out = ByteArrayOutputStream()
+        /** an entry: a ustar header for [name] of [type], then [data] padded to 512 */
         fun entry(name: String, type: Char, data: ByteArray = ByteArray(0), link: String = "") {
             val h = ByteArray(512)
             name.toByteArray().copyInto(h, 0)
@@ -79,9 +82,11 @@ class TarTest {
             out.write(data)
             out.write(ByteArray((512 - data.size % 512) % 512))
         }
+        /** the tar so far, with its two zero blocks to end it */
         fun bytes() = out.toByteArray() + ByteArray(1024)
     }
 
+    /** entries escaping the destination (.., through a link, a hard link out) refused, absolute names kept inside */
     @Test
     fun nothingWrittenOutside() {
         val outside = tmp.newFolder("outside")
@@ -101,6 +106,7 @@ class TarTest {
         assertFalse(File(dest, "hard").exists())
     }
 
+    /** a tree removed, read-only folders too, without following its links out */
     @Test
     fun removedWithoutFollowingLinks() {
         val outside = tmp.newFolder("storage")

@@ -19,6 +19,7 @@ class ZModem(
 ) {
     private var p = Progress()
 
+    /** [f] applied to the progress so far, and that passed on */
     private fun report(f: (Progress) -> Progress) {
         p = f(p)
         progress(p)
@@ -35,10 +36,13 @@ class ZModem(
         /** ZF0 (ZF0 is p[3], as the spec numbers the flags) */
         val f0: Int get() = p[3].toInt() and 0xff
 
+        /** the header's type by name, and its position */
         override fun toString() = "Header(${NAMES.getOrElse(type) { "$type" }}, $pos)"
 
         companion object {
+            /** a header of [type] carrying [pos] (ZP0 lowest) */
             fun pos(type: Int, pos: Long) = Header(type, ByteArray(4) { ((pos shr (8 * it)) and 0xff).toByte() })
+            /** a header of [type] carrying flags ZF0..ZF3 (ZF0 in p[3]) */
             fun flags(type: Int, f0: Int, f1: Int = 0, f2: Int = 0, f3: Int = 0) =
                 Header(type, byteArrayOf(f3.toByte(), f2.toByte(), f1.toByte(), f0.toByte()))
         }
@@ -61,6 +65,7 @@ class ZModem(
         io.write(b.toByteArray())
     }
 
+    /** [v] as two lower-case hex digits */
     private fun hex2(v: Int): ByteArray = v.toString(16).padStart(2, '0').encodeToByteArray()
 
     /** a header in binary (the sender's): CRC-32 when the receiver can */
@@ -140,6 +145,7 @@ class ZModem(
         }
     }
 
+    /** the next octet from the line; an error when none comes in time */
     private fun readByte(): Int {
         val c = io.read(timeoutMs)
         if (c < 0) throw IOException("the other side went quiet")
@@ -186,6 +192,7 @@ class ZModem(
         }
     }
 
+    /** a binary header's type, ZP0..ZP3 and check (CRC-32 if [c32]): the header, or null if it was damaged */
     private fun readBinHeader(c32: Boolean): Header? {
         val raw = ByteArray(5)
         for (i in 0 until 5) {
@@ -213,6 +220,7 @@ class ZModem(
     /** how the sender's data comes: CRC-32 when its headers did */
     private var rxCrc32 = false
 
+    /** a hex header's seven octets and its CR LF: the header, or null if its digits or check were bad */
     private fun readHexHeader(): Header? {
         val raw = ByteArray(7)
         for (i in 0 until 7) {
@@ -229,6 +237,7 @@ class ZModem(
         return Header(raw[0].toInt() and 0xff, raw.copyOfRange(1, 5))
     }
 
+    /** a hex digit's value, -1 if [c] isn't one */
     private fun hexDigit(c: Int): Int = when (c) {
         in '0'.code..'9'.code -> c - '0'.code
         in 'a'.code..'f'.code -> c - 'a'.code + 10
@@ -272,6 +281,7 @@ class ZModem(
     fun receive(into: Incoming): List<String> {
         val names = ArrayList<String>()
         var errors = 0
+        /** our ZRINIT: full duplex, overlapped I/O, CRC-32 */
         fun zrinit() = sendHex(Header.flags(ZRINIT, CANFDX or CANOVIO or CANFC32))
         zrinit()
         var lastHeaderAt = monotonicMs()
@@ -342,10 +352,12 @@ class ZModem(
         // comes of its stream from before, broken headers in its data, isn't an error and
         // isn't asked for again: each ZRPOS a restart of its own, its leftovers more of them)
         var rposAt = 0L
+        /** a ZRPOS for [pos] sent, and when noted */
         fun rpos() {
             sendHex(Header.pos(ZRPOS, pos))
             rposAt = monotonicMs()
         }
+        /** whether a ZRPOS is still too recent for the sender to have heard it */
         fun waiting() = monotonicMs() - rposAt < RPOS_GRACE_MS
         try {
             out.use { o ->
@@ -449,6 +461,7 @@ class ZModem(
         io.write("OO".encodeToByteArray())
     }
 
+    /** ZRQINIT until the receiver's ZRINIT (answering a ZCHALLENGE on the way): that header */
     private fun waitForZrinit(): Header {
         var tries = 0
         sendHex(Header(ZRQINIT))
@@ -472,6 +485,7 @@ class ZModem(
         }
     }
 
+    /** the next header, or null when it was damaged or didn't come (a cancel still thrown) */
     private fun readHeaderOrNull(): Header? =
         try { readHeader() } catch (e: TransferCancelled) { throw e } catch (_: IOException) { null }
 
@@ -517,6 +531,7 @@ class ZModem(
         var pos = 0L
             private set
 
+        /** the file positioned at [to]: reopened first to go back, skipped or read forward */
         fun seek(to: Long) {
             if (to < pos) {
                 input.close()
@@ -534,6 +549,7 @@ class ZModem(
             }
         }
 
+        /** [buf] filled from the file as far as it goes: how much was read */
         fun read(buf: ByteArray): Int {
             var len = 0
             while (len < buf.size) {
@@ -545,6 +561,7 @@ class ZModem(
             return len
         }
 
+        /** the file closed */
         fun close() = input.close()
     }
 
@@ -560,6 +577,7 @@ class ZModem(
         var at = start
         // (errors counted while no progress is made: a long noisy file still gets there)
         var lastBack = -1L
+        /** the stream restarted at [to] (another error, counted while no progress is made) and the line's leftovers purged */
         fun back(to: Long) {
             if (to > lastBack) errors = 0
             lastBack = to

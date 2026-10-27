@@ -29,13 +29,17 @@ class PppLoopbackTest {
         @Volatile var config: Ppp.IpConfig? = null
         @Volatile var down: String? = null
         val packets = ByteQueue()
+        /** the link's configuration, noted */
         override fun up(config: Ppp.IpConfig) { this.config = config }
+        /** an IP packet from the link, kept for the test */
         override fun ip(packet: ByteArray) = packets.put(packet)
+        /** why the link went down, noted */
         override fun down(reason: String) { down = reason }
     }
 
     private class Flag { @Volatile var on = false }
 
+    /** waits up to [ms] for [cond], else fails for want of [what] */
     private fun waitFor(what: String, ms: Long = 10_000, cond: () -> Boolean) {
         val end = monotonicMs() + ms
         while (!cond()) {
@@ -44,8 +48,10 @@ class PppLoopbackTest {
         }
     }
 
+    /** an address of four octets */
     private fun a(vararg b: Int): Inet4 = inet4(ByteArray(4) { b[it].toByte() })
 
+    /** a client and its server: the link up with the server's address and DNS, a UDP packet each way, and the client's hang-up downing both */
     @Test
     fun aClientAndItsServer() = runBlocking {
         val toServer = ByteQueue()
@@ -88,8 +94,10 @@ class PppLoopbackTest {
         }
     }
 
+    /** MD5 gives RFC 1321's digests, over more than one block too */
     @Test
     fun md5() {
+        /** [b] in lower-case hex */
         fun hex(b: ByteArray) = b.joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') }
         assertEquals("d41d8cd98f00b204e9800998ecf8427e", hex(Md5.digest(ByteArray(0))))
         assertEquals("900150983cd24fb0d6963f7d28e17f72", hex(Md5.digest("abc".encodeToByteArray())))

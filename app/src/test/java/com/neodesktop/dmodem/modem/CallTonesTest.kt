@@ -21,7 +21,9 @@ class CallTonesTest {
     private class FakePlayer : CallProgress.Player {
         val heard = CopyOnWriteArrayList<String>()
         @Volatile var now: CallTones.Kind? = null
+        /** kept as heard, [kind] now playing */
         override fun play(kind: CallTones.Kind, ms: Int) { heard.add("$kind $ms"); now = kind }
+        /** the tone playing stopped (only [only], if given), kept as heard */
         override fun stop(only: CallTones.Kind?) {
             if (only != null && now != only) return
             heard.add("stop" + (only?.let { " $it" } ?: ""))
@@ -31,11 +33,13 @@ class CallTonesTest {
 
     private var clock = 100_000L
 
+    /** a call's progress on a fake player, on the test's clock */
     private fun progress(): Pair<CallProgress, FakePlayer> {
         val p = FakePlayer()
         return CallProgress(p) { clock } to p
     }
 
+    /** BUSY from the modem, split or not, plays the busy tone */
     @Test
     fun busyWhenTheModemSaysSo() {
         val (cp, p) = progress()
@@ -46,6 +50,7 @@ class CallTonesTest {
         assertEquals(listOf("BUSY 4000"), p.heard)
     }
 
+    /** a dial ending in NO CARRIER or NO DIALTONE before a connect plays congestion; a call that connected, none */
     @Test
     fun congestionForADialThatNeverGotThrough() {
         val (cp, p) = progress()
@@ -69,6 +74,7 @@ class CallTonesTest {
         assertEquals(listOf("CONGESTION 4000"), p.heard)
     }
 
+    /** an answered call's NO CARRIER plays no tone; long after the ring it's a dial again */
     @Test
     fun aCallAnsweredIsntOneDialled() {
         val (cp, p) = progress()
@@ -85,6 +91,7 @@ class CallTonesTest {
         assertEquals(listOf("CONGESTION 4000"), p.heard)
     }
 
+    /** the other phone ringing plays the ringing tone; BUSY there the busy tone, left playing; answered, the ringing stopped */
     @Test
     fun theOtherPhoneRinging() {
         val (cp, p) = progress()
@@ -108,15 +115,20 @@ class CallTonesTest {
     private class FakeSink : ModemSpeaker.Sink {
         val got = ByteArrayOutputStream()
         @Volatile var closed = false
+        /** kept, as written */
         override fun write(pcm: ByteArray, n: Int) = synchronized(got) { got.write(pcm, 0, n) }
+        /** any volume taken */
         override fun volume(v: Float) {}
+        /** closed, for the test to see */
         override fun close() { closed = true }
+        /** the samples written so far, 16-bit little-endian */
         fun samples(): ShortArray = synchronized(got) {
             val b = got.toByteArray()
             ShortArray(b.size / 2) { ((b[2 * it].toInt() and 0xff) or (b[2 * it + 1].toInt() shl 8)).toShort() }
         }
     }
 
+    /** [f] Hz's level in [x] from [from], over [n] samples (Goertzel's) */
     private fun level(x: ShortArray, f: Double, from: Int, n: Int): Double {
         val k = 2 * cos(2 * PI * f / 8000)
         var s1 = 0.0
@@ -129,6 +141,7 @@ class CallTonesTest {
         return 2 * sqrt(s1 * s1 + s2 * s2 - k * s1 * s2) / n
     }
 
+    /** a second of the UK's dial tone (350 and 440 Hz, not 400), then the tail's silence; closed, nothing playing */
     @Test
     fun aSecondOfTheCountrysDialTone() {
         val sinks = CopyOnWriteArrayList<FakeSink>()
@@ -151,6 +164,7 @@ class CallTonesTest {
         assertTrue(System.nanoTime() - t0 < 5_000_000_000)
     }
 
+    /** the ringing tone played until stopped (not by another's stop); off, nothing plays; the preview plays all four anyway */
     @Test
     fun stoppedAndTurnedOff() {
         val sinks = CopyOnWriteArrayList<FakeSink>()

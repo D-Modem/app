@@ -37,6 +37,7 @@ interface TunnelStarter {
     /** the tunnel up with [address], [dns] (comma between), its packets to 127.0.0.1:[port]: whether it started */
     fun start(address: String, dns: String, mtu: Int, port: Int): Boolean
 
+    /** the tunnel stopped */
     fun stop()
 }
 
@@ -76,6 +77,7 @@ class UdpPacketTunnel(private val job: DialUpJob, private val starter: TunnelSta
         background("tunnel") { receive() }
     }
 
+    /** the extension's datagrams until closed: where it is noted, each IPv4 packet passed on to the link; the socket closed at the end */
     private fun receive() {
         val buf = ByteArray(65536)
         while (running.value) {
@@ -106,6 +108,7 @@ class UdpPacketTunnel(private val job: DialUpJob, private val starter: TunnelSta
         platform.posix.close(fd)
     }
 
+    /** [p] from the link to the extension, once it has said where it is (else dropped) */
     override fun packet(p: ByteArray) {
         val to = synchronized(lock) { peer } ?: return
         toTunnel.incrementAndGet()
@@ -116,17 +119,21 @@ class UdpPacketTunnel(private val job: DialUpJob, private val starter: TunnelSta
         }
     }
 
+    /** the extension started with the link's [address], [dns] and [mtu], its packets to our port: whether it did */
     override fun up(address: String, dns: List<String>, mtu: Int): Boolean =
         starter.start(address, dns.joinToString(","), mtu, port)
 
+    /** no more packets taken, and the extension stopped (once) */
     override fun close() {
         if (!running.compareAndSet(true, false)) return
         starter.stop()
     }
 
+    /** [v] in network order (big-endian) */
     private fun htonl(v: UInt): UInt = if (bigEndian) v else
         ((v and 0xffu) shl 24) or ((v and 0xff00u) shl 8) or ((v shr 8) and 0xff00u) or (v shr 24)
 
+    /** [v] from network order */
     private fun ntohs(v: UShort): UShort = if (bigEndian) v else
         (((v.toInt() and 0xff) shl 8) or (v.toInt() shr 8 and 0xff)).toUShort()
 

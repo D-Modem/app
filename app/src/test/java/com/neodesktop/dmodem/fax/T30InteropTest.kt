@@ -27,6 +27,7 @@ class T30InteropTest {
 
     private var line: FaxLineProcess? = null
 
+    /** t30_line stopped */
     @After
     fun tearDown() {
         line?.close()
@@ -43,6 +44,7 @@ class T30InteropTest {
         return c
     }
 
+    /** t30_line's log's end */
     private fun dump() = line!!.dump()
 
     /** the machine's RESULT line's fields: ok, pages, bps, ecm */
@@ -58,6 +60,7 @@ class T30InteropTest {
         return mapOf("ok" to f[1], "pages" to f[3], "bps" to f[5], "ecm" to f[7], "why" to f.drop(8).joinToString(" "))
     }
 
+    /** two pages from us to D-Modem-RE's T.30, [ecm] or not, on a line [snr] dB clean if given: it got them, every pel, as we sent them */
     private fun theyReceive(ecm: Boolean, snr: Double = 0.0) {
         val dir = tmp.newFolder()
         val args = mutableListOf("receive", dir.path)
@@ -85,6 +88,7 @@ class T30InteropTest {
         }
     }
 
+    /** D-Modem-RE's T.30 sends us its pages, [ecm] or not, at most [maxBps], [snr] dB clean if given: every pel as it sent them; the pages */
     private fun theySend(ecm: Boolean, snr: Double = 0.0, maxBps: Int = 14400): List<FaxPage> {
         val dir = tmp.newFolder()
         val args = mutableListOf("send", dir.path, "--bps", maxBps.toString())
@@ -113,12 +117,15 @@ class T30InteropTest {
         return got
     }
 
+    /** we send in ECM */
     @Test
     fun weSendInEcm() = theyReceive(ecm = true)
 
+    /** we send without ECM */
     @Test
     fun weSendWithoutEcm() = theyReceive(ecm = false)
 
+    /** we receive in ECM */
     @Test
     fun weReceiveInEcm() {
         theySend(ecm = true)
@@ -131,12 +138,14 @@ class T30InteropTest {
         theySend(ecm = false)
     }
 
+    /** we send in ECM on a noisy line (21 dB), its spoilt frames sent again */
     @Test
     fun weSendInEcmOnANoisyLine() {
         theyReceive(ecm = true, snr = 21.0)
         println("PPRs to us: " + line!!.log.count { it.contains("<- frame ff 13 bc") })
     }
 
+    /** we receive in ECM on a noisy line (21 dB), its spoilt frames asked for again */
     @Test
     fun weReceiveInEcmOnANoisyLine() {
         theySend(ecm = true, snr = 21.0)

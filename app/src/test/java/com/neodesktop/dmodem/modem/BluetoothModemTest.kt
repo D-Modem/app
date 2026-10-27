@@ -25,12 +25,14 @@ class BluetoothModemTest {
     private val ctx: Context = ApplicationProvider.getApplicationContext()
     private val adapter get() = ctx.getSystemService(BluetoothManager::class.java).adapter
 
+    /** [ok] within 5 s, or fails saying [what] */
     private fun waitUntil(what: String, ok: () -> Boolean) {
         val end = System.currentTimeMillis() + 5000
         while (!ok() && System.currentTimeMillis() < end) Thread.sleep(20)
         assertTrue(what, ok())
     }
 
+    /** a paired modem connected over its Dial-Up Networking service, the hub's AT command reaching it and its OK heard */
     @Test
     fun theTerminalTalksToIt() {
         shadowOf(ctx as Application).grantPermissions(Manifest.permission.BLUETOOTH_CONNECT)
@@ -56,6 +58,7 @@ class BluetoothModemTest {
         hub.detach()
     }
 
+    /** with Bluetooth off, connecting fails saying so */
     @Test
     fun offSaysSo() {
         shadowOf(ctx as Application).grantPermissions(Manifest.permission.BLUETOOTH_CONNECT)

@@ -13,6 +13,7 @@ import kotlin.test.assertEquals
  * submodule and Python are here).
  */
 class CountryTonesSourceTest {
+    /** tools/country_tones.py run on D-Modem-RE's tones.cpp gives the committed table (skipped without them or Python) */
     @Test
     fun theTableIsD_ModemREs() {
         val root = generateSequence(File("").absoluteFile) { it.parentFile }.firstOrNull { File(it, "tools/country_tones.py").exists() } ?: return

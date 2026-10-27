@@ -79,6 +79,7 @@ class FdDuplex(private val fd: Int, override val name: String = "modem") : Duple
     }
 
     override val input: Source = object : Source {
+        /** up to [len] bytes received into [b]: how many, -1 at the end (or once closed) */
         override fun read(b: ByteArray, off: Int, len: Int): Int {
             if (len <= 0) return 0
             while (true) {
@@ -94,6 +95,7 @@ class FdDuplex(private val fd: Int, override val name: String = "modem") : Duple
     }
 
     override val output: Sink = object : Sink {
+        /** all of [len] bytes of [b] from [off] sent; an error if the connection ended */
         override fun write(b: ByteArray, off: Int, len: Int) {
             var at = off
             var left = len
@@ -107,6 +109,7 @@ class FdDuplex(private val fd: Int, override val name: String = "modem") : Duple
         }
     }
 
+    /** the socket shut down and closed (once) */
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
         shutdown(fd, SHUT_RDWR)
@@ -139,6 +142,7 @@ class PosixTcpTransport(private val port: Int) : PeerTransport {
             }
         }
 
+    /** calls taken on [port] in the background until [close], each handed to [accept] */
     override fun listen(accept: (Duplex) -> Unit) {
         val fd = bound(port) ?: throw IOException("can't take calls on port $port (errno $errno)")
         listenFd.value = fd
@@ -162,6 +166,7 @@ class PosixTcpTransport(private val port: Int) : PeerTransport {
         }
     }
 
+    /** a TCP connection to [address] (host[:port]), trying each of its addresses in turn; an error saying why none answered */
     override fun connect(address: String): Duplex {
         val (host, p) = parse(address, port)
         memScoped {
@@ -192,6 +197,7 @@ class PosixTcpTransport(private val port: Int) : PeerTransport {
         }
     }
 
+    /** no more calls taken (the listening loop ends and closes its socket) */
     override fun close() {
         running.value = false
     }
@@ -242,6 +248,7 @@ class PosixTcpTransport(private val port: Int) : PeerTransport {
         err
     }
 
+    /** the numeric host of the socket's other end, "?" if unknown */
     private fun peerName(fd: Int): String = memScoped {
         val sa = alloc<sockaddr_storage>()
         val len = alloc<socklen_tVar>()

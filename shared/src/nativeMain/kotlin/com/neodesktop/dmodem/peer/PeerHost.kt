@@ -41,6 +41,7 @@ class PeerHost(
         "can't take calls: ${e.message ?: e}"
     }
 
+    /** the line stopped */
     fun stop() = line.stop()
 
     /** the modem off hook: its line (the engine's socket), dialling [dial] if [caller] */

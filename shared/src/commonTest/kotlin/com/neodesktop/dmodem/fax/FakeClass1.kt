@@ -33,6 +33,7 @@ class FakeFaxLine {
     val seen = ArrayList<String>()
     private val lock = SynchronizedObject()
 
+    /** the FCFs seen so far, a copy */
     fun seen(): List<String> = synchronized(lock) { seen.toList() }
 
     inner class Modem(val name: String) {
@@ -51,15 +52,19 @@ class FakeFaxLine {
         /** what the modem says, to here instead of [io] (a FaxJob's feed) */
         @Volatile var tap: ((ByteArray) -> Unit)? = null
 
+        /** what the modem says, to [tap] if set, else to its DTE */
         private fun toHost(b: ByteArray) {
             val t = tap
             if (t != null) t(b) else io.feed(b)
         }
 
+        /** a transmission from the other modem, kept for this one's receiver */
         fun deliver(t: Tx) = synchronized(lock) { inbox.add(t) }
 
+        /** whether the DTE has sent something not yet read */
         private fun dteWaiting() = at < cur.size || fromDte.isNotEmpty()
 
+        /** the DTE's next octet (waited for); an error once stopped */
         private fun byte(): Int {
             while (at >= cur.size) {
                 if (stopped) throw IllegalStateException("stopped")
@@ -69,6 +74,7 @@ class FakeFaxLine {
             return cur[at++].toInt() and 0xff
         }
 
+        /** [s] said to the DTE as a result line */
         private fun say(s: String) = toHost("\r\n$s\r\n".encodeToByteArray())
 
         /** <DLE> shielded data from the DTE, to <DLE><ETX> */
@@ -84,6 +90,7 @@ class FakeFaxLine {
             }
         }
 
+        /** [d] to the DTE <DLE> shielded, <DLE><ETX> after */
         private fun toDte(d: ByteArray) {
             val o = Bytes()
             for (b in d) { o.write(b.toInt()); if (b.toInt() and 0xff == Class1.DLE) o.write(Class1.DLE) }
@@ -105,6 +112,7 @@ class FakeFaxLine {
             }
         }
 
+        /** the transmission come in first, taken */
         private fun take() = synchronized(lock) { inbox.removeAt(0) }
 
         /** +FTH=3 from its CONNECT: frames until the final one (or an empty one) */
@@ -149,6 +157,7 @@ class FakeFaxLine {
             say("NO CARRIER")
         }
 
+        /** an AT command from the DTE carried out: answered, and what it sends or receives done */
         private fun command(cmd: String) {
             val c = cmd.uppercase().removePrefix("AT")
             when {
@@ -172,6 +181,7 @@ class FakeFaxLine {
             }
         }
 
+        /** the modem's thread: the DTE's command lines read and carried out until it stops */
         fun start() = background("fake modem $name") {
             val line = StringBuilder()
             try {
@@ -199,6 +209,7 @@ class FakeFaxLine {
         b.start()
     }
 
+    /** both modems stopped */
     fun stop() {
         a.stopped = true
         b.stopped = true

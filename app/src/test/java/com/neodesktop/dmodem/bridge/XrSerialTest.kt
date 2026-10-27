@@ -23,6 +23,7 @@ class XrSerialTest {
         /** the reads' answers, by wIndex */
         val regs = mutableMapOf<Int, Int>()
 
+        /** a read answered from [regs] by wIndex (-1 if none there), a write's bytes kept; each request recorded */
         override fun transfer(requestType: Int, request: Int, value: Int, index: Int, data: ByteArray?, length: Int): Int {
             if (requestType and 0x80 != 0) {
                 val v = regs[index] ?: return -1
@@ -35,8 +36,10 @@ class XrSerialTest {
         }
     }
 
+    /** a vendor write of [value] to register [index], as a V141x is sent it */
     private fun w(index: Int, value: Int) = Req(0x40, 0x00, value, index)
 
+    /** each product ID's chip family, and the driver's 11 IDs under Exar's vendor ID */
     @Test
     fun families() {
         assertEquals(XrChip.XR2280X, XrChip.of(0x1400))
@@ -51,6 +54,7 @@ class XrSerialTest {
         assertEquals(11, ids.getValue(0x04e2).size)
     }
 
+    /** a V141x's registers are written and read a byte at a time, the block in wIndex */
     @Test
     fun v141xRegistersAreBytesWithTheBlockInTheIndex() {
         val f = FakeChip()
@@ -61,6 +65,7 @@ class XrSerialTest {
         assertEquals(listOf(Req(0x40, 0x00, 0x08, 0x000b), Req(0xC0, 0x01, 0, 0x001f)), f.sent)
     }
 
+    /** a B142x's registers are words, to the interface's requests */
     @Test
     fun b142xRegistersAreWordsToTheInterface() {
         val f = FakeChip()
@@ -71,6 +76,7 @@ class XrSerialTest {
         assertEquals(listOf(Req(0xC1, 0x00, 0, 0x0010), Req(0x41, 0x00, 0x0128, 0x000e)), f.sent)
     }
 
+    /** an XR2280x and a B1411 are sent their own requests and register addresses */
     @Test
     fun xr2280xAndB1411UseTheirOwnRequests() {
         val f = FakeChip()
@@ -84,6 +90,7 @@ class XrSerialTest {
         )
     }
 
+    /** a V141x opened: the UART off, the pins and lines set, 9600 8N1, the FIFOs reset and on again */
     @Test
     fun v141xOpens() {
         val f = FakeChip()
@@ -104,6 +111,7 @@ class XrSerialTest {
         )
     }
 
+    /** a B142x opened with DTR and RTS: its custom driver on, the line set by CDC SET_LINE_CODING */
     @Test
     fun b142xOpensWithCdcLineCoding() {
         val f = FakeChip()
@@ -124,6 +132,7 @@ class XrSerialTest {
         )
     }
 
+    /** a V141x's divisor and fraction masks for its speeds, and the registers a new line sets */
     @Test
     fun v141xBaudRates() {
         // divisor = 48 MHz / baud, its fraction in 32nds picking the masks (RX's by the divisor's oddness)
@@ -151,8 +160,10 @@ class XrSerialTest {
         assertTrue(w(0x0004, 0x00) in f.sent && w(0x0005, 0x71) in f.sent && w(0x0006, 0x02) in f.sent)
     }
 
+    /** a V141x's format register for each data bits, stop bits and parity, the unsupported ones refused */
     @Test
     fun v141xFormats() {
+        /** the format register a V141x is sent for these */
         fun format(bits: Int, stop: Int, parity: Int): Int {
             val f = FakeChip()
             XrUart(XrChip.V141X, f, 0).setLine(9600, bits, stop, parity)
@@ -167,8 +178,10 @@ class XrSerialTest {
         assertThrows<IllegalArgumentException> { format(9, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE) }
     }
 
+    /** the CDC families' SET_LINE_CODING for a line, to the port's interface */
     @Test
     fun cdcFamiliesCodeTheLine() {
+        /** the SET_LINE_CODING request [chip] is sent for this line */
         fun coding(chip: XrChip, baud: Int, bits: Int, stop: Int, parity: Int, itf: Int = 0): Req {
             val f = FakeChip()
             XrUart(chip, f, itf).setLine(baud, bits, stop, parity)
@@ -189,6 +202,7 @@ class XrSerialTest {
         assertThrows<UnsupportedOperationException> { coding(XrChip.XR2280X, 9600, 6, UsbSerialPort.STOPBITS_1, 0) }
     }
 
+    /** DTR and RTS set through GPIO set and clear, and the status lines read, active low */
     @Test
     fun linesOutAndIn() {
         val f = FakeChip()
@@ -213,6 +227,7 @@ class XrSerialTest {
         assertTrue(XrUart(XrChip.B142X, b, 0).status().dsr)
     }
 
+    /** a break set and cleared, RTS/CTS and XON/XOFF flow control set, DTR/DSR refused */
     @Test
     fun breakAndFlow() {
         val f = FakeChip()
@@ -238,6 +253,7 @@ class XrSerialTest {
         assertEquals(listOf(Req(0x41, 0, 0xffff, 0x000a), Req(0x40, 0, 0xfff, 0x0c0a)), b.sent)
     }
 
+    /** a multi-port V141x's and a B142x's channels in their requests' addresses */
     @Test
     fun multiPortChannels() {
         // XR21V1414: port n on interfaces 2n/2n+1, channel n in the block byte, its UART manager registers + n
@@ -262,6 +278,7 @@ class XrSerialTest {
         assertEquals(listOf(Req(0x41, 0, 0x08, 0x020f), Req(0xC1, 0, 0, 0x0210)), b.sent)
     }
 
+    /** each port's comm and data interfaces paired, others skipped */
     @Test
     fun portsPairInterfaces() {
         // two ports: comm 0 + data 1, comm 2 + data 3
@@ -273,6 +290,7 @@ class XrSerialTest {
         assertEquals(emptyList<Pair<Int, Int>>(), XrUart.pairs(listOf(0 to 2)))
     }
 
+    /** a failed read throws, nothing recorded */
     @Test
     fun failedTransfersThrow() {
         val f = FakeChip()
@@ -280,6 +298,7 @@ class XrSerialTest {
         assertFalse(f.sent.isNotEmpty())
     }
 
+    /** fails unless [f] throws a [T] */
     private inline fun <reified T : Throwable> assertThrows(f: () -> Unit) {
         try {
             f()

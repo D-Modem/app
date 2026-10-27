@@ -17,6 +17,7 @@ import java.io.File
 class LineRecordingsTest {
     private val ctx: Context = ApplicationProvider.getApplicationContext()
 
+    /** recordings listed newest first, other files left out; pruned, the newest few kept */
     @Test
     fun newestFirstLastKept() {
         val base = LineRecordings.path(ctx)!!

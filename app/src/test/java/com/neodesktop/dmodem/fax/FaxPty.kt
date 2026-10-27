@@ -66,8 +66,10 @@ class FaxLineProcess(cmd: List<String>) : AutoCloseable {
         return Class1(io) { line -> log.add("$tag: $line"); TestLogs.note(tag, line) }
     }
 
+    /** the log's last [n] lines */
     fun dump(n: Int = 80) = log.takeLast(n).joinToString("\n")
 
+    /** the ptys closed, the program stopped (killed if it's still there after 5 s) */
     override fun close() {
         closers.forEach { runCatching { it() } }
         proc.destroy()

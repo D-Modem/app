@@ -12,8 +12,10 @@ import kotlin.random.Random
 /** T.4's MH coding both ways; T.30's DIS/DCS bits and identities. */
 class T4Test {
 
+    /** the test page, standard or fine */
     private fun testPage(fine: Boolean, rows: Int = 400, seed: Int = 1) = FaxTestPage.of(fine, rows, seed)
 
+    /** a page in MH comes back as it was, standard and fine */
     @Test
     fun aPageThereAndBack() {
         for (fine in listOf(false, true)) {
@@ -26,6 +28,7 @@ class T4Test {
         }
     }
 
+    /** a minimum scan time pads each row with fill, and the rows still decode */
     @Test
     fun theMinimumScanTimeAsFill() {
         val page = FaxPage(FaxPage.WIDTH, 10, false)
@@ -37,6 +40,7 @@ class T4Test {
         assertEquals(10, T4.decode(filled, fine = false).page.rows)
     }
 
+    /** a damaged byte costs a row or two, and the page keeps its height */
     @Test
     fun aDamagedRowIsTheOneBeforeItAgain() {
         val page = testPage(false, rows = 120)
@@ -48,6 +52,7 @@ class T4Test {
         assertEquals(page.rows, back.page.rows)
     }
 
+    /** random data decodes without looping or reading past its end */
     @Test
     fun theCodesArePrefixFree() {
         // (decoding random data never loops nor reads past the end)
@@ -55,6 +60,7 @@ class T4Test {
         T4.decode(junk, fine = false)
     }
 
+    /** DIS and DCS carry the rates and scan times asked, and identities go and come back */
     @Test
     fun disAndDcs() {
         val dis = T30.dis(T30.RATES)

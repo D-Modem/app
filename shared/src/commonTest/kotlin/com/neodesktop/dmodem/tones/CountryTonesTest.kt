@@ -30,6 +30,7 @@ class CountryTonesTest {
         return 2 * sqrt(s1 * s1 + s2 * s2 - k * s1 * s2) / n
     }
 
+    /** the table: every country once, found by any of its names, the USA's and others' tones as the ITU has them, all audible and cadenced */
     @Test
     fun theTable() {
         assertEquals(192, CountryTones.all.size)
@@ -57,6 +58,7 @@ class CountryTonesTest {
         }
     }
 
+    /** a dial tone's sound: both its frequencies at half the level, nothing else, faded in and out */
     @Test
     fun aDialToneSound() {
         val us = CountryTones.find("USA")!!
@@ -70,6 +72,7 @@ class CountryTonesTest {
         assertTrue(abs(x[0].toInt()) < 2000 && abs(x.last().toInt()) < 2000)
     }
 
+    /** a busy tone's cadence: on and off in turn, ramped not clicking, and started from a point in it */
     @Test
     fun aBusyTonesCadence() {
         val us = CountryTones.find("USA")!!
@@ -86,6 +89,7 @@ class CountryTonesTest {
         assertTrue(level(later, 480.0) < 0.001)
     }
 
+    /** Japan's ringing tone: 400 Hz swung at 15 Hz (sidebands), on and off in its cadence */
     @Test
     fun aModulatedTone() {
         // Japan's ringing tone: 400 Hz, its level swung at 15 Hz (sidebands at 385 and 415)
@@ -96,6 +100,7 @@ class CountryTonesTest {
         assertTrue(jp.onAt(0.5) && !jp.onAt(1.5) && jp.onAt(3.2))
     }
 
+    /** tones played in 50 ms pieces are the same samples as in one, with no jump bigger than the tone's own slope */
     @Test
     fun inPiecesAsInOne() {
         // a player's 50 ms chunks (the last one fading out) are the same sound as one long one: no clicks between them

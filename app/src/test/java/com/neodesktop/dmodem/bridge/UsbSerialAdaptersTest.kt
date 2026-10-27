@@ -19,9 +19,11 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class UsbSerialAdaptersTest {
+    /** the driver class found for a device with these IDs, or null */
     private fun driver(vendor: Int, product: Int) =
         UsbSerialAdapters.table().findDriver(TestUsbDevices.device("/dev/bus/usb/001/002", vendor, product))
 
+    /** adapters under their makers' own IDs get their chip's driver */
     @Test
     fun theirMakersIds() {
         // an ATEN UC-232A (a PL2303), a Silicon Labs CP210x under another ID, a CH340 variant, an FTDI clone that FTDI's driver bricked
@@ -31,12 +33,14 @@ class UsbSerialAdaptersTest {
         assertEquals(FtdiSerialDriver::class.java, driver(0x0403, 0x0000))
     }
 
+    /** Exar's UARTs get our own driver */
     @Test
     fun exarsTheirOwn() {
         assertEquals(XrSerialDriver::class.java, driver(0x04e2, 0x1410))
         assertEquals(XrSerialDriver::class.java, driver(0x04e2, 0x1422))
     }
 
+    /** the chip makers' own IDs still get theirs */
     @Test
     fun theChipMakersStill() {
         assertEquals(FtdiSerialDriver::class.java, driver(0x0403, 0x6001))
@@ -45,6 +49,7 @@ class UsbSerialAdaptersTest {
         assertEquals(Ch34xSerialDriver::class.java, driver(0x1a86, 0x7523))
     }
 
+    /** a USB modem and an unknown device get none */
     @Test
     fun notOthers() {
         // the Agere USB modem (UsbModems'), and nothing in particular

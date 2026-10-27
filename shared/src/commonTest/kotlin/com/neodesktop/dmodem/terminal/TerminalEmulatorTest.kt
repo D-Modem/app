@@ -11,12 +11,16 @@ import kotlin.test.Test
 class TerminalEmulatorTest {
 
     private val replies = StringBuilder()
+    /** a terminal of this size whose replies go to [replies] */
     private fun term(cols: Int = 10, rows: Int = 4, history: Int = 100) =
         TerminalEmulator(cols, rows, history) { b -> b.forEach { replies.append((it.toInt() and 0xff).toChar()) } }
 
+    /** row [r]'s text */
     private fun TerminalEmulator.row(r: Int) = line(r).text()
+    /** [s] fed in as Latin-1 octets */
     private fun TerminalEmulator.send(s: String) = append(s.latin1())
 
+    /** text wraps at the width, and what scrolls off the top goes into the history, still joined to its next line */
     @Test
     fun textWrapsAndScrollsIntoTheHistory() {
         val t = term(5, 2)
@@ -30,6 +34,7 @@ class TerminalEmulatorTest {
         assertEquals("hello worl", t.text(-1, 0, 0, 4))
     }
 
+    /** a character in the last column leaves the cursor there until the next one wraps */
     @Test
     fun theLastColumnWaitsBeforeWrapping() {
         val t = term(5, 3)
@@ -41,6 +46,7 @@ class TerminalEmulatorTest {
         assertEquals("", t.row(1))
     }
 
+    /** cursor positioning, erase to the end of the line, delete, insert and erase characters, and clearing the screen */
     @Test
     fun cursorMovesAndErases() {
         val t = term(10, 4)
@@ -59,6 +65,7 @@ class TerminalEmulatorTest {
         assertEquals(0, t.cursorY)
     }
 
+    /** SGR's colours (16, 256, true colour both ways of writing it, bright) and attributes set and reset */
     @Test
     fun sgrColoursAndAttributes() {
         val t = term()
@@ -79,6 +86,7 @@ class TerminalEmulatorTest {
         assertEquals(10, Style.bg(l.styles[6]))
     }
 
+    /** a line feed at a scrolling region's bottom scrolls only the region, nothing into the history; lines inserted and deleted in it */
     @Test
     fun scrollingRegionKeepsTheRestAndTheHistory() {
         val t = term(5, 4)
@@ -97,6 +105,7 @@ class TerminalEmulatorTest {
         assertEquals("c", t.row(1))
     }
 
+    /** the alternate screen starts blank and leaving it brings the main screen and its cursor back */
     @Test
     fun theAlternateScreenComesAndGoes() {
         val t = term(5, 3)
@@ -111,6 +120,7 @@ class TerminalEmulatorTest {
         assertEquals(4, t.cursorX)
     }
 
+    /** position, device attribute and status reports answered, and ENQ with the answerback */
     @Test
     fun answersForTheRemote() {
         val t = term(10, 5)
@@ -122,6 +132,7 @@ class TerminalEmulatorTest {
         assertEquals("DMODEM", replies.toString())
     }
 
+    /** ANSI.SYS's save and restore of the cursor */
     @Test
     fun ansiSysSaveAndRestore() {
         val t = term()
@@ -129,6 +140,7 @@ class TerminalEmulatorTest {
         assertEquals("abc", t.row(0))
     }
 
+    /** DEC line drawing in G0, and in G1 by shift out and in */
     @Test
     fun decLineDrawing() {
         val t = term()
@@ -138,6 +150,7 @@ class TerminalEmulatorTest {
         assertEquals("─q", t.row(1))
     }
 
+    /** CP437's octets as their characters, and UTF-8 split across reads put together */
     @Test
     fun cp437AndUtf8() {
         val t = term(20, 2)
@@ -153,17 +166,20 @@ class TerminalEmulatorTest {
         assertEquals("€é", t.row(1))
     }
 
+    /** every CP437 octet decodes and encodes back to itself */
     @Test
     fun cp437TableIsWhole() {
         for (b in 0x80..0xff) assertEquals(b, Cp437.encode(Cp437.decode(b)))
         assertEquals("╔".let { byteArrayOf(0xc9.toByte()).toList() }, TermCharset.CP437.encode("╔").toList())
     }
 
+    /** OSC sets the title, and a DCS string is skipped */
     @Test
     fun oscSetsTheTitleAndControlStringsAreSkipped() {
         val t = term()
         var title: String? = null
         t.listener = object : TerminalEmulator.Listener {
+            /** the title noted */
             override fun onTitle(title2: String) { title = title2 }
         }
         t.send("\u001b]0;BBS Main\u0007\u001bPq#0;1;2\u001b\\ok")
@@ -171,6 +187,7 @@ class TerminalEmulatorTest {
         assertEquals("ok", t.row(0))
     }
 
+    /** resizing keeps the cursor's line on screen, rows going into and coming back from the history, and narrower wraps */
     @Test
     fun resizeKeepsTheCursorsLine() {
         val t = term(10, 4)
@@ -191,6 +208,7 @@ class TerminalEmulatorTest {
         assertEquals("9", t.row(3))
     }
 
+    /** tab stops, backspace, and back tab */
     @Test
     fun tabsAndBackspace() {
         val t = term(20, 2)
@@ -199,6 +217,7 @@ class TerminalEmulatorTest {
         assertEquals("a       d", t.row(0))
     }
 
+    /** REP repeats the last character, and insert mode pushes the line right */
     @Test
     fun repeatAndInsertMode() {
         val t = term()
@@ -208,6 +227,7 @@ class TerminalEmulatorTest {
         assertEquals("Yxxxx", t.row(0))
     }
 
+    /** keys and control/alt characters as the octets the remote expects, in the cursor, backspace and enter modes */
     @Test
     fun keys() {
         val k = KeyEncoder()
@@ -230,6 +250,7 @@ class TerminalEmulatorTest {
         assertEquals("\u001b\u0018", k.char('x'.code, alt = true, ctrl = true))
     }
 
+    /** links found at a column and in a line, with trailing punctuation left off and www. given http:// */
     @Test
     fun links() {
         val s = "see https://example.com/a_(b). or www.bbs.org, ok"

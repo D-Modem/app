@@ -45,9 +45,11 @@ class FaxAppTest {
     private lateinit var b: String
     private val closers = ArrayList<() -> Unit>()
 
+    /** native-test's fax_line, if built, or null */
     private fun faxLine(): File? = listOfNotNull(System.getenv("DMODEM_FAX_LINE"), "../build-host/fax_line", "build-host/fax_line")
         .map { File(it) }.firstOrNull { it.canExecute() }
 
+    /** fax_line started, modemA's pty on the app's DTE hub as the service has it, the app's fax set up */
     @Before
     fun setUp() {
         val fl = faxLine()
@@ -67,6 +69,7 @@ class FaxAppTest {
         runBlocking { FaxSettingsStore(ctx).update { it.copy(ident = "+1 555 0100", fine = true, maxBps = 14400) } }
     }
 
+    /** the app's modem log into the test's, the fax cancelled, the hub detached, fax_line stopped */
     @After
     fun tearDown() {
         // (the app's modem log, into the test's)
@@ -97,6 +100,7 @@ class FaxAppTest {
         return Class1(io) { log.add("B: $it"); TestLogs.note("B", it) }
     }
 
+    /** whether fax_line logged [what] within [secs] s */
     private fun waitLog(what: String, secs: Int = 30): Boolean {
         val end = System.currentTimeMillis() + secs * 1000L
         while (System.currentTimeMillis() < end) {
@@ -106,6 +110,7 @@ class FaxAppTest {
         return false
     }
 
+    /** the fax's state once it's done, within [secs] s; fails if it's still going */
     private fun waitDone(secs: Int): Fax.State {
         val end = System.currentTimeMillis() + secs * 1000L
         while (System.currentTimeMillis() < end) {
@@ -116,6 +121,7 @@ class FaxAppTest {
         throw AssertionError("still going: ${Fax.state.value}\n" + (ModemState.log.flow.value.takeLast(40) + log.takeLast(40)).joinToString("\n"))
     }
 
+    /** a 90-line text document sent: two fine A4 pages with text on them, the remote's ID both ways, in the list of faxes, the hub free again */
     @Test
     fun aTextDocumentSent() {
         val doc = File(ctx.cacheDir, "letter.txt").apply {
@@ -153,6 +159,7 @@ class FaxAppTest {
         assertTrue(!ModemState.dte.claimed)
     }
 
+    /** a fax answered: its pages saved as a PDF in the app's Downloads, every pel as sent, in the list of faxes */
     @Test
     fun aFaxAnsweredAndSaved() {
         val c = other()
@@ -195,6 +202,7 @@ class FaxAppTest {
         return { sb.toString() }
     }
 
+    /** waits until [cond], up to [secs] s; fails with the log's end */
     private fun waitFor(what: String, secs: Int = 30, cond: () -> Boolean) {
         val end = System.currentTimeMillis() + secs * 1000L
         while (!cond()) {
@@ -203,6 +211,7 @@ class FaxAppTest {
         }
     }
 
+    /** with adaptive answer a fax machine's call is answered as FAX and received by the app on its own */
     @Test
     fun aFaxMachinesCallAnsweredAdaptively() {
         // the service's start: adaptive answer on (in data mode, as the terminal has it)
@@ -233,6 +242,7 @@ class FaxAppTest {
         assertTrue(!ModemState.dte.claimed)
     }
 
+    /** with adaptive answer a modem's call is answered as DATA, a CONNECT for the terminal, no fax */
     @Test
     fun aDataCallAnsweredAdaptively() {
         val seen = hubText()

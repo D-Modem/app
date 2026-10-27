@@ -16,9 +16,11 @@ import java.util.concurrent.TimeUnit
 class CellTransportTest {
     private val closers = ArrayList<() -> Unit>()
 
+    /** the network's phones and transports closed, last first */
     @After
     fun tearDown() = closers.asReversed().forEach { runCatching { it() } }
 
+    /** waits until [cond], up to [ms]; fails saying [what] */
     private fun waitUntil(what: String, ms: Long = 5000, cond: () -> Boolean) {
         val end = System.currentTimeMillis() + ms
         while (!cond()) {
@@ -27,6 +29,7 @@ class CellTransportTest {
         }
     }
 
+    /** a call placed: the number dialled, the handshake answered, samples reaching the far end once answered; closed, hung up both ends */
     @Test
     fun aCallPlacedAndHungUp() {
         val net = FakeNetwork(closers = closers)
@@ -49,11 +52,13 @@ class CellTransportTest {
         assertEquals(CellPhone.State.IDLE, b.state.value)
     }
 
+    /** a call the phone never places fails, and so does one with no number */
     @Test
     fun aCallNotPlaced() {
         val net = FakeNetwork(closers = closers)
         val a = net.phone("5550001")
         val stuck = object : CellPhone by a {
+            /** never placed */
             override fun dial(number: String) {}
         }
         val t = CellTransport(stuck, a.audio, dialMs = 300, audioMs = 300)
@@ -71,6 +76,7 @@ class CellTransportTest {
         }
     }
 
+    /** a call coming in: RING to the modem, its ANSWER answers the phone, its samples kept till then; the caller hanging up ends the line */
     @Test
     fun aCallComingIn() {
         val net = FakeNetwork(closers = closers)
@@ -94,6 +100,7 @@ class CellTransportTest {
         waitUntil("the end") { d.input.read(buf) < 0 }
     }
 
+    /** a call the caller gives up on before it's answered ends the RING, unanswered */
     @Test
     fun theCallerGivesUp() {
         val net = FakeNetwork(closers = closers)

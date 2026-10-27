@@ -12,6 +12,7 @@ class IncomingCallsTest {
     private var clock = 1_000_000L
     private val calls = IncomingCalls { clock }
 
+    /** a RING, split or not, a call ringing; the next one counted, since unchanged; off hook it's over, a RING then no call */
     @Test
     fun ringingThenAnswered() {
         calls.modemText("\r\nRI")
@@ -32,6 +33,7 @@ class IncomingCallsTest {
         assertNull(calls.state.value)
     }
 
+    /** the other phone's name, given before the first RING or after it, as the call's caller */
     @Test
     fun theOtherPhoneByName() {
         calls.caller("D-Modem on Pixel 8")
@@ -45,6 +47,7 @@ class IncomingCallsTest {
         assertEquals("192.168.1.20", calls.state.value!!.from)
     }
 
+    /** no RING for 9 s: the caller gave up; 7 s still ringing */
     @Test
     fun theCallerGivesUp() {
         calls.modemText("RING\r\n")
@@ -56,6 +59,7 @@ class IncomingCallsTest {
         assertNull(calls.state.value)
     }
 
+    /** ignored, it rings on out of sight; once over, the next call shows; RINGING isn't RING */
     @Test
     fun ignoredUntilItsOver() {
         calls.modemText("RING\r\n")

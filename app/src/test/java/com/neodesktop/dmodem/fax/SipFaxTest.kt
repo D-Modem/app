@@ -20,11 +20,13 @@ import org.junit.Test
 class SipFaxTest {
     private var line: FaxLineProcess? = null
 
+    /** the line program stopped */
     @After
     fun tearDown() {
         line?.close()
     }
 
+    /** two fine pages from the engine to dmodemd over SIP, [ecm] or not: every pel as sent, both IDs, and T.38 taken if [t38], else not */
     private fun call(t38: Boolean, ecm: Boolean) {
         val bin = nativeTool("DMODEM_SIP_FAX_LINE", "sip_fax_line")
         assumeTrue("sip_fax_line isn't built (native-test)", bin != null)
@@ -79,12 +81,15 @@ class SipFaxTest {
         assertEquals(l.log.filter { it.contains("t38", ignoreCase = true) }.take(30).joinToString("\n"), t38, onT38)
     }
 
+    /** over T.38 without ECM */
     @Test
     fun overT38() = call(t38 = true, ecm = false)
 
+    /** over T.38 in ECM */
     @Test
     fun overT38InEcm() = call(t38 = true, ecm = true)
 
+    /** on audio, T.38 off, in ECM */
     @Test
     fun onAudioWithoutT38() = call(t38 = false, ecm = true)
 }
