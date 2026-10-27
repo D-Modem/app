@@ -67,7 +67,18 @@ data class ModemSettings(
     val recordLine: Boolean = false,
     /** a USB modem's line: the modem's sound to it louder or softer, dB (-20 to 20; D-Modem-RE's DMODEM_USB_TX_GAIN) */
     val usbTxGain: Int = 0,
+    /** a USB modem's line: its transmit level set for each call from the remote's answer tone (DMODEM_USB_TX_GAIN=auto), not [usbTxGain] */
+    val usbTxAuto: Boolean = true,
 ) {
+    /** D-Modem-RE's DMODEM_USB_TX_GAIN for this line: "auto", the dB, or null (none: 0 dB, or not a USB line) */
+    val usbTxGainEnv: String?
+        get() = when {
+            !usb -> null
+            usbTxAuto -> "auto"
+            usbTxGain != 0 -> usbTxGain.coerceIn(-20, 20).toString()
+            else -> null
+        }
+
     /** the line is another phone (or this phone's mobile calls, or none), not SIP: the app carries its samples */
     val peer: Boolean get() = line != LINE_SIP && line != LINE_USB && line != LINE_BT_MODEM
 
@@ -156,6 +167,7 @@ class SettingsStore(private val context: Context) {
         val btModemName = stringPreferencesKey("bt_modem_name")
         val recordLine = booleanPreferencesKey("record_line")
         val usbTxGain = intPreferencesKey("usb_tx_gain")
+        val usbTxAuto = booleanPreferencesKey("usb_tx_auto")
     }
 
     val settings: Flow<ModemSettings> = context.dataStore.data.map { p ->
@@ -185,6 +197,7 @@ class SettingsStore(private val context: Context) {
             btModemName = p[Keys.btModemName] ?: d.btModemName,
             recordLine = p[Keys.recordLine] ?: d.recordLine,
             usbTxGain = p[Keys.usbTxGain] ?: d.usbTxGain,
+            usbTxAuto = p[Keys.usbTxAuto] ?: d.usbTxAuto,
         )
     }
 
@@ -216,6 +229,7 @@ class SettingsStore(private val context: Context) {
             p[Keys.btModemName] = s.btModemName
             p[Keys.recordLine] = s.recordLine
             p[Keys.usbTxGain] = s.usbTxGain.coerceIn(-20, 20)
+            p[Keys.usbTxAuto] = s.usbTxAuto
         }
     }
 }

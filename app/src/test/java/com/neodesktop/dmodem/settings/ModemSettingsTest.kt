@@ -42,4 +42,14 @@ class ModemSettingsTest {
         assertTrue(ModemSettings().sip)
         assertFalse(ModemSettings().usb)
     }
+
+    @Test
+    fun aUsbLinesTransmitLevelIsAutomaticByDefault() {
+        val usb = ModemSettings(line = ModemSettings.LINE_USB)
+        assertEquals("auto", usb.usbTxGainEnv)
+        assertEquals("6", usb.copy(usbTxAuto = false, usbTxGain = 6).usbTxGainEnv)
+        assertEquals("-20", usb.copy(usbTxAuto = false, usbTxGain = -40).usbTxGainEnv)
+        assertNull(usb.copy(usbTxAuto = false).usbTxGainEnv)
+        assertNull(ModemSettings().usbTxGainEnv)
+    }
 }

@@ -281,8 +281,9 @@ class ModemService : Service() {
         }
         // the modem's sound to a USB modem's line louder or softer (D-Modem-RE's DMODEM_USB_TX_GAIN)
         runCatching {
-            if (settings.usb && settings.usbTxGain != 0) {
-                android.system.Os.setenv("DMODEM_USB_TX_GAIN", settings.usbTxGain.coerceIn(-20, 20).toString(), true)
+            val gain = settings.usbTxGainEnv
+            if (gain != null) {
+                android.system.Os.setenv("DMODEM_USB_TX_GAIN", gain, true)
             } else {
                 android.system.Os.unsetenv("DMODEM_USB_TX_GAIN")
             }

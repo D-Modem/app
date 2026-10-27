@@ -157,12 +157,21 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
                         PeerLineFields(s) { s = it }
                     } else if (s.usb) {
                         UsbLineFields()
-                        SignedNumberField("Transmit level (dB, -20 to 20)", s.usbTxGain) { s = s.copy(usbTxGain = it.coerceIn(-20, 20)) }
-                        Text(
-                            "The modem's sound to the line louder (+) or softer (-) than D-Modem's own: for a line or modem " +
-                                "that hears it too faintly (0: as it is). Too loud distorts it.",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
+                        Toggle("Automatic transmit level", s.usbTxAuto) { s = s.copy(usbTxAuto = it) }
+                        if (s.usbTxAuto) {
+                            Text(
+                                "Set for each call from how loud the other modem's answer tone arrives (louder on a longer line, " +
+                                    "softer if it distorts); the log says what it chose.",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        } else {
+                            SignedNumberField("Transmit level (dB, -20 to 20)", s.usbTxGain) { s = s.copy(usbTxGain = it.coerceIn(-20, 20)) }
+                            Text(
+                                "The modem's sound to the line louder (+) or softer (-) than D-Modem's own: for a line or modem " +
+                                    "that hears it too faintly (0: as it is). Too loud distorts it.",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
                         Toggle("Record each call (for a bug report)", s.recordLine) { s = s.copy(recordLine = it) }
                         Text(
                             "Each call's sound, off hook to on hook, as a stereo WAV file (the line's, the modem's); " +
