@@ -142,12 +142,16 @@ class MainActivity : ComponentActivity() {
                     },
                 ) { padding ->
                     val m = Modifier.padding(padding).consumeWindowInsets(padding)
-                    // (a quick fade from one tab to the next)
+                    // (a fade through from one tab to the next: the old one out in 100 ms, then the new one in
+                    // over 300 ms, so the change shows even when the new tab's first frame is slow to draw)
                     androidx.compose.animation.AnimatedContent(
                         targetState = tab,
                         transitionSpec = {
-                            androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) togetherWith
-                                androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(90))
+                            androidx.compose.animation.fadeIn(
+                                androidx.compose.animation.core.tween(300, delayMillis = 100, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                            ) togetherWith androidx.compose.animation.fadeOut(
+                                androidx.compose.animation.core.tween(100, easing = androidx.compose.animation.core.FastOutLinearInEasing),
+                            )
                         },
                         label = "tab",
                     ) { shown ->
