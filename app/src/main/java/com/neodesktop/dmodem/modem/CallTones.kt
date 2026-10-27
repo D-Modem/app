@@ -97,6 +97,7 @@ class CallTones(
         }
     }
 
+    /** the playing thread told to end (its generation moved on), nothing current */
     private fun stopLocked() {
         generation++
         current = null
@@ -129,7 +130,9 @@ class CallTones(
  */
 class CallProgress(private val player: Player, private val clock: () -> Long = System::currentTimeMillis) {
     interface Player {
+        /** [kind] played for [ms] (0: until stopped), in place of what was */
         fun play(kind: CallTones.Kind, ms: Int)
+        /** stopped (only if it's [only], when given) */
         fun stop(only: CallTones.Kind? = null)
     }
 
@@ -153,6 +156,7 @@ class CallProgress(private val player: Player, private val clock: () -> Long = S
         }
     }
 
+    /** the tones for result code [r]: busy, congestion for a dialled call that failed, none once connected */
     private fun result(r: String) {
         when {
             r == "RING" -> lastRing = clock()

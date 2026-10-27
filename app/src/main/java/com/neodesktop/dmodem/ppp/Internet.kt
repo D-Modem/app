@@ -32,6 +32,7 @@ object Internet {
     interface Tunnel {
         /** a packet from the link */
         fun write(packet: ByteArray)
+        /** the tunnel let go (the link's down) */
         fun close()
     }
 
@@ -63,6 +64,7 @@ object Internet {
 
     val running: Boolean get() = _state.value?.running == true
 
+    /** the state changed by [f], if there is one */
     private fun set(f: (State) -> State) {
         _state.value = _state.value?.let(f)
     }
@@ -121,6 +123,7 @@ object Internet {
                     user = isp.user,
                     password = isp.password,
                     events = object : Ppp.Events {
+                        /** the link has its address: the tunnel opened on it, or PPP stopped if it can't be */
                         override fun up(config: Ppp.IpConfig) {
                             val t = try { openTunnel(config) } catch (e: Exception) { null }
                             if (t == null) {
@@ -131,11 +134,14 @@ object Internet {
                             tunnel = t
                             set { it.copy(phase = "", config = config, since = System.currentTimeMillis()) }
                         }
+                        /** a packet from the link to the tunnel */
                         override fun ip(packet: ByteArray) { tunnel?.write(packet) }
+                        /** PPP down: [reason] kept (unless there's one already), the call let end */
                         override fun down(reason: String) {
                             if (why == null) why = reason
                             done.countDown()
                         }
+                        /** PPP's [line] to the log */
                         override fun log(line: String) { ModemState.log.add("ppp: $line") }
                     },
                 )
@@ -191,6 +197,7 @@ object Internet {
         _state.value = s
     }
 
+    /** the last link's state cleared, unless one is going */
     fun dismiss() {
         if (!running) _state.value = null
     }
@@ -214,6 +221,7 @@ object Internet {
         }
     }
 
+    /** why a dial ended with result [r], in a word for the user */
     private fun dialResult(r: String?) = when (r) {
         null -> "no answer"
         "BUSY" -> "busy"

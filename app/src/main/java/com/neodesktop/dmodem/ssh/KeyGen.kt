@@ -41,6 +41,7 @@ object KeyGen {
         else -> "ED25519"
     }
 
+    /** the SHA-256 of the key's blob (its fingerprint's digest) */
     fun sha256(k: PublicKey): ByteArray = MessageDigest.getInstance("SHA-256").digest(KeyFormat.blob(k))
 
     /** MD5:xx:xx:... (as ssh-keygen -E md5) */
@@ -50,6 +51,7 @@ object KeyGen {
     /** the "drunken bishop" picture of the SHA256 fingerprint, as ssh-keygen -lv draws it */
     fun randomart(k: PublicKey): String = randomart(sha256(k), "[${typeName(k)} ${bits(k)}]", "[SHA256]")
 
+    /** the "drunken bishop" picture of [digest], [title] on its top border and [hashName] on its bottom */
     fun randomart(digest: ByteArray, title: String, hashName: String): String {
         val w = 17
         val h = 9
@@ -71,6 +73,7 @@ object KeyGen {
         }
         field[w / 2][h / 2] = len - 1
         field[x][y] = len
+        /** a border line of the picture's width, [label] in its middle */
         fun border(label: String): String {
             val sb = StringBuilder("+")
             val left = (w - label.length) / 2
@@ -129,6 +132,7 @@ object KeyGen {
         return "-----BEGIN OPENSSH PRIVATE KEY-----\n$b64\n-----END OPENSSH PRIVATE KEY-----\n"
     }
 
+    /** the key's type and private fields into [b], as OpenSSH's private key section has them (RSA, ECDSA or Ed25519) */
     private fun privateFields(kp: KeyPair, b: Buffer.PlainBuffer) {
         val type = KeyFormat.type(kp.public)
         b.putString(type)

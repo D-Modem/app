@@ -27,9 +27,11 @@ class ModemSpeaker(
 ) {
     /** a player: 8000 Hz, 16 bit, mono */
     interface Sink {
+        /** [n] bytes of [pcm] played (may wait for room) */
         fun write(pcm: ByteArray, n: Int)
         /** 0..1 */
         fun volume(v: Float)
+        /** the player let go */
         fun close()
     }
 
@@ -113,14 +115,17 @@ class ModemSpeaker(
                 .apply { play() }
         }
 
+        /** [n] bytes of [pcm] to the track (blocking until there's room) */
         override fun write(pcm: ByteArray, n: Int) {
             track.write(pcm, 0, n)
         }
 
+        /** the track's volume, 0..1 */
         override fun volume(v: Float) {
             track.setVolume(v)
         }
 
+        /** the track stopped, what's left in it dropped, and released */
         override fun close() {
             runCatching { track.pause(); track.flush() }
             track.release()

@@ -64,6 +64,7 @@ class ResultCodeStatus(private val onStatus: (NativeModem.Status) -> Unit) {
     private val line = StringBuilder()
     private var status = ModemState.IDLE
 
+    /** what the modem sent, [length] octets of [data], read a line at a time for its result codes */
     fun feed(data: ByteArray, length: Int) {
         for (i in 0 until length) {
             val c = data[i].toInt() and 0xff
@@ -76,6 +77,7 @@ class ResultCodeStatus(private val onStatus: (NativeModem.Status) -> Unit) {
         }
     }
 
+    /** the status after result code [r], told if it changed */
     private fun result(r: String) {
         val next = when {
             r.startsWith("CONNECT") -> {

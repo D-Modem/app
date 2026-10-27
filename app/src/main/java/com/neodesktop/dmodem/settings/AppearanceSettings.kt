@@ -52,6 +52,7 @@ class AppearanceStore(private val context: Context) {
         val lightsOnTop = booleanPreferencesKey("lights_on_top")
     }
 
+    /** the appearance stored in [p], the defaults for what isn't (or isn't known) */
     private fun from(p: Preferences): Appearance {
         val d = Appearance()
         return Appearance(
@@ -75,6 +76,7 @@ class AppearanceStore(private val context: Context) {
         }
     }
 
+    /** [a] stored as it is */
     suspend fun save(a: Appearance) {
         context.appearanceStore.edit { p ->
             p[K.dark] = a.dark.name

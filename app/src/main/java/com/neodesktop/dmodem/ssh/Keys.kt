@@ -55,13 +55,17 @@ data class SshKey(
 
 /** The public key's SSH form and its fingerprint (SHA256:..., as ssh-keygen -l). */
 object KeyFormat {
+    /** the key in SSH's wire form (its type, then its fields) */
     fun blob(k: PublicKey): ByteArray = Buffer.PlainBuffer().putPublicKey(k).compactData
 
+    /** the key's SSH type: ssh-ed25519, ecdsa-sha2-nistp256, ssh-rsa... */
     fun type(k: PublicKey): String = KeyType.fromKey(k).toString()
 
+    /** the key's authorized_keys line: its type, its blob in base64, and [comment] if any */
     fun openSsh(k: PublicKey, comment: String = ""): String =
         type(k) + " " + Base64.getEncoder().encodeToString(blob(k)) + if (comment.isNotEmpty()) " $comment" else ""
 
+    /** the key's fingerprint, SHA256: and its blob's digest in unpadded base64 */
     fun fingerprint(k: PublicKey): String =
         "SHA256:" + Base64.getEncoder().withoutPadding().encodeToString(MessageDigest.getInstance("SHA-256").digest(blob(k)))
 }
@@ -94,6 +98,7 @@ class SshKeys(private val dir: File, private val box: SecretBox) {
         }
     }
 
+    /** [list] written to keys.json and the keys now */
     @Synchronized
     private fun saveIndex(list: List<SshKey>) {
         val a = JSONArray()
@@ -126,7 +131,9 @@ class SshKeys(private val dir: File, private val box: SecretBox) {
     fun import(text: String, passphrase: String?, name: String): SshKey {
         SshSecurity.ensure()
         val finder = object : PasswordFinder {
+            /** [passphrase] for the key (none: empty) */
             override fun reqPassword(resource: Resource<*>?): CharArray = (passphrase ?: "").toCharArray()
+            /** asked once: a wrong passphrase isn't asked again */
             override fun shouldRetry(resource: Resource<*>?) = false
         }
         val provider: KeyProvider = when {
@@ -139,6 +146,7 @@ class SshKeys(private val dir: File, private val box: SecretBox) {
         return keep(KeyPair(provider.public, provider.private), name, if (Ppk.isPpk(text)) Ppk.comment(text)?.takeIf { it.isNotBlank() } else null)
     }
 
+    /** [given] kept: its private half sealed in its own file (an RSA one made whole first), its entry added */
     private fun keep(given: KeyPair, name: String, comment: String? = null): SshKey {
         val pair = withCrt(given)
         val id = UUID.randomUUID().toString()
@@ -236,16 +244,20 @@ class SshKeys(private val dir: File, private val box: SecretBox) {
         )
     }
 
+    /** the key as sshj's key provider, for authentication */
     fun provider(id: String): KeyProvider = KeyPairWrapper(keyPair(id))
 
+    /** the key's name changed to [name] */
     fun rename(id: String, name: String) {
         saveIndex(_keys.value.map { if (it.id == id) it.copy(name = name) else it })
     }
 
+    /** the key's sealed file deleted and its entry gone */
     fun delete(id: String) {
         File(dir, "$id.key").delete()
         saveIndex(_keys.value.filter { it.id != id })
     }
 
+    /** the key with [id], or null */
     fun byId(id: String): SshKey? = _keys.value.firstOrNull { it.id == id }
 }

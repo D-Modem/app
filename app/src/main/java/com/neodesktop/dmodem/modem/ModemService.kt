@@ -67,12 +67,14 @@ class ModemService : Service() {
         /** the speaker's sound socket, kept open for the process's life */
         @Volatile private var speakerSocket: android.os.ParcelFileDescriptor? = null
 
+        /** the service started in the foreground, and the modem with it */
         fun start(context: Context) {
             context.startForegroundService(
                 Intent(context, ModemService::class.java).setAction(ACTION_START),
             )
         }
 
+        /** the modem stopped, and the service with it */
         fun stop(context: Context) {
             context.startService(Intent(context, ModemService::class.java).setAction(ACTION_STOP))
         }
@@ -109,8 +111,10 @@ class ModemService : Service() {
     /** the default network and its addresses the modem started on */
     private var netKey: String? = null
 
+    /** not bound: started and stopped only */
     override fun onBind(intent: Intent?): IBinder? = null
 
+    /** the settings' store, and the watches: the bridges kept as their settings say while the modem runs, the notification kept up to date, a pending restart once on hook */
     override fun onCreate() {
         super.onCreate()
         store = SettingsStore(this)
@@ -135,6 +139,7 @@ class ModemService : Service() {
         }
     }
 
+    /** the notification's Ignore, a stop, or else a start (in the foreground, the modem started off the main thread) */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_IGNORE -> {
@@ -157,6 +162,7 @@ class ModemService : Service() {
         return START_NOT_STICKY
     }
 
+    /** everything let go before the service ends */
     override fun onDestroy() {
         runBlocking(scope.coroutineContext) { shutdown() }
         scope.cancel()
@@ -427,6 +433,7 @@ class ModemService : Service() {
         }
     }
 
+    /** everything let go, the foreground's notification removed and the service ended */
     private fun stopModem() {
         shutdown()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
@@ -446,6 +453,7 @@ class ModemService : Service() {
         ModemState.setRun(ModemState.Run.STOPPED)
     }
 
+    /** [why] logged and shown as the error, the service stopped */
     private fun fail(why: String) {
         log("error: $why")
         ModemState.setError(why)
@@ -453,20 +461,24 @@ class ModemService : Service() {
     }
 
     private val nativeListener = object : NativeModem.Listener {
+        /** the modem's log line kept (with a word on the local network if Android hasn't allowed it) */
         override fun onLog(line: String) {
             ModemState.log.add(line)
             // (what Android says when the LAN isn't the app's to reach)
             if (line.endsWith("Operation not permitted") && !localNetworkAllowed()) log(NO_LOCAL_NETWORK)
         }
 
+        /** the modem's status now */
         override fun onStatus(status: NativeModem.Status) {
             ModemState.setStatus(status)
         }
 
+        /** the modem's speaker on at ATL's [level], or off */
         override fun onSpeaker(level: Int) {
             ModemState.speaker.setLevel(level)
         }
 
+        /** a call's sound to the peer line ([caller]: ours, to [dial]), or turned away when there is no line */
         override fun onLine(caller: Boolean, dial: String, line: android.os.ParcelFileDescriptor) {
             if (settings.noLine) {
                 // (nothing plugged in: a dial gets NO DIALTONE, an answer NO CARRIER)
@@ -477,6 +489,7 @@ class ModemService : Service() {
             com.neodesktop.dmodem.peer.Peers.lineStarted(caller, dial, line)
         }
 
+        /** an exit not ours (not stopping): the service fails with it */
         override fun onExit(result: Int) {
             // (on the modem's thread: stop() waits for it, so nothing that stops here)
             if (stopping) return
@@ -488,18 +501,22 @@ class ModemService : Service() {
 
     // the network
 
+    /** [net] and its addresses, as one key: a change of either is a new network */
     private fun keyOf(net: Network, lp: LinkProperties): String =
         "$net " + lp.linkAddresses.joinToString(",") { it.address.hostAddress ?: "" }
 
+    /** the default network watched (once): its changes to [networkChanged], its loss logged */
     private fun watchNetwork() {
         if (networkCallback != null) return
         val cm = getSystemService(ConnectivityManager::class.java)
         val cb = object : ConnectivityManager.NetworkCallback() {
+            /** the default network's addresses, maybe new: to [networkChanged] */
             override fun onLinkPropertiesChanged(network: Network, lp: LinkProperties) {
                 val key = keyOf(network, lp)
                 scope.launch { networkChanged(key) }
             }
 
+            /** the default network gone, logged */
             override fun onLost(network: Network) {
                 scope.launch { log("the network ${network} is gone") }
             }
@@ -508,6 +525,7 @@ class ModemService : Service() {
         networkCallback = cb
     }
 
+    /** the default network no longer watched */
     private fun unwatchNetwork() {
         val cb = networkCallback ?: return
         networkCallback = null
@@ -530,6 +548,7 @@ class ModemService : Service() {
 
     // locks
 
+    /** the wake lock and the low-latency Wi-Fi lock taken, held until [releaseLocks] */
     @android.annotation.SuppressLint("WakelockTimeout")
     private fun acquireLocks() {
         if (wakeLock == null) {
@@ -551,6 +570,7 @@ class ModemService : Service() {
         }
     }
 
+    /** the wake and Wi-Fi locks let go */
     private fun releaseLocks() {
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
@@ -560,6 +580,7 @@ class ModemService : Service() {
 
     // the notification
 
+    /** the modem's ongoing notification for [run] and [s], with Stop */
     private fun notification(run: ModemState.Run, s: NativeModem.Status): Notification {
         val text = when {
             run == ModemState.Run.STARTING -> "Starting…"
@@ -616,6 +637,7 @@ class ModemService : Service() {
             nm.cancel(CALL_NOTIFICATION_ID)
             return
         }
+        /** a pending intent to MainActivity with [action], request code [code] */
         fun activity(code: Int, action: String) = PendingIntent.getActivity(
             this, code,
             Intent(this, MainActivity::class.java).setAction(action)
@@ -651,6 +673,7 @@ class ModemService : Service() {
         }
     }
 
+    /** [n] the modem's notification now (none if Android won't allow it) */
     private fun notify(n: Notification) {
         try {
             getSystemService(android.app.NotificationManager::class.java).notify(NOTIFICATION_ID, n)
@@ -666,6 +689,7 @@ class ModemService : Service() {
             checkSelfPermission(android.Manifest.permission.ACCESS_LOCAL_NETWORK) ==
             android.content.pm.PackageManager.PERMISSION_GRANTED
 
+    /** [line] to logcat and the app's log */
     private fun log(line: String) {
         Log.i(TAG, line)
         ModemState.log.add("app: $line")

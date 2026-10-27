@@ -19,21 +19,25 @@ object Pty {
         path: String, argv: Array<String>, envp: Array<String>, cwd: String?, rows: Int, cols: Int, pidOut: IntArray,
     ): Int
 
+    /** the pty of master [fd] told it is [rows]x[cols] now */
     @JvmStatic external fun resize(fd: Int, rows: Int, cols: Int)
 
     /** bytes read, or -1 at the end */
     @JvmStatic external fun read(fd: Int, b: ByteArray, off: Int, len: Int): Int
 
+    /** all of [b] from [off] for [len] written; false if it can't be */
     @JvmStatic external fun write(fd: Int, b: ByteArray, off: Int, len: Int): Boolean
 
     /** the exit status (128 + the signal for one that was killed) */
     @JvmStatic external fun waitFor(pid: Int): Int
 
+    /** [sig] to the process group of [pid] (to [pid] alone if that fails) */
     @JvmStatic external fun signal(pid: Int, sig: Int)
 
     /** [sig] to every process in session [sid] (the shell's pid): its jobs too; how many */
     @JvmStatic external fun signalSession(sid: Int, sig: Int): Int
 
+    /** master [fd] closed */
     @JvmStatic external fun close(fd: Int)
 
     /** a pty with no program on it, its slave raw (the modem's /dev/ttyDM0): the master's fd */

@@ -33,6 +33,7 @@ class LocalShell(
         if (!rc.exists()) rc.writeText(DEFAULT_RC)
     }
 
+    /** the shell's environment: the app's with its home, tmp, terminal, start-up file and the system's bins first on the PATH */
     fun environment(): Map<String, String> {
         val env = LinkedHashMap(base)
         env["HOME"] = home.path

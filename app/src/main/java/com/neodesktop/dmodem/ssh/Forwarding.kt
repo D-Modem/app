@@ -39,6 +39,7 @@ data class ForwardSpec(
         DYNAMIC('D', "SOCKS proxy"),
     }
 
+    /** the spec as its line, the one [parse] reads ("L 8080:db:5432") */
     override fun toString(): String {
         val b = bind?.let { (if (it.contains(':')) "[$it]" else it) + ":" } ?: ""
         val to = if (type == Type.DYNAMIC) "" else ":" + (if (host.contains(':')) "[$host]" else host) + ":$hostPort"
@@ -62,6 +63,7 @@ data class ForwardSpec(
             if (s.isEmpty()) return null
             val type = Type.entries.firstOrNull { it.flag == s[0].uppercaseChar() } ?: return null
             val parts = split(s.substring(1).trim()) ?: return null
+            /** [p] as a port, 0..65535, or null */
             fun port(p: String) = p.toIntOrNull()?.takeIf { it in 0..65535 }
             return when (type) {
                 Type.DYNAMIC -> when (parts.size) {
@@ -139,6 +141,7 @@ class Forwards(
 
     @Volatile private var closed = false
 
+    /** the state of [spec]'s forward changed by [f] */
     private fun set(spec: ForwardSpec, f: (ForwardState) -> ForwardState) =
         _states.update { l -> l.map { if (it.spec == spec) f(it) else it } }
 
@@ -168,6 +171,7 @@ class Forwards(
         _states.update { l -> l.filter { it.spec != spec } }
     }
 
+    /** every forward stopped, their states kept as not listening; no more started */
     @Synchronized
     override fun close() {
         closed = true
@@ -176,6 +180,7 @@ class Forwards(
         _states.update { l -> l.map { it.copy(listening = false) } }
     }
 
+    /** a local or SOCKS forward's socket bound (loopback unless [ForwardSpec.bind] says, "*" every address), each connection served on a thread of its own: the socket, to close it */
     private fun listen(spec: ForwardSpec): Closeable {
         val addr = InetAddress.getByName(spec.bind?.takeIf { it != "*" && it != "localhost" } ?: if (spec.bind == "*") "0.0.0.0" else "127.0.0.1")
         val server = ServerSocket()
@@ -195,6 +200,7 @@ class Forwards(
         return server
     }
 
+    /** a connection to a local or SOCKS forward: its channel from the server (SOCKS's to where its client asks), spliced to it, counted while open */
     private fun serve(spec: ForwardSpec, s: Socket) {
         counted(spec) {
             s.use {
@@ -221,6 +227,7 @@ class Forwards(
         }
     }
 
+    /** the server asked to listen for a remote forward, each connection to host:hostport from here: its cancel */
     private fun remote(spec: ForwardSpec): Closeable {
         val rpf = client.remotePortForwarder
         val listener = ConnectListener { ch ->
@@ -242,6 +249,7 @@ class Forwards(
         return Closeable { runCatching { rpf.cancel(bound) } }
     }
 
+    /** [body] run as one of [spec]'s connections: counted open while it runs, and in the total */
     private inline fun counted(spec: ForwardSpec, body: () -> Unit) {
         set(spec) { it.copy(open = it.open + 1, total = it.total + 1) }
         try {
@@ -252,6 +260,7 @@ class Forwards(
     }
 
     companion object {
+        /** [body] run on a daemon thread named [name] */
         fun thread(name: String, body: () -> Unit) = Thread(body, name).apply { isDaemon = true }.start()
 
         /** both ways between a socket and a channel, until either ends */
@@ -265,6 +274,7 @@ class Forwards(
             up.join(30_000)
         }
 
+        /** [i] copied to [o] until it ends (or fails) */
         private fun copy(i: InputStream, o: OutputStream) {
             val buf = ByteArray(32 * 1024)
             try {
@@ -295,6 +305,7 @@ object Socks {
         }
     }
 
+    /** a SOCKS 4/4a request read (the version read already) and, a CONNECT, [open]ed; granted or refused: what was opened */
     private fun <T : Any> socks4(d: java.io.DataInputStream, o: OutputStream, open: (String, Int) -> T?): T? {
         val cmd = d.readUnsignedByte()
         val port = d.readUnsignedShort()
@@ -312,6 +323,7 @@ object Socks {
         return ch
     }
 
+    /** a NUL-terminated string (255 characters at most) */
     private fun cstring(d: java.io.DataInputStream): String {
         val b = java.io.ByteArrayOutputStream()
         while (true) {
@@ -323,6 +335,7 @@ object Socks {
         return b.toString(Charsets.ISO_8859_1.name())
     }
 
+    /** a SOCKS 5 greeting (no authentication only) and request read (the version read already), a CONNECT [open]ed: what was opened, or null */
     private fun <T : Any> socks5(d: java.io.DataInputStream, o: OutputStream, open: (String, Int) -> T?): T? {
         val n = d.readUnsignedByte()
         val methods = ByteArray(n).also { d.readFully(it) }
@@ -348,6 +361,7 @@ object Socks {
         return reply5(o, if (ch != null) 0 else 5, ch)
     }
 
+    /** SOCKS 5 reply [code] written (an IPv4 bound address of zeros): [ch], passed back */
     private fun <T : Any> reply5(o: OutputStream, code: Int, ch: T?): T? {
         o.write(byteArrayOf(5, code.toByte(), 0, 1, 0, 0, 0, 0, 0, 0))
         o.flush()

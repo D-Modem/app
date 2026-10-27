@@ -41,6 +41,7 @@ object UsbModems {
     /** which of them a USB device with these IDs is, or null */
     fun kindOf(vendor: Int, product: Int): Kind? = Kind.entries.firstOrNull { it.vendor == vendor && product in it.products }
 
+    /** which of them USB device [d] is, or null */
     fun kindOf(d: UsbDevice): Kind? = kindOf(d.vendorId, d.productId)
 
     /** the ones plugged in, and which each is; not [gone] (the device name of one just unplugged, which Android may still list) */
@@ -65,6 +66,7 @@ object UsbModems {
     fun watch(context: Context, log: (String) -> Unit) {
         for ((d, kind) in plugged(context)) log("USB: ${said(d, kind)}: plugged in")
         val r = object : BroadcastReceiver() {
+            /** a modem plugged in or gone, said to [log] (other devices: nothing) */
             override fun onReceive(c: Context, i: Intent) {
                 @Suppress("DEPRECATION")
                 val d = i.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE) ?: return
@@ -113,6 +115,7 @@ object UsbModems {
     private suspend fun ask(context: Context, m: UsbManager, dev: UsbDevice): Boolean =
         suspendCancellableCoroutine { cont ->
             val receiver = object : BroadcastReceiver() {
+                /** Android's answer: the question's receiver let go, [cont] resumed with it */
                 override fun onReceive(c: Context, i: Intent) {
                     runCatching { context.unregisterReceiver(this) }
                     if (cont.isActive) cont.resume(i.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false))

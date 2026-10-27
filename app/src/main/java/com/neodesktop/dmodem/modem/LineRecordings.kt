@@ -14,6 +14,7 @@ object LineRecordings {
     const val KEEP = 5
     private const val PREFIX = "line"
 
+    /** the app's captures folder on external storage (null: none to have) */
     private fun dir(context: Context): File? = context.applicationContext.getExternalFilesDir("captures")
 
     /** the path D-Modem-RE's DMODEM_USB_REC is given (null: nowhere to record to) */

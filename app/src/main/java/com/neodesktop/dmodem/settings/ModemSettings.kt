@@ -201,8 +201,10 @@ class SettingsStore(private val context: Context) {
         )
     }
 
+    /** what's stored now */
     suspend fun current(): ModemSettings = settings.first()
 
+    /** [s] stored (addresses and names trimmed, the USB gain kept in -20..20) */
     suspend fun save(s: ModemSettings) {
         context.dataStore.edit { p ->
             p[Keys.user] = s.user.trim()

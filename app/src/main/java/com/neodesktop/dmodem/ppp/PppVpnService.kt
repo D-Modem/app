@@ -24,12 +24,14 @@ class PppVpnService : VpnService() {
     @Volatile private var out: FileOutputStream? = null
     private var reader: Thread? = null
 
+    /** the service is the one [open] uses, and ready */
     override fun onCreate() {
         super.onCreate()
         instance = this
         ready.countDown()
     }
 
+    /** ACTION_STOP: the VPN closed and the service ended; anything else: nothing (it's started to be there) */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
             close()
@@ -38,6 +40,7 @@ class PppVpnService : VpnService() {
         return START_NOT_STICKY
     }
 
+    /** the VPN taken away (the user's, or another's): the call hung up, the interface closed */
     override fun onRevoke() {
         // the user turned the VPN off (or another took over): the call hung up
         Internet.disconnect()
@@ -45,6 +48,7 @@ class PppVpnService : VpnService() {
         super.onRevoke()
     }
 
+    /** the interface closed, the service forgotten (the next start waits for a new one) */
     override fun onDestroy() {
         close()
         if (instance === this) instance = null
@@ -52,6 +56,7 @@ class PppVpnService : VpnService() {
         super.onDestroy()
     }
 
+    /** the VPN's interface for [cfg] (all IPv4, the app itself left out), its packets read to the link: its tunnel, null if Android won't establish it */
     private fun open(cfg: Ppp.IpConfig): Internet.Tunnel? {
         close()
         val b = Builder()
@@ -78,10 +83,12 @@ class PppVpnService : VpnService() {
             }
         }, "vpn-reader").apply { isDaemon = true; start() }
         return object : Internet.Tunnel {
+            /** a packet from the link to the interface */
             override fun write(packet: ByteArray) {
                 runCatching { out?.write(packet) }
             }
 
+            /** the interface closed and the service ended */
             override fun close() {
                 this@PppVpnService.close()
                 stopSelf()
@@ -89,6 +96,7 @@ class PppVpnService : VpnService() {
         }
     }
 
+    /** the interface closed, its reader let end */
     private fun close() {
         runCatching { pfd?.close() }
         pfd = null

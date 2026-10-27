@@ -89,11 +89,13 @@ class TerminalSettingsStore(private val context: Context) {
         val drawBoxes = booleanPreferencesKey("draw_boxes")
     }
 
+    /** the [E] named [s], or [d] for none or one not known */
     private inline fun <reified E : Enum<E>> enumOf(s: String?, d: E): E =
         s?.let { runCatching { enumValueOf<E>(it) }.getOrNull() } ?: d
 
     val settings: Flow<TerminalSettings> = context.terminalStore.data.map { from(it) }
 
+    /** the terminal's settings stored in [p], the defaults for what isn't */
     private fun from(p: Preferences): TerminalSettings {
         val d = TerminalSettings()
         return TerminalSettings(
@@ -120,6 +122,7 @@ class TerminalSettingsStore(private val context: Context) {
         )
     }
 
+    /** what's stored now */
     suspend fun current(): TerminalSettings = settings.first()
 
     /** one change made to what is saved now (not to a copy that may be behind: changes in quick succession) */
@@ -127,10 +130,12 @@ class TerminalSettingsStore(private val context: Context) {
         context.terminalStore.edit { p -> write(p, change(from(p))) }
     }
 
+    /** [s] stored as it is */
     suspend fun save(s: TerminalSettings) {
         context.terminalStore.edit { p -> write(p, s) }
     }
 
+    /** [s] into [p], enums by name */
     private fun write(p: MutablePreferences, s: TerminalSettings) {
         p[K.theme] = s.themeId
         p[K.font] = s.font.name
@@ -154,10 +159,12 @@ class TerminalSettingsStore(private val context: Context) {
         p[K.drawBoxes] = s.drawBoxes
     }
 
+    /** the font size [sp] stored alone (the pinch's) */
     suspend fun setFontSize(sp: Float) {
         context.terminalStore.edit { it[K.fontSize] = sp }
     }
 
+    /** the fixed columns [n] stored alone */
     suspend fun setFixedColumns(n: Int) {
         context.terminalStore.edit { it[K.fixedColumns] = n }
     }

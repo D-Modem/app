@@ -16,7 +16,9 @@ import javax.crypto.spec.GCMParameterSpec
 
 /** Octets sealed for keeping on the device, and opened again. */
 interface SecretBox {
+    /** [plain] sealed */
     fun seal(plain: ByteArray): ByteArray
+    /** what [seal] sealed, opened again (throws if it can't be) */
     fun open(sealed: ByteArray): ByteArray
 }
 
@@ -27,6 +29,7 @@ interface SecretBox {
  * ciphertext with its tag.
  */
 class KeystoreBox(private val alias: String = "dmodem-secrets") : SecretBox {
+    /** the Keystore's AES-256 GCM key under [alias], made the first time */
     private fun key(): SecretKey {
         val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (ks.getKey(alias, null) as? SecretKey)?.let { return it }
@@ -41,12 +44,14 @@ class KeystoreBox(private val alias: String = "dmodem-secrets") : SecretBox {
         return g.generateKey()
     }
 
+    /** [plain] encrypted under the Keystore's key: its fresh IV, then the ciphertext and tag */
     override fun seal(plain: ByteArray): ByteArray {
         val c = Cipher.getInstance("AES/GCM/NoPadding")
         c.init(Cipher.ENCRYPT_MODE, key())
         return c.iv + c.doFinal(plain)
     }
 
+    /** the IV, ciphertext and tag [seal] made, decrypted (throws if the tag doesn't match) */
     override fun open(sealed: ByteArray): ByteArray {
         val c = Cipher.getInstance("AES/GCM/NoPadding")
         c.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, sealed, 0, 12))
@@ -56,13 +61,16 @@ class KeystoreBox(private val alias: String = "dmodem-secrets") : SecretBox {
 
 /** No sealing at all: the JVM tests' (there is no Android Keystore there). */
 class PlainBox : SecretBox {
+    /** a copy of [plain], as it is */
     override fun seal(plain: ByteArray) = plain.copyOf()
+    /** a copy of [sealed], as it is */
     override fun open(sealed: ByteArray) = sealed.copyOf()
 }
 
 /** Passwords kept for directory entries, sealed, by entry id. */
 class PasswordStore(private val file: File, private val box: SecretBox) {
 
+    /** the file's entries, id to sealed password in base64 (none if it's missing or unreadable) */
     @Synchronized
     private fun load(): JSONObject = try {
         if (file.exists()) JSONObject(file.readText()) else JSONObject()
@@ -70,6 +78,7 @@ class PasswordStore(private val file: File, private val box: SecretBox) {
         JSONObject()
     }
 
+    /** the password kept for entry [id], opened; null if there's none, or it can't be opened */
     @Synchronized
     fun get(id: String): String? = try {
         load().optString(id).takeIf { it.isNotEmpty() }?.let {
@@ -79,6 +88,7 @@ class PasswordStore(private val file: File, private val box: SecretBox) {
         null
     }
 
+    /** [password] sealed and kept for entry [id] */
     @Synchronized
     fun put(id: String, password: String) {
         val o = load()
@@ -86,6 +96,7 @@ class PasswordStore(private val file: File, private val box: SecretBox) {
         file.writeText(o.toString())
     }
 
+    /** entry [id]'s password gone */
     @Synchronized
     fun remove(id: String) {
         val o = load()
@@ -102,6 +113,7 @@ object SshSecurity {
     @Volatile
     private var done = false
 
+    /** the full BouncyCastle in place as "BC" and sshj told to use it (once) */
     @Synchronized
     fun ensure() {
         if (done) return

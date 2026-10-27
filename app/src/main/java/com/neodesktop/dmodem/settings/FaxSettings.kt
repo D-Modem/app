@@ -40,6 +40,7 @@ class FaxSettingsStore(private val context: Context) {
         val ecm = booleanPreferencesKey("ecm")
     }
 
+    /** the fax settings stored in [p], the defaults for what isn't */
     private fun read(p: Preferences): FaxSettings {
         val d = FaxSettings()
         return FaxSettings(p[K.ident] ?: d.ident, p[K.answer] ?: d.answer, p[K.maxBps] ?: d.maxBps, p[K.fine] ?: d.fine, p[K.ecm] ?: d.ecm)
@@ -47,8 +48,10 @@ class FaxSettingsStore(private val context: Context) {
 
     val settings: Flow<FaxSettings> = context.faxStore.data.map { p -> read(p) }
 
+    /** what's stored now */
     suspend fun current(): FaxSettings = settings.first()
 
+    /** a change made to what's stored now (two quick changes don't undo each other) */
     suspend fun update(change: (FaxSettings) -> FaxSettings) {
         context.faxStore.edit { p ->
             val s = change(read(p))
@@ -56,6 +59,7 @@ class FaxSettingsStore(private val context: Context) {
         }
     }
 
+    /** [s] into [p] (the ident only digits, + and spaces, 20 at most) */
     private fun write(p: MutablePreferences, s: FaxSettings) {
         p[K.ident] = s.ident.filter { it.isDigit() || it == '+' || it == ' ' }.take(20)
         p[K.answer] = s.answer

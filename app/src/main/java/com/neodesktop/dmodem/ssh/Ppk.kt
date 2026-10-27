@@ -29,12 +29,14 @@ object Ppk {
     /** PuTTYgen's Argon2 defaults: 8 MiB, one lane; passes enough for a moment's work */
     data class Argon(val memoryKiB: Int = 8192, val passes: Int = 13, val parallelism: Int = 1)
 
+    /** whether [text] is a .ppk (its first line PuTTY's) */
     fun isPpk(text: String) = text.trimStart().startsWith("PuTTY-User-Key-File-")
 
     /** the "Comment:" a .ppk carries, if any */
     fun comment(text: String): String? =
         text.lineSequence().firstOrNull { it.startsWith("Comment: ") }?.removePrefix("Comment: ")?.trim()
 
+    /** the key as a .ppk of [version] 3 or 2, [comment] in it, encrypted with [passphrase] unless it's empty (v3's key from Argon2id with [argon]) */
     fun write(kp: KeyPair, comment: String, passphrase: String = "", version: Int = 3, argon: Argon = Argon()): String {
         require(version == 2 || version == 3) { "PPK versions 2 and 3 only" }
         val alg = KeyFormat.type(kp.public)
@@ -76,6 +78,7 @@ object Ppk {
                 cipherKey = ByteArray(0); iv = ByteArray(0); macKey = ByteArray(0)
             }
         } else {
+            /** the SHA-1 of [parts] one after another */
             fun sha1(vararg parts: ByteArray) = MessageDigest.getInstance("SHA-1").run { parts.forEach { update(it) }; digest() }
             val p = passphrase.toByteArray()
             cipherKey = (sha1(byteArrayOf(0, 0, 0, 0), p) + sha1(byteArrayOf(0, 0, 0, 1), p)).copyOf(32)
@@ -113,11 +116,15 @@ object Ppk {
 
     /** an HMAC key of no bytes (SecretKeySpec won't make one) */
     private class EmptyKey(private val alg: String) : javax.crypto.SecretKey {
+        /** the key's algorithm, the MAC's */
         override fun getAlgorithm() = alg
+        /** raw */
         override fun getFormat() = "RAW"
+        /** no bytes */
         override fun getEncoded() = ByteArray(0)
     }
 
+    /** the private half's fields as PuTTY's private blob has them (RSA's d, p, q, iqmp; ECDSA's s; Ed25519's seed) */
     private fun privateBlob(kp: KeyPair): ByteArray {
         val b = Buffer.PlainBuffer()
         when (val p = kp.private) {
@@ -128,7 +135,9 @@ object Ppk {
         return b.compactData
     }
 
+    /** [data] in base64, in lines of 64 */
     private fun lines(data: ByteArray) = Base64.getEncoder().encodeToString(data).chunked(64)
 
+    /** [b] in lower-case hex */
     private fun hex(b: ByteArray) = b.joinToString("") { "%02x".format(it) }
 }

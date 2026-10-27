@@ -38,6 +38,7 @@ class AgentKeys(
  */
 class AgentServer(private val keys: AgentKeys, private val owner: Any = Unit, private val log: (String) -> Unit = {}) {
 
+    /** requests read from [i] and answered on [o], each length-prefixed, until the stream ends (or a message is too long) */
     fun serve(i: InputStream, o: OutputStream) {
         val d = DataInputStream(i)
         try {
@@ -67,6 +68,7 @@ class AgentServer(private val keys: AgentKeys, private val owner: Any = Unit, pr
         FAILURE
     }
 
+    /** the keys' list: each key's blob and name */
     private fun identities(): ByteArray {
         val ks = keys.list()
         val r = Buffer.PlainBuffer().putByte(IDENTITIES_ANSWER.toByte()).putUInt32(ks.size.toLong())
@@ -74,6 +76,7 @@ class AgentServer(private val keys: AgentKeys, private val owner: Any = Unit, pr
         return r.compactData
     }
 
+    /** [data] signed with the key whose blob is [blob] (RSA's hash as [flags] ask), once confirmed: the response, or FAILURE */
     private fun sign(blob: ByteArray, data: ByteArray, flags: Int): ByteArray {
         val (name, kp) = keys.list().firstOrNull { KeyFormat.blob(it.second.public).contentEquals(blob) } ?: return FAILURE
         if (keys.confirm?.invoke(name, owner) == false) {
@@ -97,6 +100,7 @@ class AgentServer(private val keys: AgentKeys, private val owner: Any = Unit, pr
         return Buffer.PlainBuffer().putByte(SIGN_RESPONSE.toByte()).putBytes(inner).compactData
     }
 
+    /** a signature of algorithm [alg], from sshj's key algorithms */
     private fun signature(alg: String): Signature {
         val f = DefaultConfig().keyAlgorithms.firstOrNull { it.name == alg } ?: throw IOException("no $alg signatures")
         return f.create().newSignature()
@@ -134,6 +138,7 @@ class AgentForwarder(conn: Connection, private val server: AgentServer) :
     private class AgentChannel(conn: Connection, recipient: Int, window: Long, maxPacket: Long) :
         AbstractForwardedChannel(conn, TYPE, recipient, window, maxPacket, "", 0)
 
+    /** the server's agent channel opened: confirmed and served, on the listener's thread */
     override fun handleOpen(buf: SSHPacket) {
         val ch = AgentChannel(conn, buf.readUInt32AsInt(), buf.readUInt32(), buf.readUInt32())
         callListener(

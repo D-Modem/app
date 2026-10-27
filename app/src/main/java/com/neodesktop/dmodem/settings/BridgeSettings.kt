@@ -70,6 +70,7 @@ class BridgeSettingsStore(private val context: Context) {
 
     val settings: Flow<BridgeSettings> = context.bridgeStore.data.map { from(it) }
 
+    /** the bridges' settings stored in [p], the defaults for what isn't */
     private fun from(p: Preferences): BridgeSettings {
         val d = BridgeSettings()
         return BridgeSettings(
@@ -91,6 +92,7 @@ class BridgeSettingsStore(private val context: Context) {
         )
     }
 
+    /** what's stored now */
     suspend fun current(): BridgeSettings = settings.first()
 
     /** a change made to what's stored now (two quick changes don't undo each other) */
@@ -98,10 +100,12 @@ class BridgeSettingsStore(private val context: Context) {
         context.bridgeStore.edit { p -> write(p, change(from(p))) }
     }
 
+    /** [s] stored as it is */
     suspend fun save(s: BridgeSettings) {
         context.bridgeStore.edit { p -> write(p, s) }
     }
 
+    /** [s] into [p] (the TCP port kept in range, the Bluetooth address trimmed) */
     private fun write(p: androidx.datastore.preferences.core.MutablePreferences, s: BridgeSettings) {
         run {
             p[K.tcp] = s.tcp

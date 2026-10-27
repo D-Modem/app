@@ -51,6 +51,7 @@ class NatStack(
         timer.scheduleWithFixedDelay({ tick() }, 250, 250, TimeUnit.MILLISECONDS)
     }
 
+    /** every connection and flow ended (TCP's aborted), the timer and workers stopped */
     fun close() {
         closed = true
         tcp.values.forEach { it.abort() }
@@ -62,6 +63,7 @@ class NatStack(
 
     val connections: Int get() = tcp.size + udp.size
 
+    /** packet [p] to the computer, unless closed */
     private fun send(p: ByteArray) {
         if (!closed) runCatching { toClient(p) }
     }
@@ -84,8 +86,11 @@ class NatStack(
         }
     }
 
+    /** the big-endian 16-bit value at [i] of [b] */
     private fun u16(b: ByteArray, i: Int) = ((b[i].toInt() and 0xff) shl 8) or (b[i + 1].toInt() and 0xff)
+    /** the big-endian 32-bit value at [i] of [b] */
     private fun u32(b: ByteArray, i: Int) = (u16(b, i) shl 16) or u16(b, i + 2)
+    /** the address of [b]'s four octets */
     private fun addr(b: ByteArray) = InetAddress.getByAddress(b)
 
     // ------------------------------------------------------------------
@@ -122,9 +127,11 @@ class NatStack(
             runCatching { socket.send(DatagramPacket(payload, payload.size, to)) }
         }
 
+        /** the flow's socket closed */
         fun close() = runCatching { socket.close() }
     }
 
+    /** a UDP datagram from the computer: to its flow (made for a new one); to the gateway only DNS */
     private fun udpIn(src: ByteArray, dst: ByteArray, b: ByteArray) {
         if (b.size < 8) return
         val sport = u16(b, 0)
@@ -145,6 +152,7 @@ class NatStack(
     // ------------------------------------------------------------------
     // ICMP: echo
 
+    /** an echo request from the computer: answered for the gateway, else if the phone can reach the host */
     private fun icmpIn(src: ByteArray, dst: ByteArray, b: ByteArray) {
         if (b.size < 8 || b[0].toInt() != 8) return
         val rest = b.copyOfRange(4, b.size)
@@ -181,16 +189,20 @@ class NatStack(
         val toSocket = LinkedBlockingQueue<ByteArray>()
         val lock = Object()
 
+        /** a segment to the computer with [flags], [seq] and [data] (an MSS option if [mssOpt]), acknowledging [rcvNxt] */
         fun seg(flags: Int, seq: Int, data: ByteArray = ByteArray(0), mssOpt: Int = 0) =
             send(Ip.tcp(dst, client, dport, cport, seq, rcvNxt, flags, window(), data, mssOpt))
 
+        /** the window offered the computer: what's free of 64K queued for the socket */
         fun window(): Int = (65535 - toSocket.sumOf { it.size }).coerceIn(0, 65535)
 
+        /** the SYN-ACK to the computer, with our MSS */
         fun synAck() {
             seg(Ip.SYN or Ip.ACK, iss, mssOpt = mss)
             lastSent = System.currentTimeMillis()
         }
 
+        /** the connection over at once: its socket closed, its writer woken to end, forgotten */
         fun abort() {
             st = St.CLOSED
             runCatching { socket?.close() }
@@ -199,6 +211,7 @@ class NatStack(
             tcp.remove(key)
         }
 
+        /** a reset to the computer, and the connection aborted */
         fun reset() {
             seg(Ip.RST or Ip.ACK, sndNxt)
             abort()
@@ -264,6 +277,7 @@ class NatStack(
         }
     }
 
+    /** a TCP segment from the computer: to its connection, a SYN opening a new one, anything else reset */
     private fun tcpIn(src: ByteArray, dst: ByteArray, b: ByteArray) {
         if (b.size < 20) return
         val sport = u16(b, 0)

@@ -52,15 +52,20 @@ class PppHost(
     /** whether the computer has its address (the link up) */
     val online: StateFlow<Boolean> = _online.asStateFlow()
 
+    /** [l] hears what the host says to the computer */
     override fun addListener(l: TerminalLink.Listener) { listeners.add(l) }
+    /** [l] no longer hears the host */
     override fun removeListener(l: TerminalLink.Listener) { listeners.remove(l) }
 
+    /** [b] to the computer (every listener) */
     private fun say(b: ByteArray) {
         for (l in listeners) l.onData(b, b.size)
     }
 
+    /** [s] (ISO-8859-1) to the computer */
     private fun say(s: String) = say(s.toByteArray(Charsets.ISO_8859_1))
 
+    /** result code [s] to the computer, framed as V1 or V0 says */
     private fun result(s: String) = say(if (verbose) "\r\n$s\r\n" else "$s\r")
 
     /** the computer's octets */
@@ -97,6 +102,7 @@ class PppHost(
         return true
     }
 
+    /** the computer's command line [l]: E, V, Z and &F kept; a dial or ATA brings up PPP, CLIENT too (a direct cable connection); I answered; else OK */
     private fun command(l: String) {
         val u = l.uppercase()
         when {
@@ -126,18 +132,22 @@ class PppHost(
         }
     }
 
+    /** the PPP server and its NAT started, if not already */
     private fun startPpp() {
         if (ppp != null) return
         lateinit var n: NatStack
         val p = Ppp(
             send = { b -> say(b) },
             events = object : Ppp.Events {
+                /** the computer has its address: the NAT's MSS from the link's MTU, online */
                 override fun up(config: Ppp.IpConfig) {
                     n.mss = config.mtu - 40
                     log("the computer is online: ${peer.hostAddress}")
                     _online.value = true
                 }
+                /** the computer's IP packet to the NAT */
                 override fun ip(packet: ByteArray) = n.input(packet)
+                /** the link down: the NAT closed, offline, NO CARRIER to the computer */
                 override fun down(reason: String) {
                     log("the computer's link down: $reason")
                     synchronized(lock) {
@@ -150,6 +160,7 @@ class PppHost(
                         }
                     }
                 }
+                /** PPP's [line] to the host's log */
                 override fun log(line: String) = this@PppHost.log("ppp: $line")
             },
             server = Ppp.Server(local, peer, local),
@@ -165,6 +176,7 @@ class PppHost(
         ppp?.stop("the computer hung up")
     }
 
+    /** the link hung up, the NAT closed, the link closed */
     override fun close() {
         hangUp()
         nat?.close()

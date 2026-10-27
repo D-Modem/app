@@ -34,6 +34,7 @@ class DteHub : TerminalLink {
         return true
     }
 
+    /** the modem back to everyone, if [l] had it */
     fun release(l: TerminalLink.Listener) {
         synchronized(this) { if (owner === l) owner = null }
     }
@@ -57,10 +58,12 @@ class DteHub : TerminalLink {
     private var input: InputStream? = null
     private var reader: Thread? = null
 
+    /** [l] hears what the modem sends from now */
     override fun addListener(l: TerminalLink.Listener) {
         listeners.add(l)
     }
 
+    /** [l] no longer hears the modem */
     override fun removeListener(l: TerminalLink.Listener) {
         listeners.remove(l)
     }
@@ -113,6 +116,7 @@ class DteHub : TerminalLink {
     override fun write(data: ByteArray, offset: Int, length: Int): Boolean =
         if (owner != null) false else writeRaw(data, offset, length)
 
+    /** octets to the modem, whoever has it (counted for the lights): false if there is none or it has gone */
     private fun writeRaw(data: ByteArray, offset: Int, length: Int): Boolean =
         synchronized(outLock) {
             bytesOut += length
@@ -126,8 +130,10 @@ class DteHub : TerminalLink {
             }
         }
 
+    /** [text] (ISO-8859-1) to the modem: false as for [write] */
     fun write(text: String): Boolean = write(text.toByteArray(Charsets.ISO_8859_1))
 
+    /** what the modem sends, read until its stream ends: to the owner, if any, else every listener */
     private fun read(s: InputStream) {
         val buf = ByteArray(4096)
         while (true) {

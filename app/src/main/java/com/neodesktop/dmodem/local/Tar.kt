@@ -34,6 +34,7 @@ object Tar {
         var bytes = 0L
     }
 
+    /** [input]'s tar unpacked into [dest], [onEntry] told each entry's name: how much of each kind */
     fun extract(input: InputStream, dest: File, onEntry: (String) -> Unit = {}): Stats {
         val root = dest.toPath().toAbsolutePath().normalize()
         Files.createDirectories(root)
@@ -131,6 +132,7 @@ object Tar {
         return p
     }
 
+    /** [mode]'s permission bits set on [p] (the owner's read and write always kept), if the file system allows */
     private fun setMode(p: Path, mode: Int) {
         val perms = HashSet<PosixFilePermission>()
         val all = PosixFilePermission.values() // OWNER_READ .. OTHERS_EXECUTE: bits 8..0
@@ -158,22 +160,26 @@ object Tar {
         Files.walkFileTree(
             root,
             object : SimpleFileVisitor<Path>() {
+                /** the directory made writable first, so its entries can be removed */
                 override fun preVisitDirectory(d: Path, attrs: BasicFileAttributes): FileVisitResult {
                     // (a read-only directory's entries can't be removed until it's writable)
                     runCatching { d.toFile().setWritable(true, true); d.toFile().setExecutable(true, true); d.toFile().setReadable(true, true) }
                     return FileVisitResult.CONTINUE
                 }
 
+                /** a file or link removed */
                 override fun visitFile(f: Path, attrs: BasicFileAttributes): FileVisitResult {
                     Files.delete(f)
                     return FileVisitResult.CONTINUE
                 }
 
+                /** one that can't be read removed anyway */
                 override fun visitFileFailed(f: Path, exc: IOException): FileVisitResult {
                     Files.deleteIfExists(f)
                     return FileVisitResult.CONTINUE
                 }
 
+                /** the directory removed, now empty */
                 override fun postVisitDirectory(d: Path, exc: IOException?): FileVisitResult {
                     Files.delete(d)
                     return FileVisitResult.CONTINUE
@@ -184,6 +190,7 @@ object Tar {
 
     // ------------------------------------------------------------------
 
+    /** [b] filled from [i]: false at a clean end before any of it, EOFException if cut short */
     private fun readFully(i: InputStream, b: ByteArray): Boolean {
         var n = 0
         while (n < b.size) {
@@ -197,6 +204,7 @@ object Tar {
         return true
     }
 
+    /** an extended header's data of [size] read, with its padding */
     private fun readData(i: InputStream, size: Long): ByteArray {
         if (size > 1 shl 20) throw IOException("tar extended header too big")
         val b = ByteArray(size.toInt())
@@ -205,6 +213,7 @@ object Tar {
         return b
     }
 
+    /** [size] bytes of [i] copied to [o] */
     private fun copy(i: InputStream, o: java.io.OutputStream, size: Long) {
         val buf = ByteArray(64 * 1024)
         var left = size
@@ -216,17 +225,20 @@ object Tar {
         }
     }
 
+    /** [size] bytes and their padding passed over */
     private fun skip(i: InputStream, size: Long) {
         // (OutputStream.nullOutputStream is Android 13's)
         copy(i, object : java.io.OutputStream() { override fun write(b: Int) {}; override fun write(b: ByteArray, off: Int, len: Int) {} }, size)
         skipPadding(i, size)
     }
 
+    /** the zeros after [size] bytes of data, to the next 512-byte block, passed over */
     private fun skipPadding(i: InputStream, size: Long) {
         val pad = ((512 - size % 512) % 512).toInt()
         if (pad > 0) readFully(i, ByteArray(pad))
     }
 
+    /** the NUL-terminated UTF-8 string in [len] bytes of [b] from [off] */
     private fun cString(b: ByteArray, off: Int = 0, len: Int = b.size): String {
         var end = off
         while (end < off + len && b[end] != 0.toByte()) end++
@@ -244,6 +256,7 @@ object Tar {
         return if (s.isEmpty()) 0 else s.toLong(8)
     }
 
+    /** whether header [h]'s checksum (its bytes summed, the checksum field as spaces) is right */
     private fun checksumOk(h: ByteArray): Boolean {
         val want = number(h, 148, 8)
         var sum = 0L

@@ -43,8 +43,10 @@ class IspSettingsStore(private val context: Context) {
         IspSettings(p[K.number] ?: "", p[K.user] ?: "", p[K.password] ?: "", p[K.init] ?: "", p[K.script] ?: "", p[K.dialIn] ?: false)
     }
 
+    /** what's stored now */
     suspend fun current(): IspSettings = settings.first()
 
+    /** [s] stored (the number, user, init commands and script trimmed) */
     suspend fun save(s: IspSettings) {
         context.ispStore.edit { p ->
             p[K.number] = s.number.trim()

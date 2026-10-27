@@ -48,6 +48,7 @@ class IncomingCalls(private val clock: () -> Long = System::currentTimeMillis) {
         }
     }
 
+    /** a RING counted (none while off hook): a new call, or one more ring of this one */
     private fun ring() {
         if (offhook) return
         lastRing = clock()

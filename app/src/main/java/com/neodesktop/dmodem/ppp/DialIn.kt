@@ -72,6 +72,7 @@ object DialIn {
     private var watching = false
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    /** [s] to the app's log, as dial-in's */
     private fun log(s: String) = ModemState.log.add("dial-in: $s")
 
     /** the settings watched, the modem's calls too (the app's start) */
@@ -110,6 +111,7 @@ object DialIn {
     /** the modem's line being read (its results come in pieces) */
     private val line = StringBuilder()
 
+    /** the modem's [n] octets of [data], read a line at a time: at a caller's CONNECT, its PPP started on what follows */
     private fun modemText(data: ByteArray, n: Int) {
         if (!enabled) {
             line.setLength(0)
@@ -173,6 +175,7 @@ object DialIn {
     /** the caller's bytes so far, each way (in, out) */
     fun bytes(): Pair<Long, Long> = call?.ppp?.let { it.bytesIn to it.bytesOut } ?: (0L to 0L)
 
+    /** the last call's state cleared, unless one is going */
     fun dismiss() {
         if (call == null) _state.value = null
     }
@@ -183,6 +186,7 @@ object DialIn {
         var ppp: Ppp? = null
         var nat: NatStack? = null
 
+        /** the DTE claimed and the call's PPP server and NAT started ([first] its first input): false if the modem is someone else's */
         fun begin(first: ByteArray): Boolean {
             val hub = ModemState.dte
             listener = TerminalLink.Listener { d, n -> ppp?.input(d, 0, n) }
@@ -193,16 +197,20 @@ object DialIn {
             val p = Ppp(
                 send = { b -> hub.writeAs(listener, b) },
                 events = object : Ppp.Events {
+                    /** the caller online: the NAT's MSS from the link's MTU, the state Online */
                     override fun up(config: Ppp.IpConfig) {
                         n.mss = config.mtu - 40
                         DialIn.log("the caller is online: ${peer.hostAddress}")
                         _state.value = State("Online", connectLine, online = true, since = System.currentTimeMillis())
                     }
+                    /** the caller's IP packet to the NAT */
                     override fun ip(packet: ByteArray) = n.input(packet)
+                    /** PPP down: the call ended (off PPP's thread) */
                     override fun down(reason: String) {
                         // (off PPP's thread: the hang-up waits out the guard times)
                         Thread { end(reason) }.start()
                     }
+                    /** PPP's [line] to the log */
                     override fun log(line: String) = DialIn.log("ppp: $line")
                 },
                 server = Ppp.Server(local, peer, local),
@@ -237,6 +245,7 @@ object DialIn {
             finish(why)
         }
 
+        /** the call's end logged and shown, the DTE released */
         private fun finish(why: String) {
             log("over: $why")
             ModemState.dte.release(listener)

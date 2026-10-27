@@ -26,6 +26,7 @@ import com.neodesktop.dmodem.io.asSource
 class FdDuplex(private val pfd: ParcelFileDescriptor, override val name: String = "modem") : Duplex {
     override val input: Source = FileInputStream(pfd.fileDescriptor).asSource()
     override val output: Sink = FileOutputStream(pfd.fileDescriptor).asSink()
+    /** the socket shut down both ways (waking a blocked read), then closed */
     override fun close() {
         runCatching { Os.shutdown(pfd.fileDescriptor, OsConstants.SHUT_RDWR) }
         pfd.close()
@@ -97,6 +98,7 @@ object Peers {
         return ok
     }
 
+    /** the line stopped and no longer offered on the network */
     @Synchronized
     fun stop() {
         line?.stop()
@@ -128,9 +130,13 @@ object Peers {
             setPort(port)
         }
         val l = object : NsdManager.RegistrationListener {
+            /** registered: nothing to do */
             override fun onServiceRegistered(i: NsdServiceInfo) {}
+            /** not registered: nothing to do (the line still takes calls by address) */
             override fun onRegistrationFailed(i: NsdServiceInfo, code: Int) {}
+            /** unregistered: nothing to do */
             override fun onServiceUnregistered(i: NsdServiceInfo) {}
+            /** not unregistered: nothing to do */
             override fun onUnregistrationFailed(i: NsdServiceInfo, code: Int) {}
         }
         runCatching { m.registerService(info, NsdManager.PROTOCOL_DNS_SD, l) }.onSuccess { nsd = l }
@@ -145,19 +151,28 @@ class PeerFinder(context: Context, private val found: (String, String) -> Unit) 
     private val nsd = context.applicationContext.getSystemService(NsdManager::class.java)
     private var listener: NsdManager.DiscoveryListener? = null
 
+    /** the search started: each phone found resolved, then to [found] */
     fun start() {
         val m = nsd ?: return
         val l = object : NsdManager.DiscoveryListener {
+            /** started: nothing to do */
             override fun onDiscoveryStarted(type: String) {}
+            /** stopped: nothing to do */
             override fun onDiscoveryStopped(type: String) {}
+            /** not started: nothing found */
             override fun onStartDiscoveryFailed(type: String, code: Int) {}
+            /** not stopped: nothing to do */
             override fun onStopDiscoveryFailed(type: String, code: Int) {}
+            /** one gone: left in the list (nothing to do) */
             override fun onServiceLost(info: NsdServiceInfo) {}
+            /** one found: resolved, for its address */
             override fun onServiceFound(info: NsdServiceInfo) {
                 @Suppress("DEPRECATION")
                 runCatching {
                     m.resolveService(info, object : NsdManager.ResolveListener {
+                        /** not resolved: left out */
                         override fun onResolveFailed(i: NsdServiceInfo, code: Int) {}
+                        /** its host (bracketed, if IPv6) and port to [found], with its name */
                         override fun onServiceResolved(i: NsdServiceInfo) {
                             @Suppress("DEPRECATION")
                             val host = i.host?.hostAddress ?: return
@@ -171,6 +186,7 @@ class PeerFinder(context: Context, private val found: (String, String) -> Unit) 
         runCatching { m.discoverServices(TcpPeerTransport.SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, l) }.onSuccess { listener = l }
     }
 
+    /** the search stopped */
     fun stop() {
         listener?.let { l -> runCatching { nsd?.stopServiceDiscovery(l) } }
         listener = null

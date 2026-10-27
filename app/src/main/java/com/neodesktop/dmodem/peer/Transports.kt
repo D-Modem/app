@@ -23,6 +23,7 @@ class SocketDuplex(private val socket: Socket, override val name: String = socke
     init { runCatching { socket.tcpNoDelay = true } }
     override val input: Source = socket.getInputStream().asSource()
     override val output: Sink = socket.getOutputStream().asSink()
+    /** the connection closed */
     override fun close() = socket.close()
 }
 
@@ -41,6 +42,7 @@ class TcpPeerTransport(
     /** the port listened on (with port 0: the one given) */
     val localPort: Int get() = server?.localPort ?: port
 
+    /** calls taken on [port] (every address, or [bindTo]): each to [accept] on a thread of its own */
     override fun listen(accept: (Duplex) -> Unit) {
         val s = ServerSocket()
         s.reuseAddress = true
@@ -54,6 +56,7 @@ class TcpPeerTransport(
         }, "peer-listen").apply { isDaemon = true; start() }
     }
 
+    /** a call to [address] (`host[:port]`, [port] if none), 10 s to connect */
     override fun connect(address: String): Duplex {
         val (host, p) = parse(address, port)
         val s = Socket()
@@ -66,6 +69,7 @@ class TcpPeerTransport(
         return SocketDuplex(s, address)
     }
 
+    /** no more calls taken (the listening socket closed) */
     override fun close() {
         runCatching { server?.close() }
         server = null
@@ -111,9 +115,11 @@ class BluetoothPeerTransport(private val context: Context) : PeerTransport {
         override val input: Source = s.inputStream.asSource()
         override val output: Sink = s.outputStream.asSink()
         override val name: String = runCatching { s.remoteDevice?.let { it.name ?: it.address } }.getOrNull() ?: "Bluetooth"
+        /** the RFCOMM connection closed */
         override fun close() = s.close()
     }
 
+    /** calls taken on our RFCOMM service: each to [accept] on a thread of its own; IOException if there's no Bluetooth, or it's off */
     override fun listen(accept: (Duplex) -> Unit) {
         val a = adapter ?: throw IOException("this phone has no Bluetooth")
         if (!a.isEnabled) throw IOException("Bluetooth is off")
@@ -127,6 +133,7 @@ class BluetoothPeerTransport(private val context: Context) : PeerTransport {
         }, "peer-listen").apply { isDaemon = true; start() }
     }
 
+    /** a call to the paired phone at Bluetooth [address], on our RFCOMM service */
     override fun connect(address: String): Duplex {
         val a = adapter ?: throw IOException("this phone has no Bluetooth")
         if (!a.isEnabled) throw IOException("Bluetooth is off")
@@ -141,6 +148,7 @@ class BluetoothPeerTransport(private val context: Context) : PeerTransport {
         return BtDuplex(s)
     }
 
+    /** no more calls taken (the server socket closed) */
     override fun close() {
         runCatching { server?.close() }
         server = null

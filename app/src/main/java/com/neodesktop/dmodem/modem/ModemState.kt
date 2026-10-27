@@ -60,14 +60,17 @@ object ModemState {
     /** The text the modem sent the DTE lately (the status screen's console). */
     val console = TextBuffer(MAX_CONSOLE)
 
+    /** [r] the modem's run now */
     internal fun setRun(r: Run) {
         _run.value = r
     }
 
+    /** [s] the modem's status now */
     internal fun setStatus(s: NativeModem.Status) {
         _status.value = s
     }
 
+    /** [e] the error to show now (null: none) */
     internal fun setError(e: String?) {
         _error.value = e
     }
@@ -90,6 +93,7 @@ class LineBuffer(private val max: Int, private val clock: () -> Long = System::c
     private val _entries = MutableStateFlow<List<LogLine>>(emptyList())
     val entries: StateFlow<List<LogLine>> = _entries.asStateFlow()
 
+    /** [line] added, stamped with [clock], the oldest dropped past [max] */
     @Synchronized
     fun add(line: String) {
         lines.addLast(LogLine(clock(), line))
@@ -98,6 +102,7 @@ class LineBuffer(private val max: Int, private val clock: () -> Long = System::c
         _flow.value = _entries.value.map { it.text }
     }
 
+    /** every line dropped */
     @Synchronized
     fun clear() {
         lines.clear()
@@ -112,6 +117,7 @@ class TextBuffer(private val max: Int) {
     private val _flow = MutableStateFlow("")
     val flow: StateFlow<String> = _flow.asStateFlow()
 
+    /** [s] added, the oldest characters dropped past [max] */
     @Synchronized
     fun append(s: String) {
         sb.append(s)
@@ -119,6 +125,7 @@ class TextBuffer(private val max: Int) {
         _flow.value = sb.toString()
     }
 
+    /** the text dropped */
     @Synchronized
     fun clear() {
         sb.setLength(0)

@@ -17,8 +17,10 @@ import java.util.Base64
 class KnownHosts(private val file: File, private val ask: (Prompt.HostKey, Any?) -> Answer) : HostKeyVerifier {
 
 
+    /** the host as known_hosts names it: bare on port 22, else "[host]:port" */
     private fun hostPart(host: String, port: Int) = if (port == 22) host else "[$host]:$port"
 
+    /** the file's lines, blank ones left out (none if there's no file) */
     @Synchronized
     private fun lines(): List<String> = if (file.exists()) file.readLines().filter { it.isNotBlank() } else emptyList()
 
@@ -32,6 +34,7 @@ class KnownHosts(private val file: File, private val ask: (Prompt.HostKey, Any?)
         }
     }
 
+    /** [key] kept for the host, in place of a key of its type kept before */
     @Synchronized
     fun keep(host: String, port: Int, key: PublicKey) {
         val hp = hostPart(host, port)
@@ -60,6 +63,7 @@ class KnownHosts(private val file: File, private val ask: (Prompt.HostKey, Any?)
         }.joinToString("\n", postfix = "\n"))
     }
 
+    /** every key kept for the host gone */
     @Synchronized
     fun forget(host: String, port: Int) {
         val hp = hostPart(host, port)
@@ -67,6 +71,7 @@ class KnownHosts(private val file: File, private val ask: (Prompt.HostKey, Any?)
             .joinToString("\n", postfix = "\n"))
     }
 
+    /** [verify] with no owner for the question */
     override fun verify(hostname: String, port: Int, key: PublicKey): Boolean = verify(hostname, port, key, null)
 
     /** verify(), the question (if any) asked as [owner]'s: the connection's */
@@ -91,6 +96,7 @@ class KnownHosts(private val file: File, private val ask: (Prompt.HostKey, Any?)
     override fun findExistingAlgorithms(hostname: String, port: Int): List<String> =
         keysFor(hostname, port).map { it.first }.distinct()
 
+    /** the SHA256 fingerprint of a key kept in base64, or "(unreadable)" */
     private fun fingerprintOf(b64: String): String = try {
         val key = Buffer.PlainBuffer(Base64.getDecoder().decode(b64)).readPublicKey()
         KeyFormat.fingerprint(key)
