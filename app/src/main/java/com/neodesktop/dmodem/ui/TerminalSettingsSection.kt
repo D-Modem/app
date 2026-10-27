@@ -58,6 +58,7 @@ fun TerminalSettingsSection() {
     val scope = rememberCoroutineScope()
     val current by store.settings.collectAsStateWithLifecycle(initialValue = null)
     val s = current ?: return
+    /** [change] applied to the stored terminal settings */
     fun set(change: (TerminalSettings) -> TerminalSettings) {
         scope.launch { store.update(change) }
     }
@@ -117,6 +118,7 @@ fun TerminalSettingsSection() {
     }
 }
 
+/** a labelled switch */
 @Composable
 private fun Flag(label: String, value: Boolean, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

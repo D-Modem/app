@@ -28,6 +28,7 @@ fun isDark(a: Appearance): Boolean = when (a.dark) {
     DarkMode.DARK -> true
 }
 
+/** the app's Material theme: the wallpaper's colours (Android 12 on) or the palette's, light or dark, on black if asked */
 @Composable
 fun DModemTheme(appearance: Appearance = Appearance(), content: @Composable () -> Unit) {
     val dark = isDark(appearance)
@@ -66,6 +67,7 @@ object Palettes {
         return Color(rgb[0].toFloat(), rgb[1].toFloat(), rgb[2].toFloat())
     }
 
+    /** sRGB (0..1 each) of L* [l], chroma [c] and hue [hDeg] in CIE LCh(ab), D65; null if outside sRGB */
     private fun rgbOf(l: Double, c: Double, hDeg: Double): DoubleArray? {
         val h = Math.toRadians(hDeg)
         val a = c * cos(h)
@@ -73,6 +75,7 @@ object Palettes {
         val fy = (l + 16) / 116
         val fx = fy + a / 500
         val fz = fy - b / 200
+        /** CIE Lab's f inverted: t cubed, or its linear part near black */
         fun inv(t: Double) = if (t * t * t > 216.0 / 24389) t * t * t else (116 * t - 16) / (24389.0 / 27)
         val x = 0.95047 * inv(fx)
         val y = if (l > 8) fy * fy * fy else l / (24389.0 / 27)
@@ -91,9 +94,11 @@ object Palettes {
     }
 
     private class Tones(val h: Double, val c: Double) {
+        /** the colour at tone [t] of this hue and chroma */
         operator fun invoke(t: Int) = lch(t.toDouble(), c, h)
     }
 
+    /** the Material light or dark scheme of [p]'s hue: each role its tone of the palette's tonal palettes */
     fun scheme(p: AppPalette, dark: Boolean): ColorScheme {
         val a = Tones(p.hue, p.chroma)
         val b = Tones(p.hue, (p.chroma / 3).coerceAtMost(16.0))
@@ -132,6 +137,7 @@ object Palettes {
 
     /** a dark scheme on black: the surfaces black, their containers a step up each */
     fun black(s: ColorScheme): ColorScheme {
+        /** a grey of level [by] (0..1) */
         fun up(by: Float) = Color(by, by, by)
         return s.copy(
             background = Color.Black, surface = Color.Black, surfaceDim = Color.Black,

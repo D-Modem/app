@@ -63,6 +63,7 @@ data class DialEntry(
         EntryKind.TELNET -> host.isNotBlank()
     }
 
+    /** the entry as stored in directory.json */
     fun toJson(): JSONObject = JSONObject()
         .put("id", id).put("name", name).put("kind", kind.name).put("number", number)
         .put("host", host).put("port", port).put("user", user).put("auth", auth.name).put("keyId", keyId)
@@ -72,6 +73,7 @@ data class DialEntry(
         .put("forwards", org.json.JSONArray(forwards)).put("agent", agentForwarding).put("agentConfirm", agentConfirm)
 
     companion object {
+        /** an entry from its JSON, defaults for what's missing or unknown (a new id if it has none) */
         fun fromJson(o: JSONObject) = DialEntry(
             id = o.optString("id").ifEmpty { UUID.randomUUID().toString() },
             name = o.optString("name"),
@@ -104,9 +106,11 @@ data class Snippet(
     /** with escapes: \r \n \t \e \\ \xHH, ^A..^_ as ^A */
     val text: String = "",
 ) {
+    /** the snippet as stored in snippets.json */
     fun toJson(): JSONObject = JSONObject().put("id", id).put("name", name).put("text", text)
 
     companion object {
+        /** a snippet from its JSON (a new id if it has none) */
         fun fromJson(o: JSONObject) = Snippet(
             id = o.optString("id").ifEmpty { UUID.randomUUID().toString() },
             name = o.optString("name"),
@@ -180,6 +184,7 @@ class JsonListStore<T>(
         _items.value = load() ?: defaults.also { save(it) }
     }
 
+    /** the list in [file], or null if there is none or it can't be read */
     private fun load(): List<T>? = try {
         if (!file.exists()) {
             null
@@ -191,6 +196,7 @@ class JsonListStore<T>(
         null
     }
 
+    /** [list] written to [file] (by way of a .tmp, renamed) and made the items */
     @Synchronized
     private fun save(list: List<T>) {
         val a = JSONArray()
@@ -209,10 +215,12 @@ class JsonListStore<T>(
         save(l)
     }
 
+    /** the one with [item]'s id taken out */
     fun remove(item: T) {
         save(_items.value.filter { id(it) != id(item) })
     }
 
+    /** the item at [from] moved to [to]; nothing if either is out of range */
     fun move(from: Int, to: Int) {
         val l = _items.value.toMutableList()
         if (from !in l.indices || to !in l.indices) return

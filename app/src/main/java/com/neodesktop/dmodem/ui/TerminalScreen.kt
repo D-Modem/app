@@ -405,6 +405,7 @@ private fun Disconnected(reason: String?, local: Boolean, onReconnect: () -> Uni
     }
 }
 
+/** the bar's line: the modem's state (online with its rates and the call's time), then the window's title if any */
 private fun barText(
     run: ModemState.Run,
     st: NativeModem.Status,
@@ -426,6 +427,7 @@ private fun barText(
     return if (title.isNotBlank()) "$state — $title" else state
 }
 
+/** the terminal's bar: its line, the keyboard, snippets and capture buttons, and a menu of the rest (hang up, paste, new shells, files, character set, clear, reset, full screen) */
 @Composable
 private fun TopBar(
     text: String,
@@ -541,6 +543,7 @@ private fun ExtraKeys(
     }
 }
 
+/** a row of the extra keys, 40 dp high */
 @Composable
 private fun KeyRow(content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
     Row(Modifier.fillMaxWidth().height(40.dp), horizontalArrangement = Arrangement.spacedBy(2.dp), content = content)
@@ -590,6 +593,7 @@ private fun androidx.compose.foundation.layout.RowScope.KeyButton(
 private const val REPEAT_DELAY_MS = 400L
 private const val REPEAT_MS = 60L
 
+/** the bell as a 60 ms vibration */
 private fun vibrate(context: Context) {
     val v: Vibrator = if (android.os.Build.VERSION.SDK_INT >= 31) {
         context.getSystemService(VibratorManager::class.java).defaultVibrator

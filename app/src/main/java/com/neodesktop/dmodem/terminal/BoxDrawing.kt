@@ -15,6 +15,7 @@ object BoxDrawing {
     // each line character: its arms (up, right, down, left), 0 none, 1 light, 2 double, 3 heavy
     private val arms = HashMap<Int, Int>()
 
+    /** each of [chars] given these arms, packed two bits each in [arms] */
     private fun put(chars: String, up: Int, right: Int, down: Int, left: Int) {
         for (c in chars) arms[c.code] = (up shl 6) or (right shl 4) or (down shl 2) or left
     }
@@ -36,6 +37,7 @@ object BoxDrawing {
         put("╪", 1, 2, 1, 2); put("╫", 2, 1, 2, 1)
     }
 
+    /** whether [cp] is one this draws: a block element or a line character */
     fun handles(cp: Int): Boolean = cp in 0x2580..0x259f || arms.containsKey(cp)
 
     /** cp in the cell (x, y, w, h) in paint's colour; false if it isn't one of ours */
@@ -57,12 +59,14 @@ object BoxDrawing {
             val top = yc - kotlin.math.floor(t / 2)
             c.drawRect(x0, top, x1, top + t, paint)
         }
+        // a vertical line of thickness t centred on xc from y0 to y1
         fun v(y0: Float, y1: Float, xc: Float, t: Float) {
             val left = xc - kotlin.math.floor(t / 2)
             c.drawRect(left, y0, left + t, y1, paint)
         }
         // a line of thickness t centred on c covers lo(c, t) until hi(c, t)
         fun lo(c0: Float, t: Float) = c0 - kotlin.math.floor(t / 2)
+        // where a line of thickness t centred on c0 ends
         fun hi(c0: Float, t: Float) = lo(c0, t) + t
         // where a line of a double arm meets the arm across its side: none, the
         // outer corner (-gap); single or heavy, the centre line; double, the inner corner (+gap)
@@ -113,6 +117,7 @@ object BoxDrawing {
         return true
     }
 
+    /** a block element (U+2580..259F) filling its part of the cell, the shades in paint's alpha; false if not one */
     private fun block(c: Canvas, cp: Int, x: Float, y: Float, w: Float, h: Float, paint: Paint): Boolean {
         val alpha = paint.alpha
         when (cp) {

@@ -53,6 +53,7 @@ fun InternetCard(onSetUp: () -> Unit) {
     val state by Internet.state.collectAsStateWithLifecycle()
     val run by ModemState.run.collectAsStateWithLifecycle()
 
+    /** the ISP dialled with the stored settings, its packets through the VPN; why not, if it can't, in a toast */
     fun dial() {
         val app = context.applicationContext
         scope.launch {
@@ -143,6 +144,7 @@ private fun DialInRows(d: DialIn.State) {
     }
 }
 
+/** a byte count in B, KB or MB */
 private fun size(n: Long) = when {
     n < 1024 -> "$n B"
     n < 1024 * 1024 -> "%.1f KB".format(n / 1024.0)

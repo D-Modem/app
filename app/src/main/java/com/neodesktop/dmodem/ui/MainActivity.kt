@@ -50,6 +50,7 @@ class MainActivity : ComponentActivity() {
     private val askPermissions =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
 
+    /** the app's screen: permissions asked, the internet host's service resumed, a call's notification handled, the tabs in the app's theme */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // (a fresh start: Settings at its menu)
@@ -157,6 +158,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** a call's notification tapped while the app is open: handled as at the start */
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         handleCall(intent)
@@ -185,6 +187,7 @@ class MainActivity : ComponentActivity() {
         i.action = null
     }
 
+    /** the incoming call answered as a fax: its ringing ended, the fax shown on the modem's tab (why not, in a toast) */
     private fun answerAsFax() {
         com.neodesktop.dmodem.modem.ModemState.incoming.end()
         val why = com.neodesktop.dmodem.fax.Fax.answer(this)
@@ -212,6 +215,7 @@ class MainActivity : ComponentActivity() {
         runCatching { ui.setApplicationNightMode(want) }
     }
 
+    /** the status and navigation bars shown, or hidden until a swipe (the terminal's full screen) */
     private fun setSystemBars(show: Boolean) {
         val c = WindowCompat.getInsetsController(window, window.decorView)
         if (show) {
@@ -236,6 +240,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/** a tab of the navigation bar */
 @androidx.compose.runtime.Composable
 private fun androidx.compose.foundation.layout.RowScope.Item(
     selected: Boolean,

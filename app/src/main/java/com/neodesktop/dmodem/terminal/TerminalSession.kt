@@ -141,6 +141,7 @@ class TerminalSession(
         onChange?.invoke()
     }
 
+    /** a transfer made the running one, over the link: null if one already is */
     private fun startTransfer(protocol: Protocol, sending: Boolean): Transfer? = synchronized(transferLock) {
         if (transfer != null) return null
         val t = Transfer(
@@ -154,6 +155,7 @@ class TerminalSession(
         t
     }
 
+    /** the transfer's end: it no longer running, its outcome on the screen and the bytes after it to the emulator */
     private fun endTransfer(s: TransferState, rest: ByteArray) {
         synchronized(transferLock) { transfer = null }
         val what = s.protocol.label
@@ -184,6 +186,7 @@ class TerminalSession(
         return true
     }
 
+    /** the running transfer, if any, cancelled */
     fun cancelTransfer() {
         transfer?.cancel()
     }
@@ -195,14 +198,17 @@ class TerminalSession(
 
     init {
         emulator.listener = object : TerminalEmulator.Listener {
+            /** the window's title (OSC 0/2) for [title] */
             override fun onTitle(title: String) {
                 _title.value = title
             }
 
+            /** the bell to [onBell] */
             override fun onBell() {
                 onBell?.invoke()
             }
 
+            /** the remote's clipboard text to [onClipboard] */
             override fun onClipboard(text: String) {
                 onClipboard?.invoke(text)
             }
@@ -255,6 +261,7 @@ class TerminalSession(
         }
     }
 
+    /** the latched Ctrl and Alt let go */
     private fun releaseLatches() {
         ctrl.value = false
         alt.value = false
@@ -301,11 +308,13 @@ class TerminalSession(
         if (kind != Kind.MODEM) link.close()
     }
 
+    /** the emulator reset (RIS, the scrollback kept) and the view redrawn */
     fun reset() {
         synchronized(emulator) { emulator.reset() }
         onChange?.invoke()
     }
 
+    /** the screen and the scrollback cleared and the view redrawn */
     fun clear() {
         synchronized(emulator) { emulator.clearAll() }
         onChange?.invoke()
@@ -335,6 +344,7 @@ class TerminalSession(
     /** the capture file closed: the file, or null if there was none */
     fun stopCapture(): File? = synchronized(captureLock) { stopCaptureLocked() }
 
+    /** the capture closed, with [captureLock] held: its file, or null */
     private fun stopCaptureLocked(): File? {
         val f = _capture.value
         try {

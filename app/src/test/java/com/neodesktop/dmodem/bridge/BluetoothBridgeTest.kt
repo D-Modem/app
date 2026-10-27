@@ -37,8 +37,11 @@ class BluetoothBridgeTest {
         override val state: StateFlow<TerminalLink.State> = MutableStateFlow(TerminalLink.State.Open)
         val listeners = CopyOnWriteArrayList<TerminalLink.Listener>()
         val got = ByteArrayOutputStream()
+        /** [l] told the modem's replies */
         override fun addListener(l: TerminalLink.Listener) { listeners.add(l) }
+        /** [l] told no more */
         override fun removeListener(l: TerminalLink.Listener) { listeners.remove(l) }
+        /** the bytes kept, and OK replied to a command (one ending in CR) */
         override fun write(data: ByteArray, offset: Int, length: Int): Boolean {
             synchronized(got) { got.write(data, offset, length) }
             if (String(data, offset, length).endsWith("\r")) {
@@ -47,6 +50,7 @@ class BluetoothBridgeTest {
             }
             return true
         }
+        /** what was written to the modem, as text */
         fun sent() = synchronized(got) { String(got.toByteArray()) }
     }
 
@@ -58,23 +62,27 @@ class BluetoothBridgeTest {
     private var bridge: BluetoothBridge? = null
     private val adapter get() = ctx.getSystemService(BluetoothManager::class.java).adapter
 
+    /** Bluetooth on and allowed */
     @Before
     fun setUp() {
         shadowOf(ctx as Application).grantPermissions(Manifest.permission.BLUETOOTH_CONNECT)
         shadowOf(adapter).setEnabled(true)
     }
 
+    /** the bridge stopped */
     @After
     fun tearDown() {
         bridge?.stop()
     }
 
+    /** [ok] waited for (5 s at most), failing with [what] if it never holds */
     private fun waitUntil(what: String, ok: () -> Boolean) {
         val end = System.currentTimeMillis() + 5000
         while (!ok() && System.currentTimeMillis() < end) Thread.sleep(20)
         assertTrue(what, ok())
     }
 
+    /** [i] read until [want] has come (5 s at most): what was read */
     private fun readUntil(i: InputStream, want: String): String {
         val sb = StringBuilder()
         val end = System.currentTimeMillis() + 5000
@@ -85,6 +93,7 @@ class BluetoothBridgeTest {
         return sb.toString()
     }
 
+    /** a device connecting to the phone's port gets the modem; when it goes online, the call's hung up and the port offered again */
     @Test
     fun aDeviceConnectsToThePhone() {
         val b = BluetoothBridge(ctx, serial).also { bridge = it }
@@ -105,6 +114,7 @@ class BluetoothBridgeTest {
         assertEquals(null, serial.client.value)
     }
 
+    /** the phone connects to a paired device and the device gets the modem */
     @Test
     fun thePhoneConnectsToAPairedDevice() {
         val device = adapter.getRemoteDevice("66:77:88:99:AA:BB")
@@ -119,6 +129,7 @@ class BluetoothBridgeTest {
         assertEquals("AT&F\r", modem.sent())
     }
 
+    /** Bluetooth off, or its permission denied, fails to start and says why */
     @Test
     fun offOrNotAllowedSaysSo() {
         shadowOf(adapter).setEnabled(false)

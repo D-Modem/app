@@ -50,8 +50,10 @@ class ConnectionService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
+    /** not bound to: started and stopped only */
     override fun onBind(intent: Intent?): IBinder? = null
 
+    /** in the foreground with the notification, kept up to date as sessions change; stopped when no network session is open */
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun onCreate() {
         super.onCreate()
@@ -75,6 +77,7 @@ class ConnectionService : Service() {
         }
     }
 
+    /** "Disconnect all": every network session closed; not restarted if killed */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_CLOSE_ALL) {
             Terminal.sessions.value.filter { it.kind != TerminalSession.Kind.MODEM }.forEach { Terminal.close(it) }
@@ -82,11 +85,13 @@ class ConnectionService : Service() {
         return START_NOT_STICKY
     }
 
+    /** the session watch cancelled */
     override fun onDestroy() {
         scope.cancel()
         super.onDestroy()
     }
 
+    /** the notification: the open network sessions, a tap to the app, and "Disconnect all" */
     private fun notification(): Notification {
         val open = Terminal.sessions.value.filter {
             it.kind != TerminalSession.Kind.MODEM && it.link.state.value !is TerminalLink.State.Closed

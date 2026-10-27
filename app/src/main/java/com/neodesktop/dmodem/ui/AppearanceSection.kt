@@ -55,6 +55,7 @@ fun AppearanceSection() {
     val scope = rememberCoroutineScope()
     val current by store.appearance.collectAsStateWithLifecycle(initialValue = null)
     val a = current ?: return
+    /** [change] applied to the stored appearance */
     fun set(change: (Appearance) -> Appearance) {
         scope.launch { store.update(change) }
     }
@@ -96,6 +97,7 @@ fun AppearanceSection() {
     }
 }
 
+/** a palette's swatch to pick: its primary in its tertiary container, ringed and ticked when [selected] */
 @Composable
 private fun Swatch(p: AppPalette, selected: Boolean, onPick: () -> Unit) {
     val context = LocalContext.current

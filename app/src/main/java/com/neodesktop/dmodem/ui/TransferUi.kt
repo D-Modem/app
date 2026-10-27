@@ -147,6 +147,7 @@ fun TransferBanner(t: TransferState, savedTo: String, onCancel: () -> Unit, onDi
     }
 }
 
+/** a byte count in B, KB or MB */
 private fun sizeText(n: Long): String = when {
     n < 1024 -> "$n B"
     n < 1024 * 1024 -> "%.1f KB".format(n / 1024.0)

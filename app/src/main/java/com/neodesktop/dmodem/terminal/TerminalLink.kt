@@ -25,7 +25,9 @@ interface TerminalLink {
 
     val state: StateFlow<State>
 
+    /** [l] told the octets from the far end from now on */
     fun addListener(l: Listener)
+    /** [l] told no more */
     fun removeListener(l: Listener)
 
     /** octets to the far end: false if it can't take them (closed) */

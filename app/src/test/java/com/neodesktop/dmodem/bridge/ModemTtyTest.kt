@@ -29,15 +29,20 @@ class ModemTtyTest {
         override val state: StateFlow<TerminalLink.State> = MutableStateFlow(TerminalLink.State.Open)
         val listeners = CopyOnWriteArrayList<TerminalLink.Listener>()
         val got = ByteArrayOutputStream()
+        /** [l] told the modem's output */
         override fun addListener(l: TerminalLink.Listener) { listeners.add(l) }
+        /** [l] told no more */
         override fun removeListener(l: TerminalLink.Listener) { listeners.remove(l) }
+        /** the bytes kept, and OK replied to an AT command */
         override fun write(data: ByteArray, offset: Int, length: Int): Boolean {
             synchronized(got) { got.write(data, offset, length) }
             val s = String(data, offset, length, Charsets.ISO_8859_1)
             if (s.contains("AT") && s.endsWith("\r")) emit("\r\nOK\r\n".toByteArray())
             return true
         }
+        /** [b] from the modem to its listeners */
         fun emit(b: ByteArray) = listeners.forEach { it.onData(b, b.size) }
+        /** what was written to the modem, as text */
         fun sent(): String = synchronized(got) { String(got.toByteArray(), Charsets.ISO_8859_1) }
     }
 
@@ -47,9 +52,11 @@ class ModemTtyTest {
     private val serial = SerialBridge(modem, signals, { hangUps.incrementAndGet() })
     private val tty = ModemTty(serial)
 
+    /** the pty library built for the host, loaded */
     @Before
     fun setUp() = Pty.load(LocalShellTest.hostPty())
 
+    /** [cond] waited for ([secs] at most), failing with [what] if it never holds */
     private fun until(what: String, secs: Int = 5, cond: () -> Boolean) {
         val end = System.currentTimeMillis() + secs * 1000L
         while (!cond()) {
@@ -71,6 +78,7 @@ class ModemTtyTest {
         return sb.toString()
     }
 
+    /** a program opening the tty has the modem: its commands answered, RING unasked; closing it in a call hangs up, and it can open it again */
     @Test
     fun aProgramOnTheTtyHasTheModem() {
         val path = tty.slave()
@@ -106,6 +114,7 @@ class ModemTtyTest {
         until("the bridge free again") { serial.client.value == null }
     }
 
+    /** the tty doesn't take the modem from another client: what's written to it doesn't reach the modem */
     @Test
     fun anotherClientsModemIsntTheTtys() {
         val other = Port("tcp", "a TCP client", java.io.ByteArrayInputStream(ByteArray(0)), ByteArrayOutputStream()) {}

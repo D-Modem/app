@@ -41,18 +41,22 @@ class TelnetLink(
     private val local = BooleanArray(256)
     @Volatile private var nawsOn = false
 
+    /** [l] told the server's data from now on */
     override fun addListener(l: TerminalLink.Listener) {
         listeners.add(l)
     }
 
+    /** [l] told no more */
     override fun removeListener(l: TerminalLink.Listener) {
         listeners.remove(l)
     }
 
+    /** the connection made, in a thread of its own */
     fun connect() {
         Thread({ run() }, "telnet-$host").apply { isDaemon = true }.start()
     }
 
+    /** the connection's life on its thread: connect, then read until it ends */
     private fun run() {
         try {
             val s = Socket()
@@ -72,6 +76,7 @@ class TelnetLink(
 
     private enum class In { DATA, IAC, OPT, SB, SB_IAC }
 
+    /** the server's bytes until it closes: data (CR NUL a CR, IAC IAC an 0xff) to the listeners, its commands answered */
     private fun read(s: Socket) {
         val inp = s.getInputStream()
         val buf = ByteArray(8192)
@@ -146,6 +151,7 @@ class TelnetLink(
         }
     }
 
+    /** the server's subnegotiation answered: TERMINAL-TYPE SEND with IS [termType] */
     private fun subnegotiation(sb: ByteArray) {
         // TERMINAL-TYPE SEND: IS <type>
         if (sb.size >= 2 && (sb[0].toInt() and 0xff) == TTYPE && sb[1].toInt() == 1) {
@@ -154,6 +160,7 @@ class TelnetLink(
         }
     }
 
+    /** the window's size sent to the server (NAWS) */
     private fun sendNaws() {
         val c = cols.coerceIn(0, 65535)
         val r = rows.coerceIn(0, 65535)
@@ -163,6 +170,7 @@ class TelnetLink(
         send(*(intArrayOf(IAC, SB, NAWS) + body + intArrayOf(IAC, SE)))
     }
 
+    /** the bytes [v] sent as they are, ignoring a failure */
     private fun send(vararg v: Int) {
         val o = out ?: return
         try {
@@ -174,6 +182,7 @@ class TelnetLink(
         }
     }
 
+    /** [length] bytes of [data] sent with IAC doubled and a lone CR as CR NUL outside binary; false if not open or it failed */
     override fun write(data: ByteArray, offset: Int, length: Int): Boolean {
         val o = out ?: return false
         if (_state.value !is TerminalLink.State.Open) return false
@@ -196,12 +205,14 @@ class TelnetLink(
         }
     }
 
+    /** the new size kept, and sent on a thread of its own if NAWS is on */
     override fun resize(cols: Int, rows: Int) {
         this.cols = cols
         this.rows = rows
         if (nawsOn) Thread({ sendNaws() }, "telnet-naws").start()
     }
 
+    /** the link closed, with [reason] (null: the user's doing), and its socket; once */
     private fun closed(reason: String?) {
         if (_state.value is TerminalLink.State.Closed) return
         _state.value = TerminalLink.State.Closed(reason)
@@ -211,6 +222,7 @@ class TelnetLink(
         }
     }
 
+    /** the link closed by the user: no reason given */
     override fun close() {
         closing = true
         closed(null)

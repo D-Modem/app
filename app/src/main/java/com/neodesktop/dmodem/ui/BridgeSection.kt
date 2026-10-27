@@ -54,6 +54,7 @@ fun BridgeSection() {
     val scope = rememberCoroutineScope()
     val current by store.settings.collectAsStateWithLifecycle(initialValue = null)
     val s = current ?: return
+    /** [f] applied to the stored settings, the internet host's service brought in line with them */
     fun change(f: (BridgeSettings) -> BridgeSettings) {
         scope.launch {
             store.update(f)
@@ -187,6 +188,7 @@ fun BridgeSection() {
     }
 }
 
+/** the TCP bridge's state, as a line */
 private fun tcpText(st: TcpBridge.State, s: BridgeSettings): String = when (st) {
     TcpBridge.State.Stopped -> "Starts with the modem"
     is TcpBridge.State.Listening -> "Listening on " + (if (s.tcpAnyAddress) "port" else "localhost port") + " ${st.port}" +
@@ -194,6 +196,7 @@ private fun tcpText(st: TcpBridge.State, s: BridgeSettings): String = when (st) 
     is TcpBridge.State.Failed -> "Can't listen: ${st.why}"
 }
 
+/** the USB bridge's state, as a line */
 private fun usbText(st: com.neodesktop.dmodem.bridge.UsbBridge.State): String = when (st) {
     com.neodesktop.dmodem.bridge.UsbBridge.State.Stopped -> "Starts with the modem"
     com.neodesktop.dmodem.bridge.UsbBridge.State.Waiting -> "Waiting for an adapter to be plugged in"
@@ -202,6 +205,7 @@ private fun usbText(st: com.neodesktop.dmodem.bridge.UsbBridge.State): String = 
     is com.neodesktop.dmodem.bridge.UsbBridge.State.Failed -> st.why
 }
 
+/** the USB gadget's state, as a line */
 private fun gadgetText(st: com.neodesktop.dmodem.bridge.UsbGadget.State): String = when (st) {
     com.neodesktop.dmodem.bridge.UsbGadget.State.Stopped -> "Starts with the modem"
     com.neodesktop.dmodem.bridge.UsbGadget.State.Ready -> "Ready: the computer sees a modem on its USB (COM port, /dev/ttyACM0)"
@@ -209,6 +213,7 @@ private fun gadgetText(st: com.neodesktop.dmodem.bridge.UsbGadget.State): String
     is com.neodesktop.dmodem.bridge.UsbGadget.State.Failed -> st.why
 }
 
+/** the Bluetooth bridge's state, as a line */
 private fun btText(st: BluetoothBridge.State): String = when (st) {
     BluetoothBridge.State.Stopped -> "Starts with the modem"
     is BluetoothBridge.State.Listening -> "Waiting for a device to connect to \"${st.name}\""
@@ -290,6 +295,7 @@ private fun PicoBoardPanel(b: PicoBoard) {
 private fun lines(bits: Int, names: List<Pair<Int, String>>): String =
     names.filter { bits and it.first != 0 }.joinToString(" ") { it.second }.ifEmpty { "none" }
 
+/** a labelled switch */
 @Composable
 private fun Toggle(label: String, value: Boolean, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -298,6 +304,7 @@ private fun Toggle(label: String, value: Boolean, onChange: (Boolean) -> Unit) {
     }
 }
 
+/** a labelled radio button, the whole row tappable */
 @Composable
 private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {

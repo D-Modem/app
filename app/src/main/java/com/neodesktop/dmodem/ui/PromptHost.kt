@@ -53,6 +53,7 @@ fun PromptHost() {
     }
 }
 
+/** a new or changed host key's question: its fingerprint (and the kept one's, if changed); accept and keep, once, or cancel */
 @Composable
 private fun HostKeyDialog(q: Prompt.HostKey) {
     val changed = q.oldFingerprint != null
@@ -93,6 +94,7 @@ private fun HostKeyDialog(q: Prompt.HostKey) {
     )
 }
 
+/** a password asked for, with Remember when it can be kept */
 @Composable
 private fun PasswordDialog(q: Prompt.Password) {
     var text by remember(q) { mutableStateOf("") }
@@ -128,6 +130,7 @@ private fun PasswordDialog(q: Prompt.Password) {
     )
 }
 
+/** the server's questions, each in its field (hidden unless it echoes) */
 @Composable
 private fun QuestionsDialog(q: Prompt.Questions) {
     val answers = remember(q) { q.questions.map { mutableStateOf("") } }

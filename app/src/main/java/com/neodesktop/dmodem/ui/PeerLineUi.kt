@@ -177,6 +177,7 @@ fun PeerLineFields(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
     }
 }
 
+/** the other phone on Wi-Fi: its address (typed, or found on the network), the port calls come in on, this phone's addresses */
 @Composable
 private fun WifiPeer(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
     val context = LocalContext.current
@@ -242,6 +243,7 @@ private fun WifiPeer(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
     }
 }
 
+/** the other phone on Bluetooth: chosen from the paired devices */
 @Composable
 private fun BluetoothPeer(s: ModemSettings, onChange: (ModemSettings) -> Unit, context: android.content.Context) {
     var picking by remember { mutableStateOf(false) }
@@ -305,6 +307,7 @@ fun BluetoothModemFields(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
     }
 }
 
+/** a labelled radio button, the whole row tappable */
 @Composable
 private fun LineRadio(label: String, selected: Boolean, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {

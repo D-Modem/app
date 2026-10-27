@@ -83,6 +83,7 @@ fun FaxSection() {
     }
 }
 
+/** the fax call now or just ended: which way, its phase or outcome, its progress; cancel, or open and dismiss */
 @Composable
 private fun FaxCallCard(st: Fax.State) {
     val context = LocalContext.current
@@ -115,6 +116,7 @@ private fun FaxCallCard(st: Fax.State) {
     }
 }
 
+/** a fax in the log: which way, with whom, pages, when and how it ended; a tap opens it */
 @Composable
 private fun FaxRow(r: FaxRecord) {
     val context = LocalContext.current

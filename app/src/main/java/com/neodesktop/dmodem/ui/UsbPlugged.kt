@@ -25,6 +25,7 @@ fun rememberUsbModemsPlugged(): String {
     var plugged by remember { mutableStateOf(UsbModems.describe(context)) }
     DisposableEffect(context) {
         val r = object : BroadcastReceiver() {
+            /** a USB device attached or detached: the plugged-in modems looked at again, without the one just gone */
             override fun onReceive(c: Context, i: Intent) {
                 @Suppress("DEPRECATION")
                 val d = i.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)

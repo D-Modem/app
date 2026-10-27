@@ -196,6 +196,7 @@ private val Online = Color(0xff2e7d32)
 private val Busy = Color(0xffef6c00)
 private val Off = Color(0xff757575)
 
+/** the modem's state at the top: a dot and a title, the call's time and rates, any error, and the button for what's next */
 @Composable
 private fun HeroCard(
     run: ModemState.Run,
@@ -279,6 +280,7 @@ private fun HeroCard(
     }
 }
 
+/** a rate in big figures: bit/s, or kbit/s from 1000 */
 @Composable
 private fun Rate(label: String, bps: Int) {
     Column {
@@ -293,6 +295,7 @@ private fun Rate(label: String, bps: Int) {
     }
 }
 
+/** the line the modem calls on (none, another phone, a Bluetooth or USB modem, SIP) and how it is; a tap to its settings */
 @Composable
 private fun LineCard(s: ModemSettings, run: ModemState.Run, network: String?, onSettings: () -> Unit) {
     Card(Modifier.fillMaxWidth().clickable(onClick = onSettings)) {
@@ -349,6 +352,7 @@ private fun PeerLineRows(s: ModemSettings, run: ModemState.Run, network: String?
     error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
 }
 
+/** a label and its value, on one line */
 @Composable
 private fun InfoRow(label: String, value: String) {
     Row {
@@ -357,6 +361,7 @@ private fun InfoRow(label: String, value: String) {
     }
 }
 
+/** a section's heading, with an action button on the right if [action] is given */
 @Composable
 private fun SectionTitle(text: String, action: String? = null, onAction: () -> Unit = {}) {
     Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -365,6 +370,7 @@ private fun SectionTitle(text: String, action: String? = null, onAction: () -> U
     }
 }
 
+/** a directory entry to dial (or open) with a tap: its initial, name, address and when it was last dialled */
 @Composable
 private fun QuickDial(e: DialEntry, enabled: Boolean, onDial: () -> Unit) {
     Card(Modifier.fillMaxWidth()) {
@@ -391,6 +397,7 @@ private fun QuickDial(e: DialEntry, enabled: Boolean, onDial: () -> Unit) {
     }
 }
 
+/** a card to tap: a glyph (or [icon]), a title and a line under it */
 @Composable
 private fun Shortcut(
     glyph: String?,
@@ -462,10 +469,12 @@ private fun rememberNetwork(context: Context): String? {
     DisposableEffect(Unit) {
         val cm = context.getSystemService(ConnectivityManager::class.java)
         val cb = object : ConnectivityManager.NetworkCallback() {
+            /** the network's name again as it changes */
             override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
                 name = networkName(context, caps)
             }
 
+            /** no network */
             override fun onLost(network: Network) {
                 name = null
             }
@@ -484,6 +493,7 @@ private fun rememberNetwork(context: Context): String? {
     return name
 }
 
+/** the network as words (Wi-Fi, Ethernet, Mobile data, VPN), from [given] or the active one's; null without one */
 private fun networkName(context: Context, given: NetworkCapabilities?): String? {
     val cm = context.getSystemService(ConnectivityManager::class.java) ?: return null
     val caps = given ?: cm.activeNetwork?.let { cm.getNetworkCapabilities(it) } ?: return null

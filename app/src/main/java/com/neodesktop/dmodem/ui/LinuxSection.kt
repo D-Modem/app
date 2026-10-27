@@ -161,6 +161,7 @@ fun LinuxSection(onOpened: () -> Unit = {}) {
     }
 }
 
+/** what Linux is doing: its step with a progress bar, or why it failed; nothing when idle */
 @Composable
 private fun WorkLine(work: Linux.Work) {
     when (work) {
@@ -284,6 +285,7 @@ fun PickLinuxDialog(systems: List<LinuxSystem>, onPick: (LinuxSystem) -> Unit, o
     )
 }
 
+/** a radio button with a title and a line about it, greyed when not [enabled] */
 @Composable
 private fun Choice(title: String, about: String, selected: Boolean, enabled: Boolean, onPick: () -> Unit) {
     Row(
@@ -300,6 +302,7 @@ private fun Choice(title: String, about: String, selected: Boolean, enabled: Boo
 
 private const val CUSTOM = "\u0000custom"
 
+/** a size in GB, MB or KB */
 private fun formatSize(b: Long): String = when {
     b >= 1L shl 30 -> "%.1f GB".format(b / (1L shl 30).toDouble())
     b >= 1L shl 20 -> "%.0f MB".format(b / (1L shl 20).toDouble())

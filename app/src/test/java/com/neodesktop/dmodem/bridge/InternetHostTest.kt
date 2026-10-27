@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger
 class InternetHostTest {
     private val closers = ArrayList<() -> Unit>()
 
+    /** everything the test opened closed */
     @After
     fun tearDown() = closers.forEach { runCatching { it() } }
 
@@ -36,11 +37,15 @@ class InternetHostTest {
     private class Untouched : TerminalLink {
         override val state: StateFlow<TerminalLink.State> = MutableStateFlow(TerminalLink.State.Open)
         val writes = AtomicInteger()
+        /** no listeners kept: it never answers */
         override fun addListener(l: TerminalLink.Listener) {}
+        /** nothing to remove */
         override fun removeListener(l: TerminalLink.Listener) {}
+        /** a write counted (there should be none) */
         override fun write(data: ByteArray, offset: Int, length: Int): Boolean { writes.incrementAndGet(); return true }
     }
 
+    /** a computer dialling on the TCP bridge gets PPP and a TCP connection through the phone; dropping DTR ends it, the modem untouched */
     @Test
     fun aComputerOnTheTcpBridgeGetsTheInternet() {
         val modem = Untouched()
@@ -82,8 +87,11 @@ class InternetHostTest {
         val up = ArrayBlockingQueue<Ppp.IpConfig>(1)
         val packets = LinkedBlockingQueue<ByteArray>()
         val ppp = Ppp({ b -> synchronized(out) { out.write(b); out.flush() } }, events = object : Ppp.Events {
+            /** the link's address kept */
             override fun up(config: Ppp.IpConfig) { up.add(config) }
+            /** an IP packet from the phone kept */
             override fun ip(packet: ByteArray) { packets.add(packet) }
+            /** nothing to do when the link goes down */
             override fun down(reason: String) {}
         }, retryMs = 500)
         Thread {

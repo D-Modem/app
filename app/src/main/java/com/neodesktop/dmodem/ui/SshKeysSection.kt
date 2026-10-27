@@ -107,6 +107,7 @@ fun SshKeysSection() {
     }
 }
 
+/** a new key made: its name, type and comment, with the ssh-keygen line for the same; any failure in a toast */
 @Composable
 private fun GenerateDialog(onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
@@ -150,6 +151,7 @@ private fun GenerateDialog(onDone: () -> Unit) {
     )
 }
 
+/** a private key imported from a file or pasted (OpenSSH, PuTTY or PEM), with its passphrase; closed once it's read */
 @Composable
 private fun ImportDialog(onDone: () -> Unit) {
     val scope = rememberCoroutineScope()

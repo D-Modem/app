@@ -65,6 +65,7 @@ object Terminal {
     @android.annotation.SuppressLint("StaticFieldLeak")
     private lateinit var app: Context
 
+    /** the stores and the modem's session set up, from [context]'s application; once, at start */
     fun init(context: Context, box: SecretBox = KeystoreBox()) {
         app = context.applicationContext
         session = TerminalSession(ModemState.dte) { app.getExternalFilesDir("captures") }
@@ -85,6 +86,7 @@ object Terminal {
     /** where files a remote sends go */
     fun downloads(): com.neodesktop.dmodem.transfer.Incoming = com.neodesktop.dmodem.transfer.DownloadsIncoming(app)
 
+    /** [s] put on the screen, if it is one of the sessions */
     fun select(s: TerminalSession) {
         if (s in _sessions.value) _active.value = s
     }

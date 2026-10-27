@@ -152,6 +152,7 @@ fun DirectoryScreen(modifier: Modifier = Modifier, onDialed: () -> Unit) {
     }
 }
 
+/** a directory entry edited (or a new one): how it's reached and its details; Save only once it's [DialEntry.complete] */
 @Composable
 internal fun EntryDialog(entry: DialEntry, onSave: (DialEntry) -> Unit, onDismiss: () -> Unit) {
     var e by remember(entry.id) { mutableStateOf(entry) }

@@ -46,6 +46,7 @@ class DownloadsIncoming(context: Context) : Incoming {
         return out.asSink() to actual
     }
 
+    /** [name] finished: no longer pending in Downloads, its time set if known */
     override fun done(name: String, mtime: Long) {
         if (Build.VERSION.SDK_INT < 29) return folder!!.done(name, mtime)
         val uri = synchronized(pending) { pending.remove(name) } ?: return
@@ -56,6 +57,7 @@ class DownloadsIncoming(context: Context) : Incoming {
         runCatching { ctx.contentResolver.update(uri, v, null, null) }
     }
 
+    /** [name]'s unfinished file deleted */
     override fun abandon(name: String) {
         if (Build.VERSION.SDK_INT < 29) return folder!!.abandon(name)
         val uri = synchronized(pending) { pending.remove(name) } ?: return

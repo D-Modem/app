@@ -104,6 +104,7 @@ class TerminalView @JvmOverloads constructor(
     // blinking
     private var blinkOn = true
     private val blink = object : Runnable {
+        /** the blink's phase flipped and the screen redrawn, again in [BLINK_MS] */
         override fun run() {
             blinkOn = !blinkOn
             invalidate()
@@ -133,6 +134,7 @@ class TerminalView @JvmOverloads constructor(
     private var regularFace: Typeface = Typeface.MONOSPACE
     private var boldFace: Typeface? = null
 
+    /** the settings applied: the font, theme and the modem session's keys and echo, the cells measured and the emulator resized */
     fun applySettings(s: TerminalSettings) {
         val fontChanged = s.font != settings.font || s.ligatures != settings.ligatures || boldFace == null
         val sizeChanged = fontChanged || s.fontSize != settings.fontSize || s.fixedColumns != settings.fixedColumns
@@ -169,6 +171,7 @@ class TerminalView @JvmOverloads constructor(
     // ------------------------------------------------------------------
     // size
 
+    /** the font's size (from the settings, or to fit the fixed columns in the width) and the cell's from it */
     private fun measureFont() {
         val w = width
         fontPx = if (settings.fixedColumns > 0 && w > 0) {
@@ -193,12 +196,14 @@ class TerminalView @JvmOverloads constructor(
         ascent = up
     }
 
+    /** the cells measured again and the emulator fitted to the new size */
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         measureFont()
         syncEmulator()
         resizeEmulator()
     }
 
+    /** the emulator (and the far end) told the columns and rows that fit the view */
     private fun resizeEmulator() {
         val s = session ?: return
         if (width <= 0 || height <= 0) return
@@ -208,11 +213,13 @@ class TerminalView @JvmOverloads constructor(
         scrollRows = scrollRows.coerceIn(0, historySize())
     }
 
+    /** the scrollback's rows, 0 without a session */
     private fun historySize(): Int = session?.let { synchronized(it.emulator) { it.emulator.historySize } } ?: 0
 
     // ------------------------------------------------------------------
     // drawing
 
+    /** a redraw on the next frame, at most one waiting (any thread) */
     private fun postRedraw() {
         if (redrawPosted) return
         redrawPosted = true
@@ -222,6 +229,7 @@ class TerminalView @JvmOverloads constructor(
         }
     }
 
+    /** the background, then the visible rows (scrolled back or live) and the cursor if it shows */
     override fun onDraw(canvas: Canvas) {
         val s = session
         val e = s?.emulator
@@ -244,6 +252,7 @@ class TerminalView @JvmOverloads constructor(
         }
     }
 
+    /** whether the remote turned on reverse video (DECSCNM) */
     private fun reverse(): Boolean = session?.let { synchronized(it.emulator) { it.emulator.reverseVideo } } ?: false
 
     /** the emulator being drawn: its own colours (OSC 4, 10, 11) over the theme's */
@@ -269,6 +278,7 @@ class TerminalView @JvmOverloads constructor(
 
     private val runText = StringBuilder()
 
+    /** a line's cells in runs of one look: background, then text, then any images */
     private fun drawLine(c: Canvas, line: Line, row: Int, y: Float, rev: Boolean) {
         val cols = min(line.cols, (width / cellW).toInt() + 1)
         var x = 0
@@ -312,6 +322,7 @@ class TerminalView @JvmOverloads constructor(
     /** the images' bitmaps, made once each (gone with their images) */
     private val bitmaps = java.util.WeakHashMap<TermImage, android.graphics.Bitmap>()
 
+    /** [img]'s bitmap, made the first time; null if it can't be */
     private fun bitmapOf(img: TermImage): android.graphics.Bitmap? =
         bitmaps[img] ?: runCatching {
             android.graphics.Bitmap.createBitmap(img.pixels, img.width, img.height, android.graphics.Bitmap.Config.ARGB_8888)
@@ -337,6 +348,7 @@ class TerminalView @JvmOverloads constructor(
         resolvedBg = b
     }
 
+    /** a run's text in [fg] with its attributes: bold, italic, box drawing, wide characters, the underlines, overline and strike */
     private fun drawText(c: Canvas, line: Line, from: Int, to: Int, y: Float, st: Long, fg: Int) {
         val a = Style.attrs(st)
         if (a and Style.INVISIBLE != 0) return
@@ -352,6 +364,7 @@ class TerminalView @JvmOverloads constructor(
         runText.setLength(0)
         var runStart = from
         var runCells = 0
+        // the text gathered so far drawn, and a new run from at
         fun flush(at: Int) {
             if (runText.isNotEmpty()) drawRun(c, runText, runStart, runCells, y)
             runText.setLength(0)
@@ -468,6 +481,7 @@ class TerminalView @JvmOverloads constructor(
     /** a column's left edge, on a whole pixel */
     private fun px(col: Int): Float = kotlin.math.round(col * cellW)
 
+    /** the cursor in the remote's shape (DECSCUSR) or the user's; a block hollow without focus */
     private fun drawCursor(c: Canvas, e: TerminalEmulator) {
         val col = min(e.cursorX, e.cols - 1)
         val x = px(col)
@@ -513,28 +527,33 @@ class TerminalView @JvmOverloads constructor(
         }
     }
 
+    /** the blink started over, on */
     private fun restartBlink() {
         removeCallbacks(blink)
         blinkOn = true
         if (isAttachedToWindow) postDelayed(blink, BLINK_MS)
     }
 
+    /** the blink started */
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         restartBlink()
     }
 
+    /** the blink stopped */
     override fun onDetachedFromWindow() {
         removeCallbacks(blink)
         super.onDetachedFromWindow()
     }
 
+    /** the cursor redrawn and the remote told (if it asked) of the focus */
     override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: Rect?) {
         super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
         reportFocus(gainFocus)
         invalidate()
     }
 
+    /** the remote told (if it asked) the window's focus */
     override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
         super.onWindowFocusChanged(hasWindowFocus)
         reportFocus(hasWindowFocus && hasFocus())
@@ -554,6 +573,7 @@ class TerminalView @JvmOverloads constructor(
     // ------------------------------------------------------------------
     // the mouse, as the remote asked for it (a tap a click, a drag the wheel)
 
+    /** how the remote asked for the mouse, NONE without a session */
     private fun mouseMode(): TerminalEmulator.MouseMode =
         session?.let { synchronized(it.emulator) { it.emulator.mouseMode } } ?: TerminalEmulator.MouseMode.NONE
 
@@ -614,11 +634,13 @@ class TerminalView @JvmOverloads constructor(
     // touch: tap shows the keyboard, drag scrolls back, pinch zooms, long press selects
 
     private val gestures = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+        /** a fling stopped by a touch */
         override fun onDown(e: MotionEvent): Boolean {
             scroller.forceFinished(true)
             return true
         }
 
+        /** a tap: the selection ended, or a link opened, or a click to the remote; the keyboard up */
         override fun onSingleTapUp(e: MotionEvent): Boolean {
             if (actionMode != null) {
                 actionMode?.finish()
@@ -631,6 +653,7 @@ class TerminalView @JvmOverloads constructor(
             return true
         }
 
+        /** a drag: the selection's, else the remote's (wheel, arrows), else the scrollback scrolled */
         override fun onScroll(e1: MotionEvent?, e2: MotionEvent, dx: Float, dy: Float): Boolean {
             if (selecting) return true
             if (scrollRows == 0 && scrollRemote(e2.x, e2.y, dy)) return true
@@ -638,6 +661,7 @@ class TerminalView @JvmOverloads constructor(
             return true
         }
 
+        /** a fling through the scrollback, unless selecting or the remote takes the drags */
         override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
             if (selecting) return true
             if (scrollRows == 0 && (mouseMode() != TerminalEmulator.MouseMode.NONE || session?.emulator?.let { synchronized(it) { it.altScreen } } == true)) return true
@@ -647,6 +671,7 @@ class TerminalView @JvmOverloads constructor(
             return true
         }
 
+        /** a long press: the word under it selected */
         override fun onLongPress(e: MotionEvent) {
             if (scale.isInProgress) return
             performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
@@ -656,11 +681,13 @@ class TerminalView @JvmOverloads constructor(
 
     private val scale = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         private var startSp = 0f
+        /** the font size the pinch starts from (sp) kept */
         override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
             startSp = fontPx / resources.displayMetrics.scaledDensity()
             return true
         }
 
+        /** the font resized with the pinch, fixed columns off */
         override fun onScale(detector: ScaleGestureDetector): Boolean {
             val sp = (fontPx / resources.displayMetrics.scaledDensity() * detector.scaleFactor).coerceIn(MIN_SP, MAX_SP)
             settings = settings.copy(fontSize = sp, fixedColumns = 0)
@@ -670,11 +697,13 @@ class TerminalView @JvmOverloads constructor(
             return true
         }
 
+        /** the pinched size to [onFontSizeChanged] if it changed */
         override fun onScaleEnd(detector: ScaleGestureDetector) {
             if (startSp != settings.fontSize) onFontSizeChanged?.invoke(settings.fontSize)
         }
     })
 
+    /** the pixels of 1 sp */
     private fun android.util.DisplayMetrics.scaledDensity(): Float =
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 1f, this)
 
@@ -706,6 +735,7 @@ class TerminalView @JvmOverloads constructor(
         return true
     }
 
+    /** the fling's next step: the rows scrolled back to where it is */
     override fun computeScroll() {
         if (scroller.computeScrollOffset()) {
             val rows = (scroller.currY / cellH).toInt().coerceIn(0, historySize())
@@ -717,6 +747,7 @@ class TerminalView @JvmOverloads constructor(
         }
     }
 
+    /** the scrollback moved by a drag of [dy] pixels, in whole rows */
     private fun scrollBy(dy: Float) {
         scrollRemainder += -dy / cellH
         val n = scrollRemainder.toInt()
@@ -749,6 +780,7 @@ class TerminalView @JvmOverloads constructor(
     // ------------------------------------------------------------------
     // the selection
 
+    /** whether the cell is in the selection (while there is one) */
     private fun isSelected(row: Int, col: Int): Boolean {
         if (actionMode == null && !selecting) return false
         val startFirst = selStartRow < selEndRow || (selStartRow == selEndRow && selStartCol <= selEndCol)
@@ -762,6 +794,7 @@ class TerminalView @JvmOverloads constructor(
         return true
     }
 
+    /** the selection's ends in order: start row, start col, end row, end col */
     private fun ordered(): List<Int> =
         if (selStartRow < selEndRow || (selStartRow == selEndRow && selStartCol <= selEndCol)) {
             listOf(selStartRow, selStartCol, selEndRow, selEndCol)
@@ -769,6 +802,7 @@ class TerminalView @JvmOverloads constructor(
             listOf(selEndRow, selEndCol, selStartRow, selStartCol)
         }
 
+    /** the word at the point selected and the selection's menu up, the link there kept */
     private fun startSelection(x: Float, y: Float) {
         val s = session ?: return
         val (row, col) = cellAt(x, y)
@@ -777,6 +811,7 @@ class TerminalView @JvmOverloads constructor(
             val l = s.emulator.line(row)
             var a = col
             var b = col
+            // whether the cell at i is part of a word (not empty or a space)
             fun word(i: Int) = l.chars[i] != 0 && l.chars[i] != ' '.code
             if (word(col)) {
                 while (a > 0 && word(a - 1)) a--
@@ -791,6 +826,7 @@ class TerminalView @JvmOverloads constructor(
         invalidate()
     }
 
+    /** the selection's text, its lines joined */
     private fun selectedText(): String {
         val s = session ?: return ""
         val (r1, c1, r2, c2) = ordered()
@@ -798,6 +834,7 @@ class TerminalView @JvmOverloads constructor(
     }
 
     private val selectionCallback = object : ActionMode.Callback2() {
+        /** the menu: copy, paste, select all, open link, share */
         override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
             menu.add(0, ID_COPY, 0, "Copy")
             menu.add(0, ID_PASTE, 1, "Paste")
@@ -807,12 +844,14 @@ class TerminalView @JvmOverloads constructor(
             return true
         }
 
+        /** "Open link" shown only if there is one at the press or in the selection */
         override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean {
             val link = linkAtPress ?: UrlFinder.all(selectedText()).firstOrNull()
             menu.findItem(ID_LINK)?.isVisible = link != null
             return true
         }
 
+        /** the menu's item done: copy, paste, select all, open the link, share */
         override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean {
             when (item.itemId) {
                 ID_COPY -> {
@@ -848,6 +887,7 @@ class TerminalView @JvmOverloads constructor(
             return true
         }
 
+        /** the selection gone */
         override fun onDestroyActionMode(mode: ActionMode) {
             actionMode = null
             selecting = false
@@ -855,6 +895,7 @@ class TerminalView @JvmOverloads constructor(
             invalidate()
         }
 
+        /** the selection's rows, for the menu to float by */
         override fun onGetContentRect(mode: ActionMode, view: View, outRect: Rect) {
             val (r1, _, r2, _) = ordered()
             val top = ((r1 + scrollRows) * cellH).toInt()
@@ -863,6 +904,7 @@ class TerminalView @JvmOverloads constructor(
         }
     }
 
+    /** [text] on the clipboard */
     private fun copy(text: String) {
         val cm = context.getSystemService(ClipboardManager::class.java)
         cm.setPrimaryClip(ClipData.newPlainText("terminal", text))
@@ -878,6 +920,7 @@ class TerminalView @JvmOverloads constructor(
         }
     }
 
+    /** [url] opened in an app for it, if there is one */
     private fun openLink(url: String) {
         try {
             context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -888,15 +931,18 @@ class TerminalView @JvmOverloads constructor(
     // ------------------------------------------------------------------
     // the keyboard
 
+    /** the soft keyboard up, the view focused */
     fun showKeyboard() {
         requestFocus()
         context.getSystemService(InputMethodManager::class.java).showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
     }
 
+    /** the soft keyboard down */
     fun hideKeyboard() {
         context.getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(windowToken, 0)
     }
 
+    /** the soft keyboard down if it shows, else up */
     fun toggleKeyboard() {
         val imm = context.getSystemService(InputMethodManager::class.java)
         val insets = rootWindowInsets
@@ -905,8 +951,10 @@ class TerminalView @JvmOverloads constructor(
         if (visible) imm.hideSoftInputFromWindow(windowToken, 0) else showKeyboard()
     }
 
+    /** a text editor: the soft keyboard is for it */
     override fun onCheckIsTextEditor(): Boolean = true
 
+    /** keys straight through: no suggestions, corrections or full screen editor; the typed text sent as it comes */
     override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection {
         // no suggestions, no corrections, no full screen editor: keys straight through
         outAttrs.inputType = InputType.TYPE_CLASS_TEXT or
@@ -916,18 +964,21 @@ class TerminalView @JvmOverloads constructor(
             EditorInfo.IME_FLAG_NO_FULLSCREEN or
             EditorInfo.IME_ACTION_NONE
         return object : BaseInputConnection(this, true) {
+            /** the text committed sent */
             override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
                 super.commitText(text, newCursorPosition)
                 flush()
                 return true
             }
 
+            /** the composing text sent */
             override fun finishComposingText(): Boolean {
                 super.finishComposingText()
                 flush()
                 return true
             }
 
+            /** a backspace to the remote for each character deleted once the editor is empty */
             override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
                 val ed = editable
                 if (ed == null || ed.isEmpty()) {
@@ -938,11 +989,13 @@ class TerminalView @JvmOverloads constructor(
                 return super.deleteSurroundingText(beforeLength, afterLength)
             }
 
+            /** a key from the keyboard as if pressed */
             override fun sendKeyEvent(event: KeyEvent): Boolean {
                 if (event.action == KeyEvent.ACTION_DOWN) onKeyDown(event.keyCode, event)
                 return true
             }
 
+            /** the editor's text sent (typed) and cleared */
             private fun flush() {
                 val ed = editable ?: return
                 val text = ed.toString()
@@ -955,11 +1008,13 @@ class TerminalView @JvmOverloads constructor(
         }
     }
 
+    /** [k] sent with its modifiers, back on the live screen */
     private fun typed(k: Key, shift: Boolean = false, alt: Boolean = false, ctrl: Boolean = false) {
         scrollToBottom()
         session?.sendKey(k, shift, alt, ctrl)
     }
 
+    /** a key: the volume keys as set (font size, Ctrl/Alt), Shift+PgUp/PgDn the scrollback, the rest to the remote */
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         val s = session ?: return super.onKeyDown(keyCode, event)
         when (keyCode) {
@@ -1034,6 +1089,7 @@ class TerminalView @JvmOverloads constructor(
 
     private var flashing = false
 
+    /** the view, and the bell's flash over it */
     override fun draw(canvas: Canvas) {
         super.draw(canvas)
         if (flashing) {

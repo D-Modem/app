@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
  * so as not to take the whole extended set for nine of them.
  */
 object SettingsIcons {
+    /** a 24 dp icon of [paths] (SVG path data) filled black */
     private fun icon(name: String, vararg paths: String): ImageVector =
         ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f).apply {
             for (p in paths) addPath(addPathNodes(p), fill = SolidColor(androidx.compose.ui.graphics.Color.Black))

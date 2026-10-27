@@ -38,6 +38,7 @@ enum class TerminalFont(
     val hasBold: Boolean get() = variable || asset == null
 
     companion object {
+        /** the font of that enum name, or [SYSTEM] if none is */
         fun byName(name: String?): TerminalFont = entries.firstOrNull { it.name == name } ?: SYSTEM
     }
 }
@@ -46,10 +47,12 @@ enum class TerminalFont(
 object FontCache {
     private val cache = HashMap<Pair<TerminalFont, Boolean>, Typeface>()
 
+    /** [font]'s typeface, bold or not; made the first time */
     @Synchronized
     fun typeface(context: Context, font: TerminalFont, bold: Boolean): Typeface =
         cache.getOrPut(font to bold) { load(context.assets, font, bold) }
 
+    /** [font]'s typeface from its asset (a variable one at weight 700 or 400), the monospace one if it has none or it fails */
     private fun load(assets: AssetManager, font: TerminalFont, bold: Boolean): Typeface {
         val path = font.asset ?: return Typeface.create(Typeface.MONOSPACE, if (bold) Typeface.BOLD else Typeface.NORMAL)
         return try {

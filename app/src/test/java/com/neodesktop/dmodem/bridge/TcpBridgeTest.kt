@@ -32,15 +32,20 @@ class TcpBridgeTest {
         override val state: StateFlow<TerminalLink.State> = MutableStateFlow(TerminalLink.State.Open)
         val listeners = CopyOnWriteArrayList<TerminalLink.Listener>()
         val got = ByteArrayOutputStream()
+        /** [l] told the modem's output */
         override fun addListener(l: TerminalLink.Listener) { listeners.add(l) }
+        /** [l] told no more */
         override fun removeListener(l: TerminalLink.Listener) { listeners.remove(l) }
+        /** the bytes kept, and OK replied to an AT command */
         override fun write(data: ByteArray, offset: Int, length: Int): Boolean {
             synchronized(got) { got.write(data, offset, length) }
             val s = String(data, offset, length, Charsets.ISO_8859_1)
             if (s.contains("AT") && s.endsWith("\r")) emit("\r\nOK\r\n".toByteArray())
             return true
         }
+        /** [b] from the modem to its listeners */
         fun emit(b: ByteArray) = listeners.forEach { it.onData(b, b.size) }
+        /** what was written to the modem */
         fun sent(): ByteArray = synchronized(got) { got.toByteArray() }
     }
 
@@ -50,12 +55,15 @@ class TcpBridgeTest {
     private val serial = SerialBridge(modem, signals, { hangUps.incrementAndGet() })
     private val bridges = ArrayList<TcpBridge>()
 
+    /** every bridge the test started stopped */
     @After
     fun tearDown() = bridges.forEach { it.stop() }
 
+    /** a bridge on a free port, started (and stopped after the test) */
     private fun bridge(telnet: Boolean = false, password: String = ""): TcpBridge =
         TcpBridge(serial, 0, telnet = telnet, password = password).also { assertTrue(it.start()); bridges.add(it) }
 
+    /** a client connected to [b] on localhost, reads timing out in 5 s */
     private fun connect(b: TcpBridge) = Socket().apply {
         connect(InetSocketAddress("127.0.0.1", b.localPort), 2000)
         soTimeout = 5000
@@ -75,12 +83,14 @@ class TcpBridgeTest {
         return sb.toString()
     }
 
+    /** [ok] waited for (5 s at most), failing with [what] if it never holds */
     private fun waitUntil(what: String, ok: () -> Boolean) {
         val end = System.currentTimeMillis() + 5000
         while (!ok() && System.currentTimeMillis() < end) Thread.sleep(20)
         assertTrue(what, ok())
     }
 
+    /** raw TCP carries every byte value unchanged both ways; the client leaving frees the bridge without a hang-up */
     @Test
     fun rawBothWaysEveryByte() {
         val b = bridge()
@@ -105,6 +115,7 @@ class TcpBridgeTest {
         assertEquals(0, hangUps.get())
     }
 
+    /** a second client gets BUSY while one has the modem; the first leaving in a call hangs it up and frees the bridge */
     @Test
     fun oneClientAtATimeAndTheCallHungUpWhenItGoes() {
         val b = bridge()
@@ -118,6 +129,7 @@ class TcpBridgeTest {
         connect(b).use { waitUntil("claimed again") { serial.client.value != null } }
     }
 
+    /** with a password the client is asked it first, a wrong one refused, and it never reaches the modem */
     @Test
     fun aPasswordFirst() {
         val b = bridge(password = "s3cret")
@@ -136,6 +148,7 @@ class TcpBridgeTest {
         }
     }
 
+    /** Telnet mode offers its options, takes the client's IAC IAC as one 0xff and doubles the modem's */
     @Test
     fun telnetDoublesIacAndNegotiates() {
         val b = bridge(telnet = true)
@@ -162,6 +175,7 @@ class TcpBridgeTest {
         }
     }
 
+    /** pyserial's rfc2217:// client sets the speed, sees the carrier and DSR, and dropping DTR in a call hangs up */
     @Test
     fun rfc2217WithPyserial() {
         assumeTrue("python3 with pyserial", runCatching {

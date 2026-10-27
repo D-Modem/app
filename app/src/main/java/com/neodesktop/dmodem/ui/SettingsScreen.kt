@@ -76,6 +76,7 @@ enum class SettingsPage(val title: String) {
 object SettingsNav {
     val page = kotlinx.coroutines.flow.MutableStateFlow<SettingsPage?>(null)
 
+    /** [p] opened (null: the menu) */
     fun open(p: SettingsPage?) {
         page.value = p
     }
@@ -114,6 +115,7 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
         return
     }
 
+    /** the line's and the modem's Save button, and whether they're saved (and need a restart to apply) */
     @Composable
     fun SaveRow() {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -304,6 +306,7 @@ private fun lineSummary(s: ModemSettings): String = when (s.line) {
     else -> if (s.complete) "SIP: ${s.user}@${s.domain}" + (if (s.listen) ", taking calls" else "") else "SIP: no account set up yet"
 }
 
+/** a one-line text field */
 @Composable
 private fun Field(label: String, value: String, onChange: (String) -> Unit) {
     OutlinedTextField(
@@ -312,6 +315,7 @@ private fun Field(label: String, value: String, onChange: (String) -> Unit) {
     )
 }
 
+/** a number field taking a sign and up to three digits */
 @Composable
 private fun SignedNumberField(label: String, value: Int, onChange: (Int) -> Unit) {
     var text by remember(value) { mutableStateOf(value.toString()) }
@@ -329,6 +333,7 @@ private fun SignedNumberField(label: String, value: Int, onChange: (Int) -> Unit
     )
 }
 
+/** a number field taking up to five digits */
 @Composable
 private fun NumberField(label: String, value: Int, onChange: (Int) -> Unit) {
     var text by remember(value) { mutableStateOf(value.toString()) }
@@ -345,6 +350,7 @@ private fun NumberField(label: String, value: Int, onChange: (Int) -> Unit) {
     )
 }
 
+/** a labelled switch */
 @Composable
 private fun Toggle(label: String, value: Boolean, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

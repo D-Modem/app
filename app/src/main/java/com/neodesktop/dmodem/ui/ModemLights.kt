@@ -56,6 +56,7 @@ data class Lights(
     val sd: Boolean = false,
     val arq: Boolean = false,
 ) {
+    /** the lights with their legends, in the panel's order */
     fun list() = listOf("MR" to mr, "TR" to tr, "CS" to cs, "AA" to aa, "CD" to cd, "OH" to oh, "RD" to rd, "SD" to sd, "ARQ/FAX" to arq)
 }
 
