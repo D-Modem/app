@@ -20,6 +20,7 @@ object Hdlc {
         v
     }
 
+    /** the FCS-16 of [len] octets at [off], from [start] (not complemented) */
     fun fcs(data: ByteArray, off: Int = 0, len: Int = data.size - off, start: Int = 0xffff): Int {
         var f = start
         for (i in off until off + len) f = (f ushr 8) xor FCS_TABLE[(f xor data[i].toInt()) and 0xff]
@@ -34,6 +35,7 @@ object Hdlc {
         val f = fcs(frame) xor 0xffff
         val o = Bytes(frame.size + frame.size / 4 + 8)
         o.write(FLAG)
+        /** [b] to the frame, escaped if it is a flag, the escape or a control character [accm] asks for */
         fun put(b: Int) {
             if (b == FLAG || b == ESC || (b < 0x20 && (accm ushr b) and 1 != 0)) {
                 o.write(ESC)
@@ -56,6 +58,7 @@ object Hdlc {
         var bad = 0
             private set
 
+        /** [len] octets of [data] from [off] decoded, each frame they end passed on */
         fun feed(data: ByteArray, off: Int = 0, len: Int = data.size - off) {
             for (i in off until off + len) {
                 val c = data[i].toInt() and 0xff

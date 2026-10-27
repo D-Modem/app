@@ -36,6 +36,7 @@ class Timer {
         f()
     }
 
+    /** [f] as soon as the jobs before it are done */
     fun execute(f: () -> Unit): Job = schedule(0, f)
 
     /** nothing more run */

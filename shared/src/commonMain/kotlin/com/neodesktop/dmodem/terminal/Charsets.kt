@@ -43,6 +43,7 @@ object Cp437 {
         HIGH.mapIndexed { i, c -> c.code to (0x80 + i) }.toMap()
     }
 
+    /** a CP437 octet as its code point */
     fun decode(b: Int): Int = if (b < 0x80) b else HIGH[b - 0x80].code
 
     /** a code point as its CP437 octet: '?' if it has none */
@@ -52,6 +53,7 @@ object Cp437 {
 /** octets to code points, in a set, across reads */
 class TermDecoder(var charset: TermCharset) {
     fun interface Sink {
+        /** a code point decoded */
         fun codePoint(cp: Int)
     }
 
@@ -59,6 +61,7 @@ class TermDecoder(var charset: TermCharset) {
     private var cp = 0
     private var min = 0
 
+    /** a UTF-8 sequence half read dropped */
     fun reset() {
         need = 0
     }
@@ -68,6 +71,7 @@ class TermDecoder(var charset: TermCharset) {
         for (i in 0 until length) feed(data[i].toInt() and 0xff, out)
     }
 
+    /** one octet decoded in the charset, its code point (if it completes one) to [out] */
     fun feed(b: Int, out: Sink) {
         when (charset) {
             TermCharset.LATIN1 -> out.codePoint(b)
@@ -76,6 +80,7 @@ class TermDecoder(var charset: TermCharset) {
         }
     }
 
+    /** one UTF-8 octet: a code point to [out] when its sequence completes, U+FFFD for a bad or overlong one */
     private fun utf8(b: Int, out: Sink) {
         if (need > 0) {
             if (b and 0xc0 == 0x80) {

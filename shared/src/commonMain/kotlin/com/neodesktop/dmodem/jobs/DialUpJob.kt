@@ -58,11 +58,13 @@ class DialUpJob(out: DteOut, log: LogOut, changed: Changed) : DteJob(out, log, c
     @Volatile private var ppp: Ppp? = null
     @Volatile private var stopping = false
 
+    /** the state changed by [f], and said so */
     private fun set(f: (State) -> State) {
         state = f(state)
         changed()
     }
 
+    /** the modem's octets: to PPP once it runs, else to the AT commands' reader */
     override fun feed(latin1: String) {
         // (the AT commands' answers until CONNECT, then PPP's)
         val p = ppp
@@ -105,6 +107,7 @@ class DialUpJob(out: DteOut, log: LogOut, changed: Changed) : DteJob(out, log, c
                     user = user,
                     password = password,
                     events = object : Ppp.Events {
+                        /** PPP has an address: the tunnel brought up with it (PPP stopped if it can't be) */
                         override fun up(config: Ppp.IpConfig) {
                             val address = config.address.dotted
                             val dns = config.dns.map { it.dotted }
@@ -117,13 +120,16 @@ class DialUpJob(out: DteOut, log: LogOut, changed: Changed) : DteJob(out, log, c
                             set { it.copy(phase = "", address = address, dns = dns, since = monotonicMs()) }
                         }
 
+                        /** a packet from the link, to the phone's tunnel */
                         override fun ip(packet: ByteArray) = tunnel.packet(packet)
 
+                        /** PPP down: its [reason] kept (unless there was one already) and the wait ended */
                         override fun down(reason: String) {
                             if (why == null) why = reason
                             done.countDown()
                         }
 
+                        /** PPP's [line], to the job's log */
                         override fun log(line: String) = this@DialUpJob.log("ppp: $line")
                     },
                 )
@@ -168,6 +174,7 @@ class DialUpJob(out: DteOut, log: LogOut, changed: Changed) : DteJob(out, log, c
     /** the carrier gone (the modem on hook, or stopped): the link down */
     fun lineDropped() = stop("the line dropped")
 
+    /** the link stopped with [why] (once): PPP if it runs, else the dialling cancelled */
     private fun stop(why: String) {
         if (stopping) return
         stopping = true

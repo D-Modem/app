@@ -77,6 +77,7 @@ class Transfer(
         private set
     private var kermit: Kermit? = null
 
+    /** the state now [s], and said so */
     private fun update(s: TransferState) {
         state = s
         onState(s)
@@ -110,6 +111,7 @@ class Transfer(
         emptyList()
     }
 
+    /** [body] run on a thread of its own: its end (the files' names, or why it failed) the state's, then [onEnd] with what was left unread */
     private fun start(body: () -> List<String>) {
         update(state)
         background("transfer-${protocol.name.lowercase()}") {
@@ -162,6 +164,7 @@ class Transfer(
             return null
         }
 
+        /** where [pat] first is in [b]'s first [len] bytes, or -1 */
         private fun indexOf(b: ByteArray, len: Int, pat: ByteArray): Int {
             outer@ for (i in 0..len - pat.size) {
                 for (j in pat.indices) if (b[i + j] != pat[j]) continue@outer

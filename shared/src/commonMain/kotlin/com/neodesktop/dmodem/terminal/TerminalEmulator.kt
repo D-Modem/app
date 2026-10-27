@@ -25,7 +25,9 @@ class TerminalEmulator(
     private val output: (ByteArray) -> Unit = {},
 ) {
     interface Listener {
+        /** OSC 0/2: the remote set the window's title */
         fun onTitle(title: String) {}
+        /** BEL: the remote rang the bell */
         fun onBell() {}
         /** OSC 52: the remote puts text on the clipboard */
         fun onClipboard(text: String) {}
@@ -99,6 +101,7 @@ class TerminalEmulator(
     var cellPixelHeight = 20
         private set
 
+    /** a cell's size in pixels as the view draws it (at least 1 each way) */
     fun setCellPixels(w: Int, h: Int) {
         cellPixelWidth = w.coerceAtLeast(1)
         cellPixelHeight = h.coerceAtLeast(1)
@@ -186,6 +189,7 @@ class TerminalEmulator(
     // ------------------------------------------------------------------
     // the parser
 
+    /** one code point through the parser, by the state it is in (text, ESC, CSI, OSC, a string, a DCS) */
     private fun process(cp: Int) {
         when (state) {
             State.GROUND -> ground(cp)
@@ -233,6 +237,7 @@ class TerminalEmulator(
         }
     }
 
+    /** a code point outside any sequence: a control, a C1 control as its ESC form, else printed */
     private fun ground(cp: Int) {
         if (cp < 0x20 || cp == 0x7f) {
             control(cp)
@@ -255,6 +260,7 @@ class TerminalEmulator(
         print(cp)
     }
 
+    /** a C0 control: ENQ's answerback, the bell, BS, HT, LF/VT/FF, CR, SO/SI, CAN/SUB, ESC */
     private fun control(cp: Int) {
         when (cp) {
             0x05 -> if (answerback.isNotEmpty()) reply(answerback)
@@ -270,6 +276,7 @@ class TerminalEmulator(
         }
     }
 
+    /** the character after ESC: a sequence begun, or its one-character command done */
     private fun esc(cp: Int) {
         state = State.GROUND
         when (cp.toChar()) {
@@ -292,6 +299,7 @@ class TerminalEmulator(
         }
     }
 
+    /** the character after ESC and an intermediate: G0/G1's DEC graphics on or off, DECALN */
     private fun escInter(cp: Int) {
         state = State.GROUND
         val graphics = cp == '0'.code
@@ -302,6 +310,7 @@ class TerminalEmulator(
         }
     }
 
+    /** a CSI begun: its parameters, private marker and intermediate cleared */
     private fun startCsi() {
         state = State.CSI
         nParams = 0
@@ -312,6 +321,7 @@ class TerminalEmulator(
         colon.fill(false)
     }
 
+    /** a CSI's character: a parameter's digit, a separator, a marker or intermediate, or its final (dispatched) */
     private fun csi(cp: Int) {
         when (cp) {
             in '0'.code..'9'.code -> {
@@ -341,9 +351,11 @@ class TerminalEmulator(
         }
     }
 
+    /** parameter [i], or [default] when it is missing or 0 */
     private fun p(i: Int, default: Int): Int =
         if (i < nParams && params[i] != 0) params[i] else default
 
+    /** a CSI ended by [final] carried out: DEC private modes and questions, DA2/DA3, DECSTR, DECSCUSR, then the ANSI ones */
     private fun dispatchCsi(final: Int) {
         val c = final.toChar()
         if (privateMarker == '?'.code) {
@@ -431,6 +443,7 @@ class TerminalEmulator(
         }
     }
 
+    /** DEC private mode [m] set or reset (DECSET/DECRST) */
     private fun decMode(m: Int, on: Boolean) {
         when (m) {
             1 -> appCursorKeys = on
@@ -459,6 +472,7 @@ class TerminalEmulator(
 
     /** DECRQM's answer for a DEC mode: 1 set, 2 reset, 0 not one known */
     private fun decModeState(m: Int): Int {
+        /** DECRQM's 1 for set, 2 for reset */
         fun b(v: Boolean) = if (v) 1 else 2
         return when (m) {
             1 -> b(appCursorKeys)
@@ -482,6 +496,7 @@ class TerminalEmulator(
         }
     }
 
+    /** DECRQM's answer for an ANSI mode (IRM 4, LNM 20): 1 set, 2 reset, 0 not one known */
     private fun ansiModeState(m: Int): Int = when (m) {
         4 -> if (insertMode) 1 else 2
         20 -> if (newlineMode) 1 else 2
@@ -552,6 +567,7 @@ class TerminalEmulator(
     fun focusReport(focused: Boolean): ByteArray? =
         if (focusEvents) (if (focused) "\u001b[I" else "\u001b[O").encodeToByteArray() else null
 
+    /** ANSI mode [m] set or reset: insert (4), newline (20) */
     private fun ansiMode(m: Int, on: Boolean) {
         when (m) {
             4 -> insertMode = on
@@ -559,6 +575,7 @@ class TerminalEmulator(
         }
     }
 
+    /** SGR: the CSI's parameters applied to the current rendition (none: back to normal) */
     private fun sgr() {
         if (nParams == 0) {
             style = Style.NORMAL
@@ -644,6 +661,7 @@ class TerminalEmulator(
         style = s
     }
 
+    /** an OSC ended: the title, colours set, asked or reset, the clipboard, a hyperlink */
     private fun osc() {
         val s = osc.toString()
         val semi = s.indexOf(';')
@@ -695,6 +713,7 @@ class TerminalEmulator(
     private fun colorSpec(i: Int, spec: String, prefix: String) {
         if (spec == "?") {
             val c = colorOverrides[i].takeIf { it != -1 } ?: defaultColor(i)
+            /** a colour channel (0-255) as X's four hex digits */
             fun h(v: Int) = (v * 0x101).toString(16).padStart(4, '0')
             val end = if (oscBel) "\u0007" else "\u001b\\"
             reply("\u001b]$prefix" + "rgb:${h((c shr 16) and 0xff)}/${h((c shr 8) and 0xff)}/${h(c and 0xff)}$end")
@@ -703,6 +722,7 @@ class TerminalEmulator(
         parseColor(spec)?.let { colorOverrides[i] = it }
     }
 
+    /** [s] to the remote, as Latin-1 octets */
     private fun reply(s: String) {
         output(s.latin1())
     }
@@ -710,6 +730,7 @@ class TerminalEmulator(
     // ------------------------------------------------------------------
     // DCS: sixel images, and requests (DECRQSS)
 
+    /** a DCS begun: its parameters read as a CSI's */
     private fun startDcs() {
         startCsi()
         state = State.DCS
@@ -730,6 +751,7 @@ class TerminalEmulator(
         }
     }
 
+    /** a DCS's final [final]: a sixel image begun, or DECRQSS's or XTGETTCAP's text collected */
     private fun dcsStart(final: Int) {
         sixel = null
         dcsText = null
@@ -749,16 +771,19 @@ class TerminalEmulator(
         }
     }
 
+    /** a DCS's data character: to the sixel image, or to the request's text */
     private fun dcsPut(cp: Int) {
         sixel?.let { it.feed(cp); return }
         dcsText?.let { if (it.length < 1024) it.appendCp(cp) }
     }
 
+    /** the DCS cancelled: its image or text dropped */
     private fun dcsAbort() {
         sixel = null
         dcsText = null
     }
 
+    /** the DCS ended: its sixel image placed, or its request answered */
     private fun dcsEnd() {
         sixel?.let { sx ->
             sixel = null
@@ -797,6 +822,7 @@ class TerminalEmulator(
         if (a and Style.INVISIBLE != 0) sb.append(";8")
         if (a and Style.STRIKE != 0) sb.append(";9")
         if (a and Style.OVERLINE != 0) sb.append(";53")
+        /** colour [c]'s parameters appended: [base] + n for 0-7, [bright] + n - 8 for 8-15, else 5;n or 2;r;g;b */
         fun color(c: Int, base: Int, bright: Int) {
             when {
                 c == Style.DEFAULT_FG || c == Style.DEFAULT_BG -> {}
@@ -820,6 +846,7 @@ class TerminalEmulator(
     private fun placeImage(img: TermImage) {
         val tilesW = (img.width + img.cellWidth - 1) / img.cellWidth
         val tilesH = (img.height + img.cellHeight - 1) / img.cellHeight
+        /** cell [x] of [line] made the image's tile ([tx], [ty]) */
         fun tile(line: Line, x: Int, tx: Int, ty: Int) {
             line.set(x, 0, Style.erased(style))
             line.extraFor(x).image = ImageTile(img, tx, ty)
@@ -851,6 +878,7 @@ class TerminalEmulator(
     // ------------------------------------------------------------------
     // the screen
 
+    /** a character written at the cursor: DEC graphics, combining, wrapping, insert mode and wide characters as they come, the cursor moved past it */
     private fun print(c: Int) {
         var cp = c
         if (if (shiftOut) g1Graphics else g0Graphics) cp = decGraphics(cp)
@@ -916,11 +944,13 @@ class TerminalEmulator(
         if (cp == 0x200D) joinNext = true
     }
 
+    /** the cursor to the line's start */
     private fun carriageReturn() {
         cursorX = 0
         pendingWrap = false
     }
 
+    /** the cursor back one (a wrap pending: only that undone) */
     private fun backspace() {
         if (pendingWrap) {
             pendingWrap = false
@@ -929,10 +959,12 @@ class TerminalEmulator(
         }
     }
 
+    /** LF: as [index] */
     private fun lineFeed() {
         index()
     }
 
+    /** the cursor down a line, the region scrolled up at its bottom */
     private fun index() {
         pendingWrap = false
         if (cursorY == bottom) {
@@ -942,6 +974,7 @@ class TerminalEmulator(
         }
     }
 
+    /** the cursor up a line, the region scrolled down at its top */
     private fun reverseIndex() {
         pendingWrap = false
         if (cursorY == top) {
@@ -966,6 +999,7 @@ class TerminalEmulator(
         screen[b] = gone
     }
 
+    /** lines [t] to [b] down one, a blank one at the top (the bottom one gone) */
     private fun scrollDown(t: Int, b: Int) {
         val gone = screen[b]
         for (y in b downTo t + 1) screen[y] = screen[y - 1]
@@ -974,6 +1008,7 @@ class TerminalEmulator(
         screen[t] = gone
     }
 
+    /** the cursor to ([x], [y]) on the screen, or within the scrolling region if [clampToRegion] and it is in it */
     private fun moveCursor(x: Int, y: Int, clampToRegion: Boolean = false) {
         val (lo, hi) = if (clampToRegion && cursorY in top..bottom) top to bottom else 0 to rows - 1
         cursorX = x.coerceIn(0, cols - 1)
@@ -981,6 +1016,7 @@ class TerminalEmulator(
         pendingWrap = false
     }
 
+    /** CUP: the cursor to ([x], [y]), from the region's top in origin mode */
     private fun cursorPosition(x: Int, y: Int) {
         if (originMode) {
             cursorX = x.coerceIn(0, cols - 1)
@@ -992,6 +1028,7 @@ class TerminalEmulator(
         pendingWrap = false
     }
 
+    /** DECSTBM: the scrolling region lines [t] to [b] (ignored unless top < bottom), the cursor home */
     private fun setRegion(t: Int, b: Int) {
         val tt = t.coerceIn(0, rows - 1)
         val bb = b.coerceIn(0, rows - 1)
@@ -1001,6 +1038,7 @@ class TerminalEmulator(
         cursorPosition(0, 0)
     }
 
+    /** the cursor on [n] tab stops (the last column at most) */
     private fun tab(n: Int) {
         repeat(n) {
             var x = cursorX + 1
@@ -1010,6 +1048,7 @@ class TerminalEmulator(
         pendingWrap = false
     }
 
+    /** the cursor back [n] tab stops (the first column at least) */
     private fun backTab(n: Int) {
         repeat(n) {
             var x = cursorX - 1
@@ -1019,10 +1058,12 @@ class TerminalEmulator(
         pendingWrap = false
     }
 
+    /** HTS: a tab stop at the cursor's column */
     private fun setTab() {
         if (cursorX < cols) tabs[cursorX] = true
     }
 
+    /** ED: the screen erased below the cursor (0), above it (1), all of it (2), or the scrollback (3) */
     private fun eraseDisplay(mode: Int) {
         val e = Style.erased(style)
         when (mode) {
@@ -1047,6 +1088,7 @@ class TerminalEmulator(
     /** ESC[2J homes the cursor as ANSI.SYS did (BBS screens expect it) */
     var homeOnClear = true
 
+    /** EL: the line erased right of the cursor (0), left of it (1), or all of it (2) */
     private fun eraseLine(mode: Int) {
         val e = Style.erased(style)
         val l = screen[cursorY]
@@ -1059,21 +1101,25 @@ class TerminalEmulator(
         pendingWrap = false
     }
 
+    /** ECH: [n] cells erased from the cursor */
     private fun eraseChars(n: Int) {
         screen[cursorY].clear(cursorX, cursorX + n, Style.erased(style))
         pendingWrap = false
     }
 
+    /** ICH: [n] blank cells inserted at the cursor */
     private fun insertChars(n: Int) {
         screen[cursorY].insertCells(cursorX, n, Style.erased(style))
         pendingWrap = false
     }
 
+    /** DCH: [n] cells deleted at the cursor */
     private fun deleteChars(n: Int) {
         screen[cursorY].deleteCells(cursorX, n, Style.erased(style))
         pendingWrap = false
     }
 
+    /** IL: [n] blank lines inserted at the cursor's, within the region */
     private fun insertLines(n: Int) {
         if (cursorY !in top..bottom) return
         repeat(n.coerceAtMost(bottom - cursorY + 1)) { scrollDown(cursorY, bottom) }
@@ -1081,6 +1127,7 @@ class TerminalEmulator(
         pendingWrap = false
     }
 
+    /** DL: [n] lines deleted at the cursor's, blank ones in at the region's bottom */
     private fun deleteLines(n: Int) {
         if (cursorY !in top..bottom) return
         repeat(n.coerceAtMost(bottom - cursorY + 1)) {
@@ -1095,17 +1142,20 @@ class TerminalEmulator(
         pendingWrap = false
     }
 
+    /** the alternate screen on or off (cleared first if [clear]) */
     private fun setAltScreen(on: Boolean, clear: Boolean) {
         if (on == altScreen) return
         screen = if (on) alt else main
         if (on && clear) for (l in alt) { l.clear(0, cols, Style.NORMAL); l.wrapped = false }
     }
 
+    /** DECSC: the cursor, rendition, origin mode and character sets saved, the screen's own */
     private fun saveCursor() {
         val s = Saved(cursorX, cursorY, style, pendingWrap, originMode, g0Graphics, g1Graphics, shiftOut)
         if (altScreen) savedAlt = s else savedMain = s
     }
 
+    /** DECRC: what [saveCursor] saved for this screen back (none: the cursor home) */
     private fun restoreCursor() {
         val s = (if (altScreen) savedAlt else savedMain)
         if (s == null) {
@@ -1122,11 +1172,13 @@ class TerminalEmulator(
         shiftOut = s.so
     }
 
+    /** DECALN: the screen filled with E, the cursor home */
     private fun alignmentTest() {
         for (l in screen) for (x in 0 until cols) l.set(x, 'E'.code, Style.NORMAL)
         cursorPosition(0, 0)
     }
 
+    /** DECSTR: the modes, region, rendition, character sets and saved cursors back to their defaults */
     private fun softReset() {
         cursorVisible = true
         appCursorKeys = false
@@ -1207,6 +1259,7 @@ class TerminalEmulator(
         revision++
     }
 
+    /** a screen's lines at the new size: excess lines dropped from the bottom (blank ones) then the top (to the scrollback, the main's), more taken back from it; the cursor kept on its line when [active] */
     private fun resizeScreen(old: Array<Line>, newCols: Int, newRows: Int, isMain: Boolean, active: Boolean): Array<Line> {
         for (l in old) l.resize(newCols)
         val list = ArrayList<Line>(old.toList())
@@ -1283,6 +1336,7 @@ class TerminalEmulator(
         /** an X colour spec: rgb:r/g/b (1 to 4 hex digits each), #rgb, #rrggbb, #rrrrggggbbbb */
         fun parseColor(spec: String): Int? {
             val s = spec.trim()
+            /** a spec's 1 to 4 hex digits as 0-255, or null */
             fun scale(h: String): Int? {
                 val v = h.toIntOrNull(16) ?: return null
                 return when (h.length) {
@@ -1312,6 +1366,7 @@ class TerminalEmulator(
         private const val DEC_GRAPHICS =
             " ◆▒␉␌␍␊°±␤␋┘┐┌└┼⎺⎻─⎼⎽├┤┴┬│≤≥π≠£·"
 
+        /** [cp] in DEC special graphics: 0x5f..0x7e as line drawing, the rest as they are */
         fun decGraphics(cp: Int): Int =
             if (cp in 0x5f..0x7e) DEC_GRAPHICS[cp - 0x5f].code else cp
     }

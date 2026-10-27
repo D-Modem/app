@@ -19,6 +19,7 @@ class XYModem(
 ) {
     private var p = Progress()
 
+    /** the progress changed by [f], and reported */
     private fun report(f: (Progress) -> Progress) {
         p = f(p)
         progress(p)
@@ -111,6 +112,7 @@ class XYModem(
      */
     private var eot = false
 
+    /** a block within [waitMs], its CRC or checksum checked (as above): EOT sets [eot] */
     private fun readBlock(useCrc: Boolean, waitMs: Long): Block? {
         eot = false
         // (what isn't a block's start let go by: the sender's own messages, line noise)
@@ -148,6 +150,7 @@ class XYModem(
         return Block(n, data)
     }
 
+    /** the rest of a bad block let go by: null */
     private fun badBlock(): Block? {
         // (what's left of the bad block: let it go by)
         while (io.read(200) >= 0) { /* drop */ }
@@ -262,6 +265,7 @@ class XYModem(
         return null
     }
 
+    /** the file's data sent in blocks of [blockSize] (a short last one in 128, padded with SUB), then EOT until acknowledged */
     private fun sendData(input: Source, blockSize: Int, useCrc: Boolean, ymodem: Boolean) {
         var n = 1
         var sent = 0L
@@ -305,6 +309,7 @@ class XYModem(
         }
     }
 
+    /** block [n]'s bytes: SOH or STX, its number and complement, [data], its CRC-16 or checksum */
     private fun blockBytes(n: Int, data: ByteArray, useCrc: Boolean): ByteArray {
         val out = Bytes()
         out.write(if (data.size == 1024) STX else SOH)

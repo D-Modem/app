@@ -24,6 +24,7 @@ class TerminalBridge(cols: Int, rows: Int) {
 
     init {
         emulator.listener = object : TerminalEmulator.Listener {
+            /** the remote's title kept */
             override fun onTitle(title: String) { this@TerminalBridge.title = title }
         }
     }
@@ -54,6 +55,7 @@ class TerminalBridge(cols: Int, rows: Int) {
     val background: Int get() = look.theme.bgArgb
     val cursorColor: Int get() = look.theme.cursorArgb
 
+    /** the screen made [cols] x [rows] */
     fun resize(cols: Int, rows: Int) = emulator.resize(cols, rows)
 
     /** the theme ([TermTheme.ALL]'s ids), bold as bright, and the character set (UTF8, CP437, LATIN1) */
@@ -94,6 +96,7 @@ class TerminalBridge(cols: Int, rows: Int) {
     /** the screen's text from (row, col) to (row2, col2), for copying */
     fun text(row: Int, col: Int, row2: Int, col2: Int): String = emulator.text(row, col, row2, col2)
 
+    /** [s] in the character set, as Latin-1 text (one character an octet) */
     private fun octets(s: String): String {
         val b = emulator.decoder.charset.encode(s)
         return CharArray(b.size) { (b[it].toInt() and 0xff).toChar() }.concatToString()

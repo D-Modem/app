@@ -39,6 +39,7 @@ class Sixel(
     private val params = IntArray(5)
     private var nParams = 0
 
+    /** one code point of the image's data: a command's parameters gathered, else a sixel, a command begun, a carriage return or new line */
     fun feed(cp: Int) {
         if (command != 0) {
             when (cp) {
@@ -64,12 +65,14 @@ class Sixel(
         }
     }
 
+    /** command [c] (#, ! or ") begun, its parameters cleared */
     private fun startCommand(c: Int) {
         command = c
         nParams = 0
         params.fill(0)
     }
 
+    /** the command read applied: a repeat count, a colour register set or chosen, or the raster attributes' size */
     private fun endCommand() {
         when (command.toChar()) {
             '!' -> repeat = params[0].coerceAtLeast(1)
@@ -95,6 +98,7 @@ class Sixel(
         command = 0
     }
 
+    /** a sixel's six pixels drawn in the colour at x (repeated as !Pn said), x past them */
     private fun sixel(bits: Int) {
         val n = repeat
         repeat = 1
@@ -146,8 +150,10 @@ class Sixel(
     }
 
     companion object {
+        /** a percentage as 0-255 */
         private fun pct(v: Int) = (v.coerceIn(0, 100) * 255 + 50) / 100
 
+        /** opaque ARGB of [r], [g], [b] */
         private fun rgb(r: Int, g: Int, b: Int) = (0xff shl 24) or (r shl 16) or (g shl 8) or b
 
         /** DEC's HLS: hue in degrees with blue at 0 (red at 120), lightness and saturation in percent */
@@ -162,6 +168,7 @@ class Sixel(
             }
             val q = if (l < 0.5) l * (1 + s) else l + s - l * s
             val p = 2 * l - q
+            /** one channel (0-255) from the hue fraction [t0], HSL's way */
             fun hue(t0: Double): Int {
                 var t = t0
                 if (t < 0) t += 1.0

@@ -35,9 +35,13 @@ class Ppp(
     data class IpConfig(val address: Inet4, val peer: Inet4?, val dns: List<Inet4>, val mtu: Int)
 
     interface Events {
+        /** the link open with [config]'s address */
         fun up(config: IpConfig)
+        /** an IPv4 packet from the link */
         fun ip(packet: ByteArray)
+        /** the link down, and why */
         fun down(reason: String)
+        /** a line for the log (by default, none kept) */
         fun log(line: String) {}
     }
 
@@ -98,6 +102,7 @@ class Ppp(
     @kotlin.concurrent.Volatile var bytesOut = 0L
         private set
 
+    /** [s] to the events' log */
     private fun log(s: String) = events.log(s)
 
     // ------------------------------------------------------------------
@@ -132,6 +137,7 @@ class Ppp(
         timer.schedule(if (phase == Phase.TERMINATE) 500 else 0) { down(reason) }
     }
 
+    /** the link dead (once): its retries cancelled, [Events.down] told, the timer shut down */
     private fun down(reason: String) {
         synchronized(lock) {
             if (phase == Phase.DEAD) return
@@ -148,6 +154,7 @@ class Ppp(
     // ------------------------------------------------------------------
     // frames
 
+    /** [info] sent in a frame of protocol [proto] (LCP's with every control character escaped) */
     private fun out(proto: Int, info: ByteArray) {
         val f = ByteArray(4 + info.size)
         f[0] = 0xff.toByte()
@@ -159,6 +166,7 @@ class Ppp(
         send(Hdlc.encode(f, if (proto == PROTO_LCP) -1 else sendAccm))
     }
 
+    /** an LCP-style packet: [code], [id], its length, [data] */
     private fun packet(code: Int, id: Int, data: ByteArray): ByteArray {
         val p = ByteArray(4 + data.size)
         p[0] = code.toByte()
@@ -169,6 +177,7 @@ class Ppp(
         return p
     }
 
+    /** a frame from the line, by its protocol to LCP, PAP, CHAP, IPCP or the tunnel; others rejected once past LCP */
     private fun frame(f: ByteArray) {
         // address and control (or not, with ACFC), the protocol (one octet with PFC)
         var i = 0
@@ -213,22 +222,28 @@ class Ppp(
         return out
     }
 
+    /** a packet's length field (0 if too short to have one) */
     private fun len(p: ByteArray) = if (p.size >= 4) ((p[2].toInt() and 0xff) shl 8) or (p[3].toInt() and 0xff) else 0
 
+    /** (type, data) options as a packet's option bytes */
     private fun opts(list: List<Pair<Int, ByteArray>>): ByteArray {
         val o = Bytes()
         for ((t, d) in list) { o.write(t); o.write(d.size + 2); o.write(d) }
         return o.toByteArray()
     }
 
+    /** [v] as four octets, big-endian */
     private fun int32(v: Int) = byteArrayOf((v ushr 24).toByte(), (v ushr 16).toByte(), (v ushr 8).toByte(), v.toByte())
+    /** the big-endian int of [d]'s first four octets */
     private fun int32(d: ByteArray) = ((d[0].toInt() and 0xff) shl 24) or ((d[1].toInt() and 0xff) shl 16) or
         ((d[2].toInt() and 0xff) shl 8) or (d[3].toInt() and 0xff)
+    /** the big-endian int of [d]'s first two octets */
     private fun int16(d: ByteArray) = ((d[0].toInt() and 0xff) shl 8) or (d[1].toInt() and 0xff)
 
     // ------------------------------------------------------------------
     // LCP
 
+    /** our LCP Configure-Request (MRU, ACCM, magic number as still asked) out, retried until acked or given up */
     private fun sendLcpConfReq() {
         val o = ArrayList<Pair<Int, ByteArray>>()
         if (lcpMru != 1500) o.add(1 to byteArrayOf((lcpMru ushr 8).toByte(), lcpMru.toByte()))
@@ -246,6 +261,7 @@ class Ppp(
         }
     }
 
+    /** an LCP packet: the peer's request Ack'd, Nak'd or rejected, our own request's answer taken, terminate and echo answered */
     private fun lcp(p: ByteArray) {
         if (p.size < 4) return
         val code = p[0].toInt() and 0xff
@@ -325,6 +341,7 @@ class Ppp(
         }
     }
 
+    /** LCP negotiated again from the start (the peer renegotiating), IPCP with it */
     private fun restartLcp() {
         log("LCP again")
         phase = Phase.ESTABLISH
@@ -337,6 +354,7 @@ class Ppp(
         sendLcpConfReq()
     }
 
+    /** both sides' LCP options acked: on to PAP, CHAP's challenge, or IPCP if no login is asked */
     private fun lcpMaybeUp() {
         if (!(lcpOurAcked && lcpTheirAcked) || phase != Phase.ESTABLISH) return
         log("LCP up (mru $peerMru, accm ${hex(sendAccm, 8)}, auth ${hex(authProto, 4)})")
@@ -351,6 +369,7 @@ class Ppp(
     // ------------------------------------------------------------------
     // authentication
 
+    /** our PAP login out, retried until answered or given up */
     private fun sendPap() {
         val u = user.encodeToByteArray()
         val pw = password.encodeToByteArray()
@@ -365,10 +384,12 @@ class Ppp(
         }
     }
 
+    /** the link stopped with [why], off the lock (on the timer's thread) */
     private fun stopLocked(why: String) {
         timer.execute { stop(why) }
     }
 
+    /** a PAP answer: on to IPCP if logged in, else the link stopped with the server's message */
     private fun pap(p: ByteArray) {
         if (p.size < 4 || phase != Phase.AUTHENTICATE) return
         when (p[0].toInt()) {
@@ -381,6 +402,7 @@ class Ppp(
         }
     }
 
+    /** a CHAP packet: a challenge answered with MD5 of the id, the password and it; success on to IPCP; failure stops the link */
     private fun chap(p: ByteArray) {
         if (p.size < 4) return
         val id = p[1].toInt() and 0xff
@@ -401,12 +423,14 @@ class Ppp(
     // ------------------------------------------------------------------
     // IPCP
 
+    /** IPCP begun: the network phase, our request out */
     private fun startIpcp() {
         phase = Phase.NETWORK
         ipcpRetries = 0
         sendIpcpConfReq()
     }
 
+    /** our IPCP Configure-Request (our address, the DNS servers still asked) out, retried until acked or given up */
     private fun sendIpcpConfReq() {
         val o = ArrayList<Pair<Int, ByteArray>>()
         o.add(3 to ourAddr)
@@ -423,6 +447,7 @@ class Ppp(
         }
     }
 
+    /** an IPCP packet: the peer's request answered (as a server, or taking its address), the address and DNS from its Nak, our request's answer taken */
     private fun ipcp(p: ByteArray) {
         if (p.size < 4) return
         if (phase.ordinal < Phase.NETWORK.ordinal || phase == Phase.TERMINATE) {
@@ -488,6 +513,7 @@ class Ppp(
         ipcpMaybeUp()
     }
 
+    /** both sides' IPCP acked: the link open, its address, DNS and MTU to [Events.up] (stopped if no address came) */
     private fun ipcpMaybeUp() {
         if (!(ipcpOurAcked && ipcpTheirAcked) || phase != Phase.NETWORK) return
         if (ourAddr.all { it.toInt() == 0 }) { stopLocked("no address came"); return }

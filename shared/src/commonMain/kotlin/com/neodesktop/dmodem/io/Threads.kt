@@ -26,9 +26,11 @@ fun background(@Suppress("UNUSED_PARAMETER") name: String, f: () -> Unit): Job =
 /** waited for until counted down, once (the JVM's CountDownLatch(1)) */
 class Latch {
     private val done = CompletableDeferred<Unit>()
+    /** counted down: every await() returns */
     fun countDown() {
         done.complete(Unit)
     }
+    /** waited for until counted down */
     fun await() = runBlocking { done.await() }
 
     /** waited for up to [ms]: whether it was counted down */

@@ -47,6 +47,7 @@ class TermTheme(
     companion object {
         private const val OPAQUE = 0xff000000.toInt()
 
+        /** the ints as an array */
         private fun ints(vararg v: Int) = v
 
         val VGA = TermTheme(
@@ -129,6 +130,7 @@ class TermTheme(
 
         val ALL = listOf(VGA, XTERM, SOLARIZED_DARK, SOLARIZED_LIGHT, DRACULA, MONOKAI, GRUVBOX, NORD, TANGO_LIGHT, GREEN, AMBER)
 
+        /** the theme with [id], VGA if none has it */
         fun byId(id: String): TermTheme = ALL.firstOrNull { it.id == id } ?: VGA
     }
 }

@@ -14,6 +14,7 @@ object Md5 {
         (kotlin.math.abs(kotlin.math.sin((i + 1).toDouble())) * 4294967296.0).toLong().toInt()
     }
 
+    /** the 16-byte MD5 digest of [data] */
     fun digest(data: ByteArray): ByteArray {
         val bitLen = data.size.toLong() * 8
         val padded = ByteArray(((data.size + 8) / 64 + 1) * 64)

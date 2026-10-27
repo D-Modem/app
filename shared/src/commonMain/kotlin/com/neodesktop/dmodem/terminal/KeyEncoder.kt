@@ -32,14 +32,18 @@ class KeyEncoder {
     private fun mod(shift: Boolean, alt: Boolean, ctrl: Boolean): Int =
         1 + (if (shift) 1 else 0) + (if (alt) 2 else 0) + (if (ctrl) 4 else 0)
 
+    /** what [k] sends, with its modifiers ([appCursor]: the cursor keys in application mode) */
     fun key(k: Key, appCursor: Boolean, shift: Boolean = false, alt: Boolean = false, ctrl: Boolean = false): String {
         val m = mod(shift, alt, ctrl)
+        /** a cursor key's: CSI with the modifiers, SS3 in application mode, else CSI */
         fun cursor(c: Char) = when {
             m > 1 -> "\u001b[1;$m$c"
             appCursor -> "\u001bO$c"
             else -> "\u001b[$c"
         }
+        /** a CSI n ~ key's, with the modifiers */
         fun tilde(n: Int) = if (m > 1) "\u001b[$n;$m~" else "\u001b[$n~"
+        /** an SS3 function key's (CSI 1;m with modifiers) */
         fun ss3(c: Char) = if (m > 1) "\u001b[1;$m$c" else "\u001bO$c"
         val prefix = if (alt && k in setOf(Key.TAB, Key.ENTER, Key.BACKSPACE, Key.ESCAPE)) "\u001b" else ""
         return when (k) {
@@ -115,8 +119,10 @@ object UrlFinder {
         return null
     }
 
+    /** every link in [text], trailing punctuation dropped */
     fun all(text: String): List<String> = URL.findAll(text).map { trim(it.value) }.toList()
 
+    /** [u] without trailing punctuation, nor closing brackets it didn't open */
     private fun trim(u: String): String {
         var s = u.trimEnd('.', ',', ';', ':', '!', '?', '\'', '"')
         // a closing bracket the link didn't open

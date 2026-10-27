@@ -38,6 +38,7 @@ fun TerminalEmulator.runs(row: Int, look: RunLook = RunLook()): List<StyledRun> 
     val out = ArrayList<StyledRun>()
     val text = StringBuilder()
 
+    /** colour [c] as ARGB: the remote's override of it if it set one, else the theme's */
     fun color(c: Int, isFg: Boolean): Int {
         val i = when {
             c == Style.DEFAULT_FG -> 256

@@ -34,17 +34,24 @@ object Style {
 
     val NORMAL: Long = of(DEFAULT_FG, DEFAULT_BG, 0)
 
+    /** the look of colours [fg] and [bg] with attributes [attrs] */
     fun of(fg: Int, bg: Int, attrs: Int): Long =
         (fg.toLong() and COLOR_MASK) or
             ((bg.toLong() and COLOR_MASK) shl 25) or
             (attrs.toLong() shl 50)
 
+    /** a look's foreground colour */
     fun fg(s: Long): Int = (s and COLOR_MASK).toInt()
+    /** a look's background colour */
     fun bg(s: Long): Int = ((s ushr 25) and COLOR_MASK).toInt()
+    /** a look's attributes */
     fun attrs(s: Long): Int = (s ushr 50).toInt()
 
+    /** [s] with foreground [fg] */
     fun withFg(s: Long, fg: Int) = of(fg, bg(s), attrs(s))
+    /** [s] with background [bg] */
     fun withBg(s: Long, bg: Int) = of(fg(s), bg, attrs(s))
+    /** [s] with attributes [a] */
     fun withAttrs(s: Long, a: Int) = of(fg(s), bg(s), a)
 
     /** the look of erased cells: only the background stays (xterm's BCE) */
@@ -69,6 +76,7 @@ class CellExtra(
     var image: ImageTile? = null,
     var link: String? = null,
 ) {
+    /** a copy of its own (the combining marks copied, the tile and link shared) */
     fun copy() = CellExtra(combining?.copyOf(), image, link)
     val isEmpty get() = combining == null && image == null && link == null
 }
@@ -89,6 +97,7 @@ class Line(cols: Int, style: Long = Style.NORMAL) {
 
     val cols: Int get() = chars.size
 
+    /** cell [i]'s extras, or null if it has none */
     fun extra(i: Int): CellExtra? = extras?.getOrNull(i)
 
     /** the cell's extras, made if it has none */
@@ -104,6 +113,7 @@ class Line(cols: Int, style: Long = Style.NORMAL) {
         extras?.let { it[i] = null }
     }
 
+    /** cells [from] until [to] blanked in [style], their extras gone */
     fun clear(from: Int, to: Int, style: Long) {
         val f = from.coerceAtLeast(0)
         val t = to.coerceAtMost(cols)
@@ -134,6 +144,7 @@ class Line(cols: Int, style: Long = Style.NORMAL) {
         clear(cols - k, cols, style)
     }
 
+    /** [n] columns wide: cut or padded with blank cells (a wide character cut at the edge gone) */
     fun resize(n: Int) {
         if (n == cols) return
         val c = IntArray(n)
@@ -147,6 +158,7 @@ class Line(cols: Int, style: Long = Style.NORMAL) {
         if (n > 0 && chars[n - 1] > 0 && Wcwidth.width(chars[n - 1]) == 2) chars[n - 1] = 0
     }
 
+    /** [o]'s cells (as many as fit), extras and wrap copied into this one */
     fun copyFrom(o: Line) {
         val n = minOf(cols, o.cols)
         o.chars.copyInto(chars, 0, 0, n)

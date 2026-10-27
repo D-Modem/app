@@ -6,6 +6,7 @@ import com.neodesktop.dmodem.io.*
 
 /** IPv4 and UDP packets, as far as the link's checks need them. */
 object Ip {
+    /** the Internet checksum (RFC 1071) of [len] bytes at [off], [start] added in */
     fun checksum(b: ByteArray, off: Int, len: Int, start: Long = 0): Int {
         var s = start
         var i = off

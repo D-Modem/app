@@ -17,22 +17,27 @@ import kotlin.concurrent.Volatile
 
 /** octets to the modem: false once it has gone */
 fun interface DteOut {
+    /** [latin1]'s octets to the modem: false once it has gone */
     fun write(latin1: String): Boolean
 }
 
 /** a line for the log */
 fun interface LogOut {
+    /** [line] logged */
     fun log(line: String)
 }
 
 /** the job's state changed (read it); on the job's thread */
 fun interface Changed {
+    /** the job's state changed */
     fun changed()
 }
 
 /** octets as Latin-1 text and back, for Swift */
 object Latin1 {
+    /** [s]'s characters as octets, one each */
     fun bytes(s: String): ByteArray = ByteArray(s.length) { s[it].code.toByte() }
+    /** [b]'s octets as characters, one each */
     fun string(b: ByteArray): String = latin1String(b, 0, b.size)
 }
 
@@ -62,8 +67,10 @@ abstract class DteJob(private val out: DteOut, protected val logOut: LogOut, pri
         }
     }
 
+    /** the job's state changed, said to [changed] */
     protected fun changed() = changed.changed()
 
+    /** [line] to the log */
     protected fun log(line: String) = logOut.log(line)
 
     /** the modem's answer to ATD, as the user reads it */

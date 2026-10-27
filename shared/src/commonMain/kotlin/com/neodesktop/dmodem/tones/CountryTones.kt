@@ -54,6 +54,7 @@ class Tone(val f1: Int, val f2: Int, val mod: Float, val cadence: FloatArray) {
         }
     }
 
+    /** [v] without ".0" when it is whole */
     private fun fmt(v: Float): String = if (v == v.toInt().toFloat()) v.toInt().toString() else v.toString()
 }
 
@@ -94,6 +95,7 @@ class CountryTones(
             return all.firstOrNull { it.name == real }
         }
 
+        /** [s] as the table's names are: upper case, spaces, '-' and '.' as '_' */
         private fun norm(s: String) = s.trim().uppercase().map { if (it == ' ' || it == '-' || it == '.') '_' else it }.joinToString("")
 
         private val small = setOf("OF", "AND", "THE", "DA", "DU", "DE")

@@ -32,6 +32,7 @@ object HexRecords {
             Format.SREC -> srec(data, base, name)
         }
 
+    /** [data] at [base] as Intel HEX: an extended linear address at each 64 KB, data records not crossing one, the end record */
     private fun intel(data: ByteArray, base: Long): List<String> {
         val out = ArrayList<String>()
         var upper = -1L
@@ -52,12 +53,14 @@ object HexRecords {
         return out
     }
 
+    /** an Intel HEX record of [type] at [addr], its checksum after */
     private fun intelRecord(addr: Int, type: Int, data: ByteArray): String {
         val bytes = byteArrayOf(data.size.toByte(), (addr ushr 8).toByte(), addr.toByte(), type.toByte()) + data
         val sum = bytes.sumOf { it.toInt() and 0xff }
         return ":" + hex(bytes) + hex(byteArrayOf((-sum).toByte()))
     }
 
+    /** [data] at [base] as S-records: the header, data records (S1, S2 or S3, the smallest that holds it), the count, the end */
     private fun srec(data: ByteArray, base: Long, name: String): List<String> {
         val last = base + maxOf(data.size, 1) - 1
         // (the smallest addresses that hold the image: S1 16 bits, S2 24, S3 32)
@@ -81,6 +84,7 @@ object HexRecords {
         return out
     }
 
+    /** an S-record of [type] with an address of [addrBytes] bytes, its count first and checksum after */
     private fun srecRecord(type: Int, addrBytes: Int, addr: Long, data: ByteArray): String {
         val a = ByteArray(addrBytes) { k -> (addr ushr (8 * (addrBytes - 1 - k))).toByte() }
         val body = byteArrayOf((addrBytes + data.size + 1).toByte()) + a + data
@@ -90,6 +94,7 @@ object HexRecords {
 
     private val DIGITS = "0123456789ABCDEF"
 
+    /** [b] in upper-case hex */
     private fun hex(b: ByteArray): String = buildString(b.size * 2) {
         for (x in b) {
             append(DIGITS[(x.toInt() ushr 4) and 15])
@@ -141,6 +146,7 @@ object HexRecords {
             }
         }
 
+        /** the bytes the hex [digits] spell (an error, naming [what], if they aren't hex) */
         private fun bytesOf(digits: String, what: String): ByteArray {
             if (digits.length % 2 != 0 || digits.any { it !in '0'..'9' && it !in 'A'..'F' && it !in 'a'..'f' }) {
                 throw IOException("$what: not hex digits")
@@ -148,6 +154,7 @@ object HexRecords {
             return ByteArray(digits.length / 2) { k -> digits.substring(2 * k, 2 * k + 2).toInt(16).toByte() }
         }
 
+        /** an Intel HEX line: false if it isn't a record; its data, the end or an extended address taken */
         private fun intel(l: String): Boolean {
             if (!l.startsWith(":")) return false
             val b = bytesOf(l.substring(1), "Intel HEX record ${records + 1}")
@@ -167,6 +174,7 @@ object HexRecords {
             return true
         }
 
+        /** an S-record line: false if it isn't a record; its header, data or the end taken */
         private fun srec(l: String): Boolean {
             if (l.length < 2 || (l[0] != 'S' && l[0] != 's') || !l[1].isDigit()) return false
             val type = l[1] - '0'
@@ -192,6 +200,7 @@ object HexRecords {
             return true
         }
 
+        /** [data] at [addr] kept, and counted */
         private fun put(addr: Long, data: ByteArray) {
             chunks.add(addr to data)
             records++
@@ -288,8 +297,10 @@ class HexTransfer(
         return listOf(got)
     }
 
+    /** the format's name, for messages */
     private fun label() = if (format == HexRecords.Format.INTEL) "Intel HEX" else "S-record"
 
+    /** [file]'s bytes, all of them (an error past [HexRecords.MAX_IMAGE]) */
     private fun readAll(file: Outgoing): ByteArray {
         val out = com.neodesktop.dmodem.io.Bytes()
         file.open().use { src ->

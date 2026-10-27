@@ -88,6 +88,7 @@ class PeerLine(
     private var failures = 0
     private var blockedUntil = 0L
 
+    /** the line on: listening for calls if [listen], ready for the modem's */
     fun start(listen: Boolean) {
         running = true
         listening = false
@@ -98,6 +99,7 @@ class PeerLine(
         _state.value = State.Ready(listening)
     }
 
+    /** the line off: its calls ended, the transport closed */
     fun stop() {
         running = false
         val calls = synchronized(lock) { listOfNotNull(pending, call) }
@@ -130,6 +132,7 @@ class PeerLine(
         val dialled = Latch()
         @kotlin.concurrent.Volatile var ringing = false
 
+        /** the call over (once): its connection and line closed, a ringing call's RING cancelled, the line ready again */
         fun end(why: String) {
             if (!ended.compareAndSet(false, true)) return
             log("call ${if (caller) "to" else "from"} $who over: $why")
@@ -252,6 +255,7 @@ class PeerLine(
 
         /** the tone at sample [n]: dial tone (350 + 440 Hz), quiet, ringback (440 + 480 Hz, 2 s in 6) once ringing */
         private var ringFrom = -1L
+        /** that tone's sample [n], as above */
         private fun tone(n: Long): Short {
             val t = n.toDouble() / RATE
             val a = when {
@@ -265,6 +269,7 @@ class PeerLine(
             return a.toInt().toShort()
         }
 
+        /** two sines of [f1] and [f2] Hz added, at [t] seconds, [TONE] loud */
         private fun sin2(f1: Double, f2: Double, t: Double) =
             TONE * (kotlin.math.sin(2 * kotlin.math.PI * f1 * t) + kotlin.math.sin(2 * kotlin.math.PI * f2 * t))
     }
@@ -374,6 +379,7 @@ class PeerLine(
         background("peer") { dialOut(c, dial) }
     }
 
+    /** our call placed: the tones played, the other phone connected and rung (with our PIN if it asks), then the call answered or failed */
     private fun dialOut(c: Call, dial: String) {
         // the dial tone and the dialling first, as an exchange has them
         c.feedTones()
@@ -462,8 +468,10 @@ class PeerLine(
         fun pinProof(nonce: String, pin: String): String =
             Md5.digest("DMODEM/1:$nonce:$pin".encodeToByteArray()).toHex()
 
+        /** the bytes in lower-case hex */
         private fun ByteArray.toHex() = joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') }
 
+        /** whether [a] and [b] are equal, in a time that doesn't tell where they differ */
         private fun constantTimeEquals(a: String, b: String): Boolean {
             if (a.length != b.length) return false
             var d = 0

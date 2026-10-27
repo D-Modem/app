@@ -27,12 +27,14 @@ class TransferIo(private val send: (ByteArray) -> Unit) {
         if (len > 0) queue.put(data.copyOfRange(off, off + len).also { b -> trace?.invoke(true, b) })
     }
 
+    /** bytes to the remote (refused, TransferCancelled, once cancelled) */
     fun write(b: ByteArray) {
         if (cancelled != null) throw TransferCancelled(cancelled!!)
         trace?.invoke(false, b)
         send(b)
     }
 
+    /** the bytes [b] (each 0-255) to the remote */
     fun write(vararg b: Int) = write(ByteArray(b.size) { b[it].toByte() })
 
     /** a byte (0-255), or -1 when none came within [timeoutMs] (the cancel looked at every quarter second) */
@@ -78,6 +80,7 @@ class TransferIo(private val send: (ByteArray) -> Unit) {
         return out.toByteArray()
     }
 
+    /** cancelled for [why]: reads and writes throw TransferCancelled from now on */
     fun cancel(why: String) {
         cancelled = why
     }

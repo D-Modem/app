@@ -23,6 +23,7 @@ class Kermit(
 ) {
     private var p = Progress()
 
+    /** the progress changed by [f], and reported */
     private fun report(f: (Progress) -> Progress) {
         p = f(p)
         progress(p)
@@ -45,17 +46,20 @@ class Kermit(
     private var seq = 0
 
     class Packet(val seq: Int, val type: Char, val data: ByteArray) {
+        /** its type, sequence number and data's size, for the log */
         override fun toString() = "Packet($type $seq, ${data.size})"
     }
 
     // ------------------------------------------------------------------
     // packets
 
+    /** the check type a packet of [type] goes with: 1 for S, I and R (and during the S/Y exchange), else the agreed one */
     private fun checkLen(type: Char) = if (type == 'S' || type == 'I' || type == 'R') 1 else if (forceCheck1) 1 else check
 
     /** (during the S/Y exchange, both sides on type 1) */
     private var forceCheck1 = true
 
+    /** a packet sent: padding, MARK, its header (an extended one for long data), [data], its check and EOL */
     private fun sendPacket(seq: Int, type: Char, data: ByteArray) {
         val ct = checkLen(type)
         val out = Bytes()
@@ -84,6 +88,7 @@ class Kermit(
         io.write(out.toByteArray())
     }
 
+    /** the block check of [type] (1, 2 or 3: CRC) over [len] bytes at [off], as printable characters */
     private fun checkChars(type: Int, b: ByteArray, off: Int, len: Int): ByteArray {
         var s = 0
         for (i in off until off + len) s += b[i].toInt() and 0xff
@@ -97,6 +102,7 @@ class Kermit(
         }
     }
 
+    /** the type 1 check of [len] bytes at [off] */
     private fun check1(b: ByteArray, off: Int, len: Int): Int = checkChars(1, b, off, len)[0].toInt()
 
     /**
@@ -105,6 +111,7 @@ class Kermit(
      */
     private fun readPacket(wait: Long = timeoutMs): Packet? {
         val deadline = monotonicMs() + wait
+        /** the next byte before the deadline, or -1 */
         fun next(): Int {
             val left = deadline - monotonicMs()
             if (left <= 0) return -1
@@ -117,6 +124,7 @@ class Kermit(
                 c = next()
             }
             val buf = Bytes()
+            /** the next byte, kept in the packet's buffer too */
             fun take(): Int {
                 val v = next()
                 if (v >= 0) buf.write(v)
@@ -182,6 +190,7 @@ class Kermit(
 
     private var lastSentType = ' '
 
+    /** an E packet with [why] sent (if it can be), and the transfer failed with it */
     private fun error(why: String): Nothing {
         runCatching { sendPacket(seq, 'E', encodeText(why)) }
         throw IOException(why)
@@ -202,6 +211,7 @@ class Kermit(
     // ------------------------------------------------------------------
     // the S/Y exchange
 
+    /** our Send-Init parameters: MAXL, TIME, NPAD, PADC, EOL, QCTL, QBIN, CHKT, REPT, CAPAS, WINDO, MAXLX1, MAXLX2 */
     private fun ourParams(): ByteArray {
         val b = Bytes()
         b.write(tochar(94))                       // MAXL
@@ -223,6 +233,7 @@ class Kermit(
     /** their parameters, agreed with ours ([sender]: we're the one that sent the S) */
     @Suppress("UNUSED_PARAMETER")
     private fun agree(d: ByteArray, sender: Boolean) {
+        /** their parameter [i], or -1 if they didn't send it */
         fun at(i: Int): Int = if (i < d.size) d[i].toInt() and 0xff else -1
         at(0).takeIf { it > 32 }?.let { sendMax = unchar(it).coerceIn(10, 94) }
         npad = at(2).takeIf { it > 32 }?.let { unchar(it) } ?: 0
@@ -260,6 +271,7 @@ class Kermit(
         if (qbin != 0 && qbin == rept) rept = 0
     }
 
+    /** whether [c] can be a prefix character (33-62, 96-126) */
     private fun isPrefix(c: Int) = c in 33..62 || c in 96..126
 
     // ------------------------------------------------------------------
@@ -271,6 +283,7 @@ class Kermit(
         return if (sendLong > 0) sendLong - 5 - ct - 2 else sendMax - 2 - ct
     }
 
+    /** one byte encoded into [out]: its 8th bit prefixed (when agreed), control characters and the prefixes themselves quoted */
     private fun encodeByte(out: Bytes, v: Int) {
         var b = v
         if (qbin != 0 && b and 0x80 != 0) {
@@ -317,6 +330,7 @@ class Kermit(
         return out.toByteArray() to (i - off)
     }
 
+    /** [s]'s UTF-8 encoded for a packet, all of it */
     private fun encodeText(s: String): ByteArray {
         val b = s.encodeToByteArray()
         return encode(b, 0, b.size, Int.MAX_VALUE).first
@@ -348,6 +362,7 @@ class Kermit(
         }
     }
 
+    /** a packet's data decoded, as UTF-8 text */
     private fun decodeText(d: ByteArray): String = Bytes().also { decode(d, it) }.toByteArray().decodeToString()
 
     // ------------------------------------------------------------------
@@ -391,12 +406,14 @@ class Kermit(
         exchange('B', ByteArray(0))
     }
 
+    /** [f] sent: F, its attributes if agreed (A), D packets, Z (the file skipped if the receiver refuses or stops it) */
     private fun sendFile(f: Outgoing) {
         report { it.copy(file = f.name, bytes = 0, size = f.size) }
         val nameAck = exchange('F', encodeText(f.name))
         if (nameAck.isNotEmpty()) decodeText(nameAck)
         if (attributes) {
             val a = Bytes()
+            /** an attribute: [tag], its length, [v] */
             fun attr(tag: Char, v: String) {
                 a.write(tag.code)
                 a.write(tochar(v.length))
@@ -447,11 +464,13 @@ class Kermit(
     // ------------------------------------------------------------------
     // receiving
 
+    /** an ACK (Y) of [seq] sent, with [data] */
     private fun ack(seq: Int, data: ByteArray = ByteArray(0)) {
         lastSentType = 'Y'
         sendPacket(seq, 'Y', data)
     }
 
+    /** a NAK (N) of [seq] sent */
     private fun nak(seq: Int) {
         lastSentType = 'N'
         sendPacket(seq, 'N', ByteArray(0))
@@ -582,7 +601,9 @@ class Kermit(
 
     private class CountingStream(private val o: Sink) : Sink {
         var n = 0L
+        /** the byte [b] written on, and counted */
         override fun write(b: Int) { o.write(b); n++ }
+        /** [len] bytes of [b] written on, and counted */
         override fun write(b: ByteArray, off: Int, len: Int) { o.write(b, off, len); n += len }
     }
 
@@ -597,8 +618,11 @@ class Kermit(
         const val OUR_LONG = 4000
         const val MAX_RETRIES = 10
 
+        /** [x] as a printable character (+32) */
         fun tochar(x: Int) = x + 32
+        /** a printable character back to its value (-32) */
         fun unchar(x: Int) = x - 32
+        /** [x] with its control bit flipped (xor 64) */
         fun ctl(x: Int) = x xor 64
 
         /** CRC-16/KERMIT (CCITT, bits reflected, from 0) */
@@ -622,10 +646,12 @@ class Kermit(
             return false
         }
 
+        /** [sec] as an attribute's date in local time: yyyymmdd hh:mm:ss */
         private fun formatDate(sec: Long): String {
             val local = sec + localOffsetSeconds(sec)
             val (y, mo, d) = civil(local.floorDiv(86400L))
             val t = local.mod(86400L).toInt()
+            /** [v] in two digits */
             fun two(v: Int) = v.toString().padStart(2, '0')
             return "${y.toString().padStart(4, '0')}${two(mo)}${two(d)} ${two(t / 3600)}:${two(t / 60 % 60)}:${two(t % 60)}"
         }

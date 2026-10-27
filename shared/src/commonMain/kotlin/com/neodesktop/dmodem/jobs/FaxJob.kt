@@ -36,6 +36,7 @@ class FaxJob(out: DteOut, log: LogOut, changed: Changed) : DteJob(out, log, chan
     @Volatile var state: State? = null
         private set
 
+    /** the progress shown as [p], and said so */
     private fun update(p: FaxProgress) {
         state = state?.copy(progress = p)
         changed()
@@ -73,6 +74,7 @@ class FaxJob(out: DteOut, log: LogOut, changed: Changed) : DteJob(out, log, chan
     /** the call stopped (hung up) */
     fun cancel() = io.cancel("cancelled")
 
+    /** [pages] written into [into] as a PDF named [name]: the name it got (abandoned if it fails) */
     private fun save(into: Incoming, name: String, pages: List<FaxPage>): String {
         val (out, actual) = into.create(name, -1)
         try {
@@ -85,6 +87,7 @@ class FaxJob(out: DteOut, log: LogOut, changed: Changed) : DteJob(out, log, chan
         return actual
     }
 
+    /** the fax call run in the background: the modem put in fax mode, [body] run, the call hung up and the result kept */
     private fun start(sending: Boolean, number: String, maxBps: Int, body: (Class1, List<T30.Rate>) -> Pair<FaxProgress, String>) {
         state = State(sending, FaxProgress("Starting"), number = number)
         changed()

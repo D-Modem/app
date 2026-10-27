@@ -34,6 +34,7 @@ class TransferJob(protocolName: String, sending: Boolean, out: DteOut, log: LogO
     @Volatile var state: TransferState = transfer.state
         private set
 
+    /** the modem's octets, to the transfer */
     override fun feed(latin1: String) {
         if (latin1.isNotEmpty()) transfer.io.feed(Latin1.bytes(latin1))
     }
@@ -44,12 +45,14 @@ class TransferJob(protocolName: String, sending: Boolean, out: DteOut, log: LogO
     /** [files] sent ([files]' first only, for XMODEM) */
     fun send(files: List<Outgoing>) = transfer.send(files)
 
+    /** the transfer stopped */
     fun cancel() = transfer.cancel()
 
     companion object {
         /** the protocols' names, and what each is called */
         val protocols: List<String> = Protocol.entries.map { it.name }
 
+        /** what the protocol [protocolName] is called */
         fun label(protocolName: String): String = Protocol.valueOf(protocolName).label
 
         /** whether it sends more than one file */

@@ -19,15 +19,21 @@ expect open class IOException(message: String?) : Exception
 
 /** bytes coming in: up to [len] of them into [b] at [off], how many (-1 at the end) */
 interface Source : AutoCloseable {
+    /** up to [len] bytes into [b] at [off]: how many, -1 at the end */
     fun read(b: ByteArray, off: Int = 0, len: Int = b.size - off): Int
+    /** the source let go of (nothing, unless it holds something) */
     override fun close() {}
 }
 
 /** bytes going out */
 interface Sink : AutoCloseable {
+    /** [len] bytes of [b] from [off] sent on */
     fun write(b: ByteArray, off: Int = 0, len: Int = b.size - off)
+    /** the one byte [b] sent on */
     fun write(b: Int) = write(byteArrayOf(b.toByte()), 0, 1)
+    /** what is held back sent on (nothing, unless it holds some) */
     fun flush() {}
+    /** the sink let go of (nothing, unless it holds something) */
     override fun close() {}
 }
 
@@ -37,23 +43,28 @@ class Bytes(capacity: Int = 64) : Sink {
     var size = 0
         private set
 
+    /** the buffer grown, doubling, to fit [n] more */
     private fun room(n: Int) {
         if (size + n > buf.size) buf = buf.copyOf(maxOf(buf.size * 2, size + n))
     }
 
+    /** the byte [b] appended */
     override fun write(b: Int) {
         room(1)
         buf[size++] = b.toByte()
     }
 
+    /** [len] bytes of [b] from [off] appended */
     override fun write(b: ByteArray, off: Int, len: Int) {
         room(len)
         b.copyInto(buf, size, off, off + len)
         size += len
     }
 
+    /** a copy of the bytes so far */
     fun toByteArray(): ByteArray = buf.copyOf(size)
 
+    /** emptied, keeping its room */
     fun reset() {
         size = 0
     }
@@ -92,6 +103,7 @@ class ByteQueue {
         return head != null
     }
 
+    /** every waiting chunk dropped */
     fun clear() {
         head = null
         while (ch.tryReceive().isSuccess) Unit
@@ -147,6 +159,7 @@ fun Sink.buffered(size: Int = 8192): Sink {
         private val buf = ByteArray(size)
         private var n = 0
 
+        /** [len] bytes of [b] gathered, or written straight through when as big as the buffer */
         override fun write(b: ByteArray, off: Int, len: Int) {
             if (len >= size) {
                 flushBuf()
@@ -158,21 +171,25 @@ fun Sink.buffered(size: Int = 8192): Sink {
             n += len
         }
 
+        /** the byte [b] gathered */
         override fun write(b: Int) {
             if (n == size) flushBuf()
             buf[n++] = b.toByte()
         }
 
+        /** what is gathered written to the sink underneath */
         private fun flushBuf() {
             if (n > 0) to.write(buf, 0, n)
             n = 0
         }
 
+        /** what is gathered written, and the sink underneath flushed */
         override fun flush() {
             flushBuf()
             to.flush()
         }
 
+        /** flushed, and the sink underneath closed */
         override fun close() {
             flush()
             to.close()

@@ -12,8 +12,10 @@ object Crc {
         c and 0xffff
     }
 
+    /** CRC-16 [crc] with the octet [b] added */
     fun crc16(crc: Int, b: Int): Int = ((crc shl 8) xor table16[((crc ushr 8) xor b) and 0xff]) and 0xffff
 
+    /** the CRC-16 of [len] bytes at [off], from [start] */
     fun crc16(data: ByteArray, off: Int = 0, len: Int = data.size, start: Int = 0): Int {
         var c = start
         for (i in off until off + len) c = crc16(c, data[i].toInt() and 0xff)
@@ -29,6 +31,7 @@ object Crc {
     /** CRC-32 kept inverted as ZMODEM keeps it: start at 0xffffffff, invert at the end */
     fun crc32(crc: Int, b: Int): Int = table32[(crc xor b) and 0xff] xor (crc ushr 8)
 
+    /** the CRC-32 of [len] bytes at [off], from [start], kept inverted (not inverted at the end) */
     fun crc32(data: ByteArray, off: Int = 0, len: Int = data.size, start: Int = -1): Int {
         var c = start
         for (i in off until off + len) c = crc32(c, data[i].toInt() and 0xff)

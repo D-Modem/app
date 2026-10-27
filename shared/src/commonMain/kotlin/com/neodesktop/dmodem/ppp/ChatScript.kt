@@ -125,10 +125,12 @@ class ChatScript(private val script: String, private val user: String, private v
         }
     }
 
+    /** [tok] sent, its escapes undone, waiting where its \d and \p say (a CR after unless \c) */
     private fun send(io: TransferIo, tok: String, log: (String) -> Unit) {
         val (text, cr) = unescape(tok, true)
         log("send \"" + (if (tok.contains("\\P")) "(the password)" else text.replace("\r", "\\r")) + "\"")
         val sb = StringBuilder()
+        /** what is gathered sent */
         fun flush() {
             if (sb.isNotEmpty()) io.write(sb.toString().let { t -> ByteArray(t.length) { t[it].code.toByte() } })
             sb.setLength(0)

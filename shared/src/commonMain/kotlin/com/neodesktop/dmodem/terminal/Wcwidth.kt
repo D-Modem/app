@@ -10,6 +10,7 @@ package com.neodesktop.dmodem.terminal
  */
 object Wcwidth {
 
+    /** the cells [cp] takes: 0, 1 or 2 */
     fun width(cp: Int): Int = when {
         cp < 0x300 -> 1
         inRanges(cp, ZERO) -> 0
@@ -17,6 +18,7 @@ object Wcwidth {
         else -> 1
     }
 
+    /** whether [cp] is in one of [r]'s (first, last) pairs, sorted (a binary search) */
     private fun inRanges(cp: Int, r: IntArray): Boolean {
         var lo = 0
         var hi = r.size / 2 - 1
