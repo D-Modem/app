@@ -2,6 +2,14 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -112,12 +120,6 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
     // back: a page to the menu (the menu's own back is the app's: Home)
     androidx.activity.compose.BackHandler(enabled = page != null) { SettingsNav.open(null) }
 
-    val p = page
-    if (p == null) {
-        SettingsMenu(modifier, s, s != savedAs)
-        return
-    }
-
     /** the line's and the modem's Save button, and whether they're saved (and need a restart to apply) */
     @Composable
     fun SaveRow() {
@@ -140,129 +142,156 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
         }
     }
 
-    Column(modifier.fillMaxSize()) {
-        // the page's title, and back to the menu
-        Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            androidx.compose.material3.IconButton(onClick = { SettingsNav.open(null) }) {
-                androidx.compose.material3.Icon(
-                    androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back to settings",
-                )
+    /** page [p]: its title and back to the menu, then its settings */
+    @Composable
+    fun Page(p: SettingsPage) {
+        Column(Modifier.fillMaxSize()) {
+            // the page's title, and back to the menu
+            Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.material3.IconButton(onClick = { SettingsNav.open(null) }) {
+                    androidx.compose.material3.Icon(
+                        androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back to settings",
+                    )
+                }
+                Text(p.title, style = MaterialTheme.typography.titleLarge)
             }
-            Text(p.title, style = MaterialTheme.typography.titleLarge)
-        }
-        Column(
-            Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(bottom = 16.dp).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            when (p) {
-                SettingsPage.LINE -> {
-                    LineChoice(s) { s = it }
-                    if (s.peer) {
-                        PeerLineFields(s) { s = it }
-                    } else if (s.usb) {
-                        UsbLineFields()
-                        Toggle("Automatic transmit level", s.usbTxAuto) { s = s.copy(usbTxAuto = it) }
-                        if (s.usbTxAuto) {
+            Column(
+                Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(bottom = 16.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                when (p) {
+                    SettingsPage.LINE -> {
+                        LineChoice(s) { s = it }
+                        if (s.peer) {
+                            PeerLineFields(s) { s = it }
+                        } else if (s.usb) {
+                            UsbLineFields()
+                            Toggle("Automatic transmit level", s.usbTxAuto) { s = s.copy(usbTxAuto = it) }
+                            if (s.usbTxAuto) {
+                                Text(
+                                    "Set for each call from how loud the other modem's answer tone arrives (louder on a longer line, " +
+                                        "softer if it distorts); the log says what it chose.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            } else {
+                                SignedNumberField("Transmit level (dB, -20 to 20)", s.usbTxGain) { s = s.copy(usbTxGain = it.coerceIn(-20, 20)) }
+                                Text(
+                                    "The modem's sound to the line louder (+) or softer (-) than D-Modem's own: for a line or modem " +
+                                        "that hears it too faintly (0: as it is). Too loud distorts it.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                            Toggle("Record each call (for a bug report)", s.recordLine) { s = s.copy(recordLine = it) }
                             Text(
-                                "Set for each call from how loud the other modem's answer tone arrives (louder on a longer line, " +
-                                    "softer if it distorts); the log says what it chose.",
+                                "Each call's sound, off hook to on hook, as a stereo WAV file (the line's, the modem's); " +
+                                    "the log screen shares the latest. The last ${com.neodesktop.dmodem.modem.LineRecordings.KEEP} are kept.",
                                 style = MaterialTheme.typography.bodySmall,
                             )
+                        } else if (s.btModem) {
+                            BluetoothModemFields(s) { s = it }
                         } else {
-                            SignedNumberField("Transmit level (dB, -20 to 20)", s.usbTxGain) { s = s.copy(usbTxGain = it.coerceIn(-20, 20)) }
-                            Text(
-                                "The modem's sound to the line louder (+) or softer (-) than D-Modem's own: for a line or modem " +
-                                    "that hears it too faintly (0: as it is). Too loud distorts it.",
-                                style = MaterialTheme.typography.bodySmall,
+                            Text("SIP account", style = MaterialTheme.typography.titleSmall)
+                            OutlinedTextField(
+                                value = login,
+                                onValueChange = { v ->
+                                    login = v
+                                    ModemSettings.parseLogin(v.trim())?.let { (u, pw, d) ->
+                                        s = s.copy(user = u, password = pw, domain = d)
+                                    }
+                                },
+                                label = { Text("Paste user:password@host (optional)") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
                             )
+                            Field("User", s.user) { s = s.copy(user = it) }
+                            OutlinedTextField(
+                                value = s.password,
+                                onValueChange = { s = s.copy(password = it) },
+                                label = { Text("Password") },
+                                singleLine = true,
+                                visualTransformation = PasswordVisualTransformation(),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Field("Server (host[:port])", s.domain) { s = s.copy(domain = it) }
+                            NumberField("Local SIP port", s.sipPort) { s = s.copy(sipPort = it) }
+                            Toggle("Take incoming calls (register)", s.listen) { s = s.copy(listen = it) }
+                            Toggle("Fax over T.38", s.t38) { s = s.copy(t38 = it) }
+                            NumberField("SIP log level (0-4)", s.sipLogLevel) { s = s.copy(sipLogLevel = it.coerceIn(0, 4)) }
                         }
-                        Toggle("Record each call (for a bug report)", s.recordLine) { s = s.copy(recordLine = it) }
+                        SaveRow()
+                    }
+                    SettingsPage.MODEM -> {
+                        Toggle("Speaker: hear the dialling and the handshake", s.speaker) { s = s.copy(speaker = it) }
                         Text(
-                            "Each call's sound, off hook to on hook, as a stereo WAV file (the line's, the modem's); " +
-                                "the log screen shares the latest. The last ${com.neodesktop.dmodem.modem.LineRecordings.KEEP} are kept.",
+                            "As a modem's speaker: on from off hook until CONNECT (ATM1). ATM0 keeps it quiet, ATM2 on all the call; " +
+                                "ATL1-3 its volume, on top of the phone's media volume.",
                             style = MaterialTheme.typography.bodySmall,
                         )
-                    } else if (s.btModem) {
-                        BluetoothModemFields(s) { s = it }
-                    } else {
-                        Text("SIP account", style = MaterialTheme.typography.titleSmall)
-                        OutlinedTextField(
-                            value = login,
-                            onValueChange = { v ->
-                                login = v
-                                ModemSettings.parseLogin(v.trim())?.let { (u, pw, d) ->
-                                    s = s.copy(user = u, password = pw, domain = d)
-                                }
+                        Toggle("Fax or data, as each call turns out", s.adaptiveAnswer) { s = s.copy(adaptiveAnswer = it) }
+                        Text(
+                            "A call answered (ATA) is a fax machine's or a modem's by what it sends (adaptive answer, AT+FAA=1): " +
+                                "a fax goes to the fax receiver by itself, a modem's call to the terminal.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Field("Init commands (sent at start)", s.initCommands) { s = s.copy(initCommands = it) }
+                        CountryPicker(s.country) { s = s.copy(country = it) }
+                        Toggle("Call progress tones: dial, ringing, busy, congestion", s.callTones) { s = s.copy(callTones = it) }
+                        Text(
+                            "The country's tones, as its phone network plays them: a second of dial tone as an entry is dialled, " +
+                                "the ringing tone while the other phone rings, the busy or congestion tone when a call can't be made.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        NumberField("Modem log level (0-5)", s.logLevel) { s = s.copy(logLevel = it.coerceIn(0, 5)) }
+                        Field("Log time stamp", s.logTimestamp) { s = s.copy(logTimestamp = it) }
+                        Text(
+                            if (com.neodesktop.dmodem.modem.LogFormat.valid(s.logTimestamp)) {
+                                "Before each line of the log: a date pattern (HH:mm:ss.SSS the time to the millisecond, " +
+                                    "yyyy-MM-dd the date), empty for none. Each day starts with a line of its own."
+                            } else {
+                                "Not a date pattern: the log keeps ${com.neodesktop.dmodem.modem.LogFormat.DEFAULT}. " +
+                                    "Letters other than the pattern's go in quotes ('at')."
                             },
-                            label = { Text("Paste user:password@host (optional)") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (com.neodesktop.dmodem.modem.LogFormat.valid(s.logTimestamp)) androidx.compose.ui.graphics.Color.Unspecified
+                            else MaterialTheme.colorScheme.error,
                         )
-                        Field("User", s.user) { s = s.copy(user = it) }
-                        OutlinedTextField(
-                            value = s.password,
-                            onValueChange = { s = s.copy(password = it) },
-                            label = { Text("Password") },
-                            singleLine = true,
-                            visualTransformation = PasswordVisualTransformation(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Field("Server (host[:port])", s.domain) { s = s.copy(domain = it) }
-                        NumberField("Local SIP port", s.sipPort) { s = s.copy(sipPort = it) }
-                        Toggle("Take incoming calls (register)", s.listen) { s = s.copy(listen = it) }
-                        Toggle("Fax over T.38", s.t38) { s = s.copy(t38 = it) }
-                        NumberField("SIP log level (0-4)", s.sipLogLevel) { s = s.copy(sipLogLevel = it.coerceIn(0, 4)) }
+                        SaveRow()
                     }
-                    SaveRow()
+                    SettingsPage.BRIDGES -> BridgeSection()
+                    SettingsPage.FAX -> FaxSettingsSection()
+                    SettingsPage.INTERNET -> IspSettingsSection()
+                    SettingsPage.APPEARANCE -> AppearanceSection()
+                    SettingsPage.TERMINAL -> TerminalSettingsSection()
+                    SettingsPage.SSH -> SshKeysSection()
+                    SettingsPage.LINUX -> LinuxSection(onOpened = onOpenTerminal)
                 }
-                SettingsPage.MODEM -> {
-                    Toggle("Speaker: hear the dialling and the handshake", s.speaker) { s = s.copy(speaker = it) }
-                    Text(
-                        "As a modem's speaker: on from off hook until CONNECT (ATM1). ATM0 keeps it quiet, ATM2 on all the call; " +
-                            "ATL1-3 its volume, on top of the phone's media volume.",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    Toggle("Fax or data, as each call turns out", s.adaptiveAnswer) { s = s.copy(adaptiveAnswer = it) }
-                    Text(
-                        "A call answered (ATA) is a fax machine's or a modem's by what it sends (adaptive answer, AT+FAA=1): " +
-                            "a fax goes to the fax receiver by itself, a modem's call to the terminal.",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    Field("Init commands (sent at start)", s.initCommands) { s = s.copy(initCommands = it) }
-                    CountryPicker(s.country) { s = s.copy(country = it) }
-                    Toggle("Call progress tones: dial, ringing, busy, congestion", s.callTones) { s = s.copy(callTones = it) }
-                    Text(
-                        "The country's tones, as its phone network plays them: a second of dial tone as an entry is dialled, " +
-                            "the ringing tone while the other phone rings, the busy or congestion tone when a call can't be made.",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    NumberField("Modem log level (0-5)", s.logLevel) { s = s.copy(logLevel = it.coerceIn(0, 5)) }
-                    Field("Log time stamp", s.logTimestamp) { s = s.copy(logTimestamp = it) }
-                    Text(
-                        if (com.neodesktop.dmodem.modem.LogFormat.valid(s.logTimestamp)) {
-                            "Before each line of the log: a date pattern (HH:mm:ss.SSS the time to the millisecond, " +
-                                "yyyy-MM-dd the date), empty for none. Each day starts with a line of its own."
-                        } else {
-                            "Not a date pattern: the log keeps ${com.neodesktop.dmodem.modem.LogFormat.DEFAULT}. " +
-                                "Letters other than the pattern's go in quotes ('at')."
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (com.neodesktop.dmodem.modem.LogFormat.valid(s.logTimestamp)) androidx.compose.ui.graphics.Color.Unspecified
-                        else MaterialTheme.colorScheme.error,
-                    )
-                    SaveRow()
-                }
-                SettingsPage.BRIDGES -> BridgeSection()
-                SettingsPage.FAX -> FaxSettingsSection()
-                SettingsPage.INTERNET -> IspSettingsSection()
-                SettingsPage.APPEARANCE -> AppearanceSection()
-                SettingsPage.TERMINAL -> TerminalSettingsSection()
-                SettingsPage.SSH -> SshKeysSection()
-                SettingsPage.LINUX -> LinuxSection(onOpened = onOpenTerminal)
             }
         }
+    }
+
+    // (into a page: it fades in from a little to the right; back: the menu fades in as the page
+    // fades and slides out to the right, over it)
+    AnimatedContent(
+        targetState = page,
+        transitionSpec = { settingsTransition(back = targetState == null) },
+        label = "settings page",
+        modifier = modifier,
+    ) { p ->
+        if (p == null) SettingsMenu(Modifier, s, s != savedAs) else Page(p)
+    }
+}
+
+/** Settings' transition: into a page, it fades in from a little to the right; [back] to the menu, the
+ *  menu fades in as the page fades out, sliding a little to the right, over it */
+private fun settingsTransition(back: Boolean): ContentTransform {
+    val ms = 220
+    return if (!back) {
+        (fadeIn(tween(ms)) + slideInHorizontally(tween(ms)) { it / 12 }) togetherWith fadeOut(tween(ms / 2))
+    } else {
+        (fadeIn(tween(ms)) togetherWith (fadeOut(tween(ms)) + slideOutHorizontally(tween(ms)) { it / 12 }))
+            .apply { targetContentZIndex = -1f }
     }
 }
 

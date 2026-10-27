@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.animation.togetherWith
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -141,17 +142,27 @@ class MainActivity : ComponentActivity() {
                     },
                 ) { padding ->
                     val m = Modifier.padding(padding).consumeWindowInsets(padding)
-                    when (tab) {
-                        TAB_MODEM -> DashboardScreen(
-                            m,
-                            onOpenTerminal = { tab = TAB_TERMINAL },
-                            onOpenDirectory = { tab = TAB_DIRECTORY },
-                            onOpenSettings = { tab = TAB_SETTINGS },
-                        )
-                        TAB_TERMINAL -> TerminalScreen(m, fullscreen = full, onFullscreen = { fullscreen = it })
-                        TAB_DIRECTORY -> DirectoryScreen(m, onDialed = { tab = TAB_TERMINAL })
-                        TAB_SETTINGS -> SettingsScreen(m, onOpenTerminal = { tab = TAB_TERMINAL })
-                        else -> LogScreen(m)
+                    // (a quick fade from one tab to the next)
+                    androidx.compose.animation.AnimatedContent(
+                        targetState = tab,
+                        transitionSpec = {
+                            androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) togetherWith
+                                androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(90))
+                        },
+                        label = "tab",
+                    ) { shown ->
+                        when (shown) {
+                            TAB_MODEM -> DashboardScreen(
+                                m,
+                                onOpenTerminal = { tab = TAB_TERMINAL },
+                                onOpenDirectory = { tab = TAB_DIRECTORY },
+                                onOpenSettings = { tab = TAB_SETTINGS },
+                            )
+                            TAB_TERMINAL -> TerminalScreen(m, fullscreen = full, onFullscreen = { fullscreen = it })
+                            TAB_DIRECTORY -> DirectoryScreen(m, onDialed = { tab = TAB_TERMINAL })
+                            TAB_SETTINGS -> SettingsScreen(m, onOpenTerminal = { tab = TAB_TERMINAL })
+                            else -> LogScreen(m)
+                        }
                     }
                 }
             }
