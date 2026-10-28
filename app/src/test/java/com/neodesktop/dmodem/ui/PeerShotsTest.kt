@@ -76,6 +76,8 @@ class PeerShotsTest {
         save(ModemSettings(line = ModemSettings.LINE_SIP))
         SettingsNav.open(SettingsPage.LINE)
         compose.onNodeWithText("Settings").performClick()
+        // (under More: the Wi-Fi / Cell lines' menu hasn't it)
+        compose.onNodeWithText("More").performClick()
         compose.onNodeWithText("A SIP account (calls over the internet)").performScrollTo().performClick()
         compose.onNodeWithText("No line (the modem on its own)").performClick()
         compose.onNodeWithText("a dial gets NO DIALTONE", substring = true).assertExists()
@@ -84,14 +86,34 @@ class PeerShotsTest {
         shot("peer-4-no-line")
     }
 
+    /** the line kinds' buttons: Wi-Fi / Cell's menu only its lines, More's every one; drawn */
+    @Test
+    fun theLineKinds() {
+        save(ModemSettings(line = ModemSettings.LINE_SIP))
+        SettingsNav.open(SettingsPage.LINE)
+        compose.onNodeWithText("Settings").performClick()
+        compose.onNodeWithText("A SIP account (calls over the internet)").performScrollTo().performClick()
+        compose.onNodeWithText("Another phone with D-Modem, on Wi-Fi").assertExists()
+        compose.onNodeWithText("No line (the modem on its own)").assertDoesNotExist()
+        compose.onNodeWithText("A phone line, through a USB modem").assertDoesNotExist()
+        shot("peer-6-line-kinds")
+        compose.onNodeWithText("Another phone with D-Modem, on Wi-Fi").performClick()
+        compose.onNodeWithText("More").performClick()
+        compose.onNodeWithText("Another phone with D-Modem, on Wi-Fi").performScrollTo().performClick()
+        compose.onNodeWithText("No line (the modem on its own)").assertExists()
+        compose.onNodeWithText("A phone line, through a USB modem").assertExists()
+        shot("peer-7-line-kinds-more")
+    }
+
     /** a USB modem picked: the ones known, none plugged in, no SIP account asked for; drawn */
     @Test
     fun aUsbModem() {
         save(ModemSettings(line = ModemSettings.LINE_SIP))
         SettingsNav.open(SettingsPage.LINE)
         compose.onNodeWithText("Settings").performClick()
-        compose.onNodeWithText("A SIP account (calls over the internet)").performScrollTo().performClick()
-        compose.onNodeWithText("A phone line, through a USB modem").performClick()
+        // (the USB button: its one line, no menu)
+        compose.onNodeWithText("USB").performClick()
+        compose.onNodeWithText("A phone line, through a USB modem").assertExists()
         compose.onNodeWithText("pico-serial Line stick", substring = true).assertExists()
         // (none on Robolectric's bus)
         compose.onNodeWithText("Plugged in: none").assertExists()

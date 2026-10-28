@@ -11,6 +11,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -51,7 +59,6 @@ fun LineChoice(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
     val askBtModem = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         if (BluetoothBridge.hasPermission(context)) onChange(s.copy(line = ModemSettings.LINE_BT_MODEM))
     }
-    Text("Line", style = MaterialTheme.typography.titleMedium)
     val lines = listOf(
         ModemSettings.LINE_SIP to "A SIP account (calls over the internet)",
         ModemSettings.LINE_WIFI to "Another phone with D-Modem, on Wi-Fi",
@@ -61,43 +68,107 @@ fun LineChoice(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
         ModemSettings.LINE_BT_MODEM to "A phone line, through a Bluetooth modem (Dial-Up Networking)",
         ModemSettings.LINE_NONE to "No line (the modem on its own)",
     )
+    // the line chosen: the permission asked for first where it needs one
+    fun choose(line: String) {
+        when (line) {
+            ModemSettings.LINE_SIP, ModemSettings.LINE_CELL, ModemSettings.LINE_NONE, ModemSettings.LINE_USB ->
+                onChange(s.copy(line = line))
+            ModemSettings.LINE_WIFI -> onChange(
+                s.copy(line = line, peerAddress = if (s.line == line) s.peerAddress else "", peerName = ""),
+            )
+            ModemSettings.LINE_BT_MODEM -> if (!BluetoothBridge.hasPermission(context)) {
+                askBtModem.launch(BluetoothBridge.permissions())
+            } else {
+                onChange(s.copy(line = line))
+            }
+            ModemSettings.LINE_BLUETOOTH -> if (!BluetoothBridge.hasPermission(context)) {
+                askBt.launch(BluetoothBridge.permissions())
+            } else {
+                onChange(s.copy(line = line, peerAddress = if (s.line == line) s.peerAddress else "", peerName = ""))
+            }
+        }
+    }
+    var kind by rememberSaveable { mutableStateOf(LineKind.of(s.line)) }
+    LineKindButtons(kind) { k ->
+        kind = k
+        // (a kind of one line is that line; another, its first unless the line is one of it)
+        val shown = lines.filter { k.has(it.first) }
+        if (shown.none { it.first == s.line }) choose(shown.first().first)
+    }
+    val shown = lines.filter { kind.has(it.first) }
     var open by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded = open, onExpandedChange = { open = it }) {
+    ExposedDropdownMenuBox(expanded = open, onExpandedChange = { open = it && shown.size > 1 }) {
         OutlinedTextField(
             value = lines.firstOrNull { it.first == s.line }?.second ?: lines[0].second,
             onValueChange = {},
             readOnly = true,
             singleLine = true,
             label = { Text("The modem's line") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = open) },
+            trailingIcon = { if (shown.size > 1) ExposedDropdownMenuDefaults.TrailingIcon(expanded = open) },
             modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
         )
         ExposedDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            for ((line, label) in lines) {
+            for ((line, label) in shown) {
                 DropdownMenuItem(
                     text = { Text(label) },
                     onClick = {
                         open = false
-                        when (line) {
-                            ModemSettings.LINE_SIP, ModemSettings.LINE_CELL, ModemSettings.LINE_NONE, ModemSettings.LINE_USB ->
-                                onChange(s.copy(line = line))
-                            ModemSettings.LINE_WIFI -> onChange(
-                                s.copy(line = line, peerAddress = if (s.line == line) s.peerAddress else "", peerName = ""),
-                            )
-                            ModemSettings.LINE_BT_MODEM -> if (!BluetoothBridge.hasPermission(context)) {
-                                askBtModem.launch(BluetoothBridge.permissions())
-                            } else {
-                                onChange(s.copy(line = line))
-                            }
-                            ModemSettings.LINE_BLUETOOTH -> if (!BluetoothBridge.hasPermission(context)) {
-                                askBt.launch(BluetoothBridge.permissions())
-                            } else {
-                                onChange(s.copy(line = line, peerAddress = if (s.line == line) s.peerAddress else "", peerName = ""))
-                            }
-                        }
+                        choose(line)
                     },
                     contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
                 )
+            }
+        }
+    }
+}
+
+/** the line menu's filters: the kinds of line, each its icon's button; MORE every line */
+enum class LineKind(val label: String, private val lines: Set<String>) {
+    USB("USB", setOf(ModemSettings.LINE_USB)),
+    BLUETOOTH("Bluetooth", setOf(ModemSettings.LINE_BLUETOOTH, ModemSettings.LINE_BT_MODEM)),
+    NETWORK("Wi-Fi / Cell", setOf(ModemSettings.LINE_SIP, ModemSettings.LINE_WIFI, ModemSettings.LINE_CELL)),
+    MORE("More", emptySet());
+
+    /** whether line is one of this kind's (every line is MORE's) */
+    fun has(line: String): Boolean = this == MORE || line in lines
+
+    /** this kind's icon */
+    val icon: ImageVector
+        get() = when (this) {
+            USB -> SettingsIcons.Bridges
+            BLUETOOTH -> SettingsIcons.Bluetooth
+            NETWORK -> SettingsIcons.Wifi
+            MORE -> SettingsIcons.More
+        }
+
+    companion object {
+        /** the kind a line is shown under at first (none's: MORE) */
+        fun of(line: String): LineKind = entries.firstOrNull { it != MORE && line in it.lines } ?: MORE
+    }
+}
+
+/** the row of the line kinds' buttons, kind's lit; onPick on a press */
+@Composable
+fun LineKindButtons(kind: LineKind, onPick: (LineKind) -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        for (k in LineKind.entries) {
+            val on = k == kind
+            val colors = MaterialTheme.colorScheme
+            Surface(
+                onClick = { onPick(k) },
+                modifier = Modifier.weight(1f).semantics { selected = on },
+                shape = RoundedCornerShape(16.dp),
+                color = if (on) colors.primaryContainer else colors.surfaceContainer,
+                contentColor = if (on) colors.onPrimaryContainer else colors.onSurfaceVariant,
+            ) {
+                Column(
+                    Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Icon(k.icon, contentDescription = null, modifier = Modifier.size(24.dp))
+                    Text(k.label, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                }
             }
         }
     }
