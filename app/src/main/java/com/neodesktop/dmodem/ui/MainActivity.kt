@@ -207,6 +207,17 @@ class MainActivity : ComponentActivity() {
             }
             else -> return
         }
+        val ringing = com.neodesktop.dmodem.modem.ModemState.incoming.state.value != null
+        val stale = !ringing || i.flags and android.content.Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
+        com.neodesktop.dmodem.modem.ModemState.log.add(
+            "app: the call's notification: ${i.action?.substringAfterLast('.')}" + if (stale) " (no call ringing: nothing done)" else "",
+        )
+        // (Android hands the intent that started the app back when it comes back from Recents: no answer
+        // then, with no call ringing)
+        if (stale) {
+            i.action = null
+            return
+        }
         when (i.action) {
             ACTION_ANSWER -> {
                 com.neodesktop.dmodem.modem.ModemState.answer()

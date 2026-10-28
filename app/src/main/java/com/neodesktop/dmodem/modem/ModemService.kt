@@ -358,7 +358,16 @@ class ModemService : Service() {
                 ModemState.incoming.state
                     .map { c -> c?.takeIf { !it.ignored }?.let { it.since to it.from } }
                     .distinctUntilChanged()
-                    .collect { callNotification(ModemState.incoming.state.value?.takeIf { !it.ignored }) }
+                    .collect {
+                        val c = ModemState.incoming.state.value
+                        // (in the log: what the call's popup and notification came from)
+                        if (c != null && !c.ignored) {
+                            log("a call ringing in (the modem's RING): its notification and popup" + (c.from?.let { " ($it)" } ?: ""))
+                        } else if (c == null) {
+                            log("the incoming call's notification and popup gone")
+                        }
+                        callNotification(c?.takeIf { !it.ignored })
+                    }
             }
         }
     }
