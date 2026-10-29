@@ -7,7 +7,7 @@
 #
 # D-Modem-RE is a private submodule: the DMODEM_RE_TOKEN secret is a token
 # that can read it (a fine-grained personal access token with Contents:
-# read on Neo-Desktop/D-Modem-RE).
+# read on D-Modem/D-Modem).
 name: Android
 
 on:

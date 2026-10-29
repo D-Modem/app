@@ -2,7 +2,7 @@
 
 An Android app that is a dial-up modem: V.92/V.90/V.91, V.34 and below, and
 class 1 fax, over SIP calls. No modem hardware: the modem is
-[D-Modem-RE](https://github.com/Neo-Desktop/D-Modem-RE)'s open modem core
+[D-Modem-RE](https://github.com/D-Modem/D-Modem)'s open modem core
 and DSP, built for Android with the NDK, and the telephone line is a SIP
 account's G.711 call (Wi-Fi or mobile data).
 
@@ -73,7 +73,7 @@ The phone can be a computer's external modem on a serial cable: on a
 USB serial adapter (FTDI, CP210x, CH34x, PL2303 and CDC-ACM chips, under
 the chip makers' IDs and the 1100 or so adapter makers' own that Linux's
 drivers know: tools/usb-serial-ids; and Exar's XR21V141x and XR21B14xx),
-Bluetooth serial, or TCP. [pico-serial](https://github.com/Neo-Desktop/pico-serial)
+Bluetooth serial, or TCP. [pico-serial](https://github.com/D-Modem/hardware)
 is a USB-C to DB25 adapter made for it: plugged into the computer's
 serial port it is the modem there. The app finds its control interface
 and uses its lines and settings (its firmware/PROTOCOL.md):
@@ -95,7 +95,7 @@ The modem's line can also be a telephone line, through a USB modem that
 carries the modem's sound (D-Modem-RE's `usb_line.cpp`, as
 `dmodemd --usb` drives them): a Smart Link SmartUSB56 (USB 0483:7554,
 with caller ID, its ST7554 or ST75951 DAA), or a
-[pico-serial](https://github.com/Neo-Desktop/pico-serial) Line stick
+[pico-serial](https://github.com/D-Modem/hardware) Line stick
 (1209:0002, a Si3056 DAA: caller ID on hook, and the country's line
 settings in its registers), or an Agere USB 2.0 soft modem (047E:2892,
 047E:2828: 8000 Hz, caller ID, on its ROM's own isochronous stream,
