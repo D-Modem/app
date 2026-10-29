@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- D-Modem navy, from D-Modem/brand -->
+    <color name="ic_launcher_background">#FF0A0F1C</color>
+</resources>
