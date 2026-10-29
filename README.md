@@ -285,7 +285,7 @@ D-Modem-RE's own rule has it. `tools/doc_check.py` lists any that don't
 (and fails).
 
 CI (`.github/workflows/android.yml`) runs all three, and that check; it needs a
-`DMODEM_RE_TOKEN` secret that can read the private D-Modem-RE submodule.
+`DMODEM_TOKEN` secret that can read the private D-Modem-RE submodule.
 
 ## Apple's systems: the iOS app
 

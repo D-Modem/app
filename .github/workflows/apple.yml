@@ -4,7 +4,7 @@
 # (ios/DModemSmoke): the modem through its C API, as the iOS app has it;
 # DModemKit's tests, and the iOS app (ios/DModem) built for the simulator.
 #
-# D-Modem-RE is a private submodule: the DMODEM_RE_TOKEN secret (as
+# D-Modem-RE is a private submodule: the DMODEM_TOKEN secret (as
 # android.yml's).
 name: Apple
 
@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-          token: ${{ secrets.DMODEM_RE_TOKEN || github.token }}
+          token: ${{ secrets.DMODEM_TOKEN || github.token }}
 
       - name: Ninja
         run: brew install ninja
