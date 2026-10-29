@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * The pico-serial board's control protocol (github.com/Neo-Desktop/pico-serial,
+ * The pico-serial board's control protocol (github.com/D-Modem/hardware,
  * firmware/PROTOCOL.md, version 1): vendor control requests on its
  * "pico-serial control" interface (class 0xFF, subclass 0x50, protocol 1),
  * for what a plain CDC serial port doesn't carry: the board's role (DCE to

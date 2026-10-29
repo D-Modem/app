@@ -1,6 +1,6 @@
 [submodule "external/d-modem-re"]
 	path = external/d-modem-re
-	url = https://github.com/Neo-Desktop/D-Modem-RE.git
+	url = https://github.com/D-Modem/D-Modem.git
 	branch = claude/awesome-curie-vuq5tj
 [submodule "external/proot"]
 	path = external/proot
