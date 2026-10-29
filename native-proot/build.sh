@@ -61,8 +61,14 @@ export PATH
 
 # talloc: its one source file, with the little of Samba's lib/replace it uses
 TARBALL=$WORK/talloc-$TALLOC_VERSION.tar.gz
+# (samba.org first, Debian's copy of the same tarball when it is down; the checksum below checks either)
 if [ ! -f "$TARBALL" ]; then
-	curl -fsSL -o "$TARBALL.part" "https://www.samba.org/ftp/talloc/talloc-$TALLOC_VERSION.tar.gz"
+	for url in "https://www.samba.org/ftp/talloc/talloc-$TALLOC_VERSION.tar.gz" \
+		"https://deb.debian.org/debian/pool/main/t/talloc/talloc_$TALLOC_VERSION.orig.tar.gz"; do
+		curl -fsSL --connect-timeout 20 --max-time 120 -o "$TARBALL.part" "$url" && break
+		rm -f "$TARBALL.part"
+	done
+	[ -f "$TARBALL.part" ] || { echo "talloc $TALLOC_VERSION couldn't be downloaded" >&2; exit 1; }
 	mv "$TARBALL.part" "$TARBALL"
 fi
 echo "$TALLOC_SHA256  $TARBALL" | sha256sum -c - >/dev/null || { echo "talloc's checksum doesn't match" >&2; rm -f "$TARBALL"; exit 1; }
