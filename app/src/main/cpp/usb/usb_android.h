@@ -1,6 +1,6 @@
 /*
  * SPDX-License-Identifier: AGPL-3.0-only
- * Copyright (C) 2026 Neo-Desktop
+ * Copyright (C) 2026 D-Modem Authors
  *
  *    usb_android.h - D-Modem-RE's USB line (usb_line.cpp) on a device
  *                    Android has opened for the app

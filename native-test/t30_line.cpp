@@ -1,6 +1,6 @@
 /*
  * SPDX-License-Identifier: AGPL-3.0-only
- * Copyright (C) 2026 Neo-Desktop
+ * Copyright (C) 2026 D-Modem Authors
  *
  *    t30_line.cpp - a class 1 modem (D-Modem-RE's PipeModem, a pty for
  *                   its DTE) on a phone line to D-Modem-RE's own T.30

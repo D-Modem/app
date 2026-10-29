@@ -1,6 +1,6 @@
 /*
  * SPDX-License-Identifier: AGPL-3.0-only
- * Copyright (C) 2026 Neo-Desktop
+ * Copyright (C) 2026 D-Modem Authors
  *
  *    peer_modem.h - the modem core on a line to another phone's modem
  *                   (the app's own link, over Wi-Fi or Bluetooth), its

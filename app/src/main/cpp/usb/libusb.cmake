@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-# Copyright (C) 2026 Neo-Desktop
+# Copyright (C) 2026 D-Modem Authors
 # libusb-1.0 for Android, as the static library `dmodem_android_libusb`
 # (the build host's tests take its libusb.h alone, DMODEM_LIBUSB_SRC):
 # D-Modem-RE's pinned release (its cmake/libusb.cmake: the same version

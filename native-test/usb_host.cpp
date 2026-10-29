@@ -1,6 +1,6 @@
 /*
  * SPDX-License-Identifier: AGPL-3.0-only
- * Copyright (C) 2026 Neo-Desktop
+ * Copyright (C) 2026 D-Modem Authors
  *
  *    usb_host.cpp - the app's engine on a USB modem's line (engine.h,
  *                   usb_modem.h) as a program, for usb_line_test.py: the

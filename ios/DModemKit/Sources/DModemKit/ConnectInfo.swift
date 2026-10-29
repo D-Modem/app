@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (C) 2026 Neo-Desktop
+// Copyright (C) 2026 D-Modem Authors
 import Foundation
 
 /// What a CONNECT result says beyond the rate ("CONNECT 1200/CVM/LAPM",

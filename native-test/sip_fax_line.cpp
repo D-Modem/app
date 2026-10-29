@@ -1,6 +1,6 @@
 /*
  * SPDX-License-Identifier: AGPL-3.0-only
- * Copyright (C) 2026 Neo-Desktop
+ * Copyright (C) 2026 D-Modem Authors
  *
  *    sip_fax_line.cpp - the app's engine (engine.h) and a dmodemd on a
  *                       SIP call over loopback, both with T.38: a fax

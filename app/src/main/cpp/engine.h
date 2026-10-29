@@ -1,6 +1,6 @@
 /*
  * SPDX-License-Identifier: AGPL-3.0-only
- * Copyright (C) 2026 Neo-Desktop
+ * Copyright (C) 2026 D-Modem Authors
  *
  *    engine.h - the app's modem: D-Modem's modem on a SIP line
  *               (dmd::SipModem) in a thread of its own, its DTE one end

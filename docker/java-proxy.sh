@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-# Copyright (C) 2026 Neo-Desktop
+# Copyright (C) 2026 D-Modem Authors
 #
 # Sourced by the Dockerfile's steps: an HTTPS_PROXY (Docker passes the
 # usual proxy variables to a build) handed to Java as well, which doesn't

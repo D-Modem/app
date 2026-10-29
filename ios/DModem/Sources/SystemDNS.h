@@ -1,6 +1,6 @@
 /*
  * SPDX-License-Identifier: AGPL-3.0-only
- * Copyright (C) 2026 Neo-Desktop
+ * Copyright (C) 2026 D-Modem Authors
  *
  *    SystemDNS.h - the DNS servers the phone's network has (the engine's
  *                  SIP needs them for SRV and NAPTR: iOS has no

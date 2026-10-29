@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (C) 2026 Neo-Desktop
+// Copyright (C) 2026 D-Modem Authors
 import Foundation
 
 /// The phone's network's DNS servers (SystemDNS.c), for the engine's SIP.

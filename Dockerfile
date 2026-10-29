@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-# Copyright (C) 2026 Neo-Desktop
+# Copyright (C) 2026 D-Modem Authors
 #
 # The Android app built in a container, with what CI builds it with
 # (.github/workflows/android.yml): JDK 21, the SDK's platform 37, NDK 29,

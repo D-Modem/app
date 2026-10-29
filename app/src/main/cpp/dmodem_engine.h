@@ -1,6 +1,6 @@
 /*
  * SPDX-License-Identifier: AGPL-3.0-only
- * Copyright (C) 2026 Neo-Desktop
+ * Copyright (C) 2026 D-Modem Authors
  *
  *    dmodem_engine.h - the app's modem (engine.h) for a program in C, or
  *                      one that calls C (Swift, on iOS): the modem on a

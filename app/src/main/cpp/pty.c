@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (C) 2026 Neo-Desktop
+// Copyright (C) 2026 D-Modem Authors
 //
 // libdmodem_pty: a program on a pseudo-terminal of its own, for the local
 // shell (com.neodesktop.dmodem.local.Pty). Plain POSIX: built for Android

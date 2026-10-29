@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-# Copyright (C) 2026 Neo-Desktop
+# Copyright (C) 2026 D-Modem Authors
 # The app's native engine on the build host: the same CMake as the app's
 # (app/src/main/cpp), with dmodemd from the same D-Modem-RE tree as the
 # other end of the calls.

@@ -1,6 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-only
-# Copyright (C) 2026 Neo-Desktop
+# Copyright (C) 2026 D-Modem Authors
 #
 # proot (Termux's: external/proot) and its loader, with talloc, built for an
 # Android ABI with the NDK, or for this host (the unit tests):

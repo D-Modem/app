@@ -1,6 +1,6 @@
 /*
  * SPDX-License-Identifier: AGPL-3.0-only
- * Copyright (C) 2026 Neo-Desktop
+ * Copyright (C) 2026 D-Modem Authors
  *
  *    c_api_test.c - the engine through its C API (dmodem_engine.h), as a
  *                   program in C or Swift (iOS) has it: on a peer line,

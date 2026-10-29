@@ -1,6 +1,6 @@
 // swift-tools-version:5.9
 // SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (C) 2026 Neo-Desktop
+// Copyright (C) 2026 D-Modem Authors
 //
 // The modem from Swift: the engine's XCFramework (ios/build-native.sh)
 // and tests that run it on macOS through its C API, as the iOS app will.

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-# Copyright (C) 2026 Neo-Desktop
+# Copyright (C) 2026 D-Modem Authors
 # libdmodem_jni.so: D-Modem's modem on a SIP line (libdmodem_sip, from the
 # D-Modem-RE submodule) with the app's engine and its JNI binding.
 #

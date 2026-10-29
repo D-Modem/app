@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (C) 2026 Neo-Desktop
+// Copyright (C) 2026 D-Modem Authors
 package com.neodesktop.dmodem.local
 
 /** A program on a pseudo-terminal (libdmodem_pty: pty.c). */

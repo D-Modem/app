@@ -1,6 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-only
-# Copyright (C) 2026 Neo-Desktop
+# Copyright (C) 2026 D-Modem Authors
 #
 # The modem for Apple's systems: the app's engine (app/src/main/cpp) with
 # D-Modem-RE, libre and Mbed TLS, built for iOS (devices), the iOS

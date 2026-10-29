@@ -1,6 +1,6 @@
 /*
  * SPDX-License-Identifier: AGPL-3.0-only
- * Copyright (C) 2026 Neo-Desktop
+ * Copyright (C) 2026 D-Modem Authors
  *
  *    engine_test.cpp - the app's engine (app/src/main/cpp/engine.h) on the
  *                      build host, against a dmodemd over loopback SIP:

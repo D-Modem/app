@@ -1,6 +1,6 @@
 /*
  * SPDX-License-Identifier: AGPL-3.0-only
- * Copyright (C) 2026 Neo-Desktop
+ * Copyright (C) 2026 D-Modem Authors
  *
  *    peer_host.cpp - the app's engine on a peer line (engine.h,
  *                    peer_modem.h) as a program, for the app's tests of

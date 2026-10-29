@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (C) 2026 Neo-Desktop
+// Copyright (C) 2026 D-Modem Authors
 package com.neodesktop.dmodem.terminal
 
 /** A terminal's colours: the 16 ANSI colours, the default foreground and background, the cursor. */

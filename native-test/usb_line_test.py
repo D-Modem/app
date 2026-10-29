@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
-# Copyright (C) 2026 Neo-Desktop
+# Copyright (C) 2026 D-Modem Authors
 #
 # usb_line_test.py <usb_host> <line_exchange> [agere]: the app's engine on
 # a USB modem's line (usb_modem.h), two of them (usb_host) on D-Modem-RE's

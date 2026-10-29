@@ -1,6 +1,6 @@
 // swift-tools-version:5.9
 // SPDX-License-Identifier: AGPL-3.0-only
-// Copyright (C) 2026 Neo-Desktop
+// Copyright (C) 2026 D-Modem Authors
 //
 // DModemKit: the iOS app's modem, apart from its views: the engine
 // (dmodem_engine.h) from Swift, its DTE, the settings, the session the
