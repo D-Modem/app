@@ -56,10 +56,13 @@ jobs:
       - name: Build, unit tests, lint
         run: ./gradlew assembleDebug assembleDebugAndroidTest testDebugUnitTest lintDebug :shared:jvmTest :shared:linuxX64Test
 
+      # the APK even when a test fails, so a build can still be tried on a phone
       - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
         with:
           name: app-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: ignore
 
       - uses: actions/upload-artifact@v4
         if: always()
