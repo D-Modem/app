@@ -14,12 +14,34 @@ add_subdirectory(../app/src/main/cpp app)
 # (D-Modem-RE's u8 .. s64, its include/dm_types.h)
 include_directories(${DMODEM_RE_INCLUDE})
 
-add_executable(engine_test engine_test.cpp)
-target_link_libraries(engine_test PRIVATE dmodem_engine)
-target_compile_options(engine_test PRIVATE -Wall -Wextra)
+# GoogleTest for the engine's tests: the system's (libgtest-dev) or else
+# fetched, as D-Modem-RE has it (its cmake/gtest.cmake)
+find_package(GTest 1.10 QUIET)
+if(NOT GTest_FOUND)
+	include(FetchContent)
+	FetchContent_Declare(googletest
+		GIT_REPOSITORY https://github.com/google/googletest.git
+		GIT_TAG v1.14.0
+		GIT_SHALLOW TRUE)
+	set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+	set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
+	FetchContent_MakeAvailable(googletest)
+	if(NOT TARGET GTest::gtest)
+		add_library(GTest::gtest ALIAS gtest)
+	endif()
+endif()
+include(GoogleTest)
 
-add_test(NAME engine COMMAND engine_test $<TARGET_FILE:dmodemd>)
-set_tests_properties(engine PROPERTIES TIMEOUT 600)
+# engine_test: the engine against a dmodemd over loopback SIP, each of
+# its tests a ctest test of its own (each with a dmodemd of its own, on
+# the same ports: one at a time)
+add_executable(engine_test engine_test.cpp)
+target_link_libraries(engine_test PRIVATE dmodem_engine GTest::gtest)
+target_compile_options(engine_test PRIVATE -Wall -Wextra)
+target_compile_definitions(engine_test PRIVATE DMODEMD_PATH="$<TARGET_FILE:dmodemd>")
+add_dependencies(engine_test dmodemd)
+gtest_discover_tests(engine_test TEST_PREFIX engine.
+	PROPERTIES TIMEOUT 300 RESOURCE_LOCK loopback_sip)
 
 # fax_line: modem_test's two modems back to back, paced as a phone line
 # (the app's fax tests, FaxCallTest, call over it)
@@ -73,13 +95,12 @@ if(AMRNB_LIB)
 endif()
 
 # c_api_test: the engine through its C API (dmodem_engine.h), as iOS's
-# Swift has it
-add_executable(c_api_test c_api_test.c)
-target_link_libraries(c_api_test PRIVATE dmodem_engine Threads::Threads)
+# Swift has it (and its header from C: c_api_header.c)
+add_executable(c_api_test c_api_test.cpp c_api_header.c)
+target_link_libraries(c_api_test PRIVATE dmodem_engine GTest::gtest
+	Threads::Threads)
 target_compile_options(c_api_test PRIVATE -Wall -Wextra)
-set_target_properties(c_api_test PROPERTIES LINKER_LANGUAGE CXX)
-add_test(NAME c_api COMMAND c_api_test)
-set_tests_properties(c_api PROPERTIES TIMEOUT 120)
+gtest_discover_tests(c_api_test TEST_PREFIX c_api. PROPERTIES TIMEOUT 120)
 
 # usb_line_test: the engine on a USB modem's line (usb/usb_modem.h), two
 # of them on D-Modem-RE's fake pico-serial Line sticks (its

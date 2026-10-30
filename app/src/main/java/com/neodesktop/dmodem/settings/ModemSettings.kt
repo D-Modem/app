@@ -58,7 +58,7 @@ data class ModemSettings(
     /** caller ID on (AT+VCID=1): a ringing call's number and name in the terminal, its popup and notification */
     val callerId: Boolean = true,
     /**
-     * the modulation on mobile calls (+MS): V_CVM (V.cvm, made for speech codecs: about 1200 bit/s
+     * the modulation on mobile calls (+MS): VCVM (V.cvm, made for speech codecs: about 1200 bit/s
      * through AMR 12.2, to another D-Modem; V.22 or V.21 to other modems), V21 (300 bit/s), V22, V22B
      */
     val cellSpeed: String = CELL_VCVM,
@@ -120,8 +120,8 @@ data class ModemSettings(
         const val LINE_NONE = "none"
         const val LINE_USB = "usb"
         const val LINE_BT_MODEM = "bt_modem"
-        /** the mobile-call line's V.cvm (D-Modem-RE's +MS=V_CVM) */
-        const val CELL_VCVM = "V_CVM"
+        /** the mobile-call line's V.cvm (D-Modem-RE's +MS=VCVM) */
+        const val CELL_VCVM = "VCVM"
 
         /**
          * An account as `user:password@host[:port]` (dmodemd's SIP_LOGIN): null if it isn't one.
@@ -196,7 +196,8 @@ class SettingsStore(private val context: Context) {
             callTones = p[Keys.callTones] ?: d.callTones,
             adaptiveAnswer = p[Keys.adaptiveAnswer] ?: d.adaptiveAnswer,
             callerId = p[Keys.callerId] ?: d.callerId,
-            cellSpeed = p[Keys.cellSpeed] ?: d.cellSpeed,
+            // V_CVM: the name before VCVM, kept by older versions
+            cellSpeed = (p[Keys.cellSpeed] ?: d.cellSpeed).let { if (it == "V_CVM") ModemSettings.CELL_VCVM else it },
             btModemAddress = p[Keys.btModemAddress] ?: d.btModemAddress,
             btModemName = p[Keys.btModemName] ?: d.btModemName,
             recordLine = p[Keys.recordLine] ?: d.recordLine,

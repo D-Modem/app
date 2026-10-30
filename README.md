@@ -27,7 +27,7 @@ speech through codecs that wreck modem signals; native-test's
 | AMR-NB 4.75 kbit/s, GSM full rate (2G) | nothing reliable |
 
 Between two D-Modems, V.cvm (D-Modem-RE's modem for speech codecs,
-`+MS=V_CVM`) does better: after V.8 it spends 15 to 20 s probing the
+`+MS=VCVM`) does better: after V.8 it spends 15 to 20 s probing the
 codec, then loads a mode for it, with LAPM over it. Through AMR-NB 12.2
 the app's engines connect at about 1200 bit/s coded (750 to 1200 each
 way, `CONNECT 1200/CVM/LAPM/V44`; D-Modem-RE measured 175 to 350 through
@@ -229,7 +229,9 @@ no `/etc/resolv.conf` for libre to read.
   `BoxDrawing`, `Themes`, the directory and snippets.
 - `native-test`: the engine on the build host, against a dmodemd over
   loopback SIP (dialling out, data both ways, restarting, a call coming
-  in, the app closing its end), and on fake USB modems (`usb_line_test.py`).
+  in, the app closing its end) and through the C API, as GoogleTest
+  tests (`engine_test.cpp`, `c_api_test.cpp`), and on fake USB modems
+  (`usb_line_test.py`).
 
 ## Building
 
@@ -260,11 +262,16 @@ The native library alone, without Gradle:
       -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-26
     cmake --build build-arm64 --target dmodem_jni
 
-The host test needs OpenSSL's headers (libssl-dev):
+The host test needs OpenSSL's headers (libssl-dev), and GoogleTest
+(libgtest-dev, else CMake fetches it):
 
     cmake -S native-test -B build-host -G Ninja
     cmake --build build-host
     ctest --test-dir build-host --output-on-failure
+
+Each engine test is a ctest test of its own (`ctest -R engine.` for
+those alone); `build-host/engine_test --gtest_filter=*Ringing` runs one
+directly, `ENGINE_TEST_LOG=1` with the engine's log as it comes.
 
 With `build-host` built, the unit tests also make calls on its test
 lines (fax between modems, against efax and D-Modem-RE's own T.30, over

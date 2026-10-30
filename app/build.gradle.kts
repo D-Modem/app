@@ -20,6 +20,12 @@ fun commitOf(dir: File): String {
     return if (dirty) "$c-dirty" else c
 }
 
+// the ABIs built (native code and proot): all four, or -Pdmodem.abis=x86_64 (comma-separated) for fewer,
+// as CI's emulator job has it
+val appAbis = providers.gradleProperty("dmodem.abis").orNull
+    ?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }
+    ?: listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+
 android {
     namespace = "com.neodesktop.dmodem"
     compileSdk = 37
@@ -41,7 +47,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+            abiFilters += appAbis
         }
         externalNativeBuild {
             cmake {
@@ -164,7 +170,7 @@ tasks.withType<Test>().configureEach {
 }
 
 // proot and its loader for the local shell's Linux (native-proot/build.sh: Termux's proot, external/proot)
-val prootAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+val prootAbis = appAbis
 val buildProot = tasks.register("buildProot") {
     description = "Builds proot and its loader for each ABI with the NDK"
 }
