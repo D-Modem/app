@@ -79,4 +79,52 @@ class IncomingCallsTest {
         calls.modemText("RINGING\r\nNO CARRIER\r\n")
         assertNull(calls.state.value)
     }
+
+    /** caller ID after the first RING (AT+VCID=1): the name shown, the number under it; the next call starts afresh */
+    @Test
+    fun callerIdFormatted() {
+        calls.modemText("\r\nRING\r\n\r\nDATE = 1030\r\nTIME = 1043\r\nNMBR = +15551234\r\nNAME = Alice Smith\r\n")
+        val c = calls.state.value!!
+        assertEquals("+15551234", c.number)
+        assertEquals("Alice Smith", c.who)
+        assertEquals("+15551234", c.detail)
+        calls.end()
+        calls.modemText("RING\r\n")
+        assertNull(calls.state.value!!.who)
+    }
+
+    /** a withheld caller (P), a name not known (O): the number alone, or "Private number" */
+    @Test
+    fun callerIdWithheld() {
+        calls.modemText("RING\r\n\r\nNMBR = 5551000\r\nNAME = O\r\n")
+        assertEquals("5551000", calls.state.value!!.who)
+        assertNull(calls.state.value!!.detail)
+        calls.end()
+        calls.modemText("RING\r\n\r\nNMBR = P\r\nNAME = P\r\n")
+        assertEquals("Private number", calls.state.value!!.who)
+        // (the other phone's name wins over a withheld caller ID)
+        calls.end()
+        calls.caller("D-Modem on Pixel 8")
+        calls.modemText("RING\r\nNMBR = P\r\n")
+        assertEquals("D-Modem on Pixel 8", calls.state.value!!.who)
+    }
+
+    /** voice mode's packet (<DLE>X ... <DLE>.), and +VCID=2's MESG (MDMF), decoded; caller ID before the RING kept for it */
+    @Test
+    fun callerIdPacketAndHex() {
+        calls.modemText("RING\r\n\u0010XNMBR = 5551000\r\nNAME = Bob\r\n\u0010.")
+        assertEquals("Bob", calls.state.value!!.who)
+        assertEquals("5551000", calls.state.value!!.detail)
+        calls.end()
+        calls.modemText("\r\nMESG = 800C02073535353130303008014FB3\r\n")
+        assertNull(calls.state.value)
+        calls.modemText("RING\r\n")
+        assertEquals("5551000", calls.state.value!!.number)
+        assertEquals("O", calls.state.value!!.name)
+        assertEquals("5551000", calls.state.value!!.who)
+        // SDMF: the date and time, then the number
+        assertEquals(Pair("5551000", null), IncomingCalls.decode("040F31303330313034333535353130303000"))
+        assertNull(IncomingCalls.decode("zz"))
+        assertNull(IncomingCalls.decode("8010"))
+    }
 }

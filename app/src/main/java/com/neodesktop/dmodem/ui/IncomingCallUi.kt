@@ -21,9 +21,10 @@ import androidx.compose.ui.unit.dp
 import com.neodesktop.dmodem.modem.IncomingCalls
 
 /**
- * A call ringing in, over whatever the app shows: who's calling (when the
- * line says), and what to do: answer it (the terminal, ATA: with adaptive
- * answer a fax machine's call goes to the fax receiver by itself), answer
+ * A call ringing in, over whatever the app shows: who's calling (caller
+ * ID's name and number, or the line's name for the caller), and what to
+ * do: answer it (the terminal, ATA: with adaptive answer a fax machine's
+ * call goes to the fax receiver by itself), answer
  * it as a fax (without adaptive answer), or let it ring (out of sight
  * until it's over).
  */
@@ -44,7 +45,8 @@ fun IncomingCallDialog(
         title = { Text("Incoming call") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(call.from ?: caller, style = MaterialTheme.typography.titleMedium)
+                Text(call.who ?: caller, style = MaterialTheme.typography.titleMedium)
+                call.detail?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
                 Text(
                     "Calling the modem" + if (call.rings > 1) " (${call.rings} rings)" else "",
                     style = MaterialTheme.typography.bodyMedium,
