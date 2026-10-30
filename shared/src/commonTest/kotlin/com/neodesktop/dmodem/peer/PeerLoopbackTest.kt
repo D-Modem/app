@@ -34,11 +34,11 @@ class PeerLoopbackTest {
     /** a pipe's end: reads [inw], writes [outw] */
     private class End(private val inw: Way, private val outw: Way, override val name: String) : Duplex {
         override val input = object : Source {
-            /** the next of what came the other way, into [b] (waited for): how much, -1 once closed */
+            /** the next of what came the other way, into [b] (waited for): how much, -1 once closed and read to its end */
             override fun read(b: ByteArray, off: Int, len: Int): Int {
                 while (inw.at >= inw.cur.size) {
-                    if (inw.closed) return -1
-                    inw.cur = inw.q.poll(50) ?: continue
+                    // (what was written before the close still comes, as on a socket: a DENIED, say)
+                    inw.cur = inw.q.poll() ?: if (inw.closed) return -1 else inw.q.poll(50) ?: continue
                     inw.at = 0
                 }
                 val n = minOf(len, inw.cur.size - inw.at)
