@@ -27,7 +27,7 @@ speech through codecs that wreck modem signals; native-test's
 | AMR-NB 4.75 kbit/s, GSM full rate (2G) | nothing reliable |
 
 Between two D-Modems, V.cvm (D-Modem-RE's modem for speech codecs,
-`+MS=V_CVM`) does better: after V.8 it spends 15 to 20 s probing the
+`+MS=VCVM`) does better: after V.8 it spends 15 to 20 s probing the
 codec, then loads a mode for it, with LAPM over it. Through AMR-NB 12.2
 the app's engines connect at about 1200 bit/s coded (750 to 1200 each
 way, `CONNECT 1200/CVM/LAPM/V44`; D-Modem-RE measured 175 to 350 through

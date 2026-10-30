@@ -95,8 +95,8 @@ class CellLineTest {
         val b = CellModem("cvmB", net.phone("5550002"), listen = true)
         // V.cvm (D-Modem-RE's, for speech codecs): V.8, then 15 to 21 s probing the codec and
         // loading a mode for it; S7 long enough for that
-        a.command("ATE0\\V1+MS=V_CVM;S7=90")
-        b.command("ATE0\\V1S0=1+MS=V_CVM;S7=90")
+        a.command("ATE0\\V1+MS=VCVM;S7=90")
+        b.command("ATE0\\V1S0=1+MS=VCVM;S7=90")
         a.send("ATD5550002\r")
         val ca = a.connectLine()
         val cb = b.connectLine()

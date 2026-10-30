@@ -13,7 +13,7 @@ class CellSettingsTest {
     fun startCommands() {
         val cell = ModemSettings(line = ModemSettings.LINE_CELL)
         // (V.cvm by default, S7 long enough for its start-up)
-        assertEquals("AT+MS=V_CVM;S7=90;X3", cell.startCommands())
+        assertEquals("AT+MS=VCVM;S7=90;X3", cell.startCommands())
         assertEquals("AT+MS=V21;X3", cell.copy(cellSpeed = "V21").startCommands())
         assertEquals("AT+MS=V22B;X3M2", cell.copy(cellSpeed = "V22B", initCommands = "atX3M2").startCommands())
         assertEquals("AT+MS=V21", cell.copy(cellSpeed = "V21", initCommands = " ").startCommands())
