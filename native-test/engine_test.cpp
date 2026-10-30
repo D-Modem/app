@@ -221,6 +221,7 @@ protected:
 	int pty = -1, app = -1;
 	pid_t dm = -1;
 
+	/* what was reported cleared; a dmodemd of its own, answering (ATS0=1) */
 	void SetUp() override
 	{
 		{
@@ -242,6 +243,7 @@ protected:
 		ASSERT_TRUE(expect(pty, "OK", 5)) << "dmodemd: ATS0=1";
 	}
 
+	/* the engine stopped, the app's end closed, dmodemd gone; the log if it failed */
 	void TearDown() override
 	{
 		e.stop();

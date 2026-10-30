@@ -105,6 +105,7 @@ int wait_line()
 	return fd;
 }
 
+/* dmodem_config_init(): SIP on 5060, T.38 on, a peer line's lead 100 ms */
 TEST(CApi, Defaults)
 {
 	dmodem_config c;
@@ -114,6 +115,7 @@ TEST(CApi, Defaults)
 	EXPECT_EQ(c.peer_lead_ms, 100);
 }
 
+/* the header's types and calls from C (c_api_header.c) */
 TEST(CApi, HeaderAsC)
 {
 	EXPECT_EQ(c_api_header_from_c(), 0);
@@ -126,6 +128,7 @@ protected:
 	dmodem_config c;
 	int dte = -1;
 
+	/* the callbacks, once for the suite */
 	static void SetUpTestSuite()
 	{
 		dmodem_callbacks cb = {};
@@ -137,6 +140,7 @@ protected:
 		dmodem_set_callbacks(&cb);
 	}
 
+	/* what was reported cleared; the engine started on a peer line */
 	void SetUp() override
 	{
 		pthread_mutex_lock(&mu);
@@ -155,6 +159,7 @@ protected:
 		ASSERT_TRUE(dmodem_running());
 	}
 
+	/* the DTE closed, the modem ended and stopped */
 	void TearDown() override
 	{
 		if (dte >= 0)
@@ -165,11 +170,13 @@ protected:
 	}
 };
 
+/* a second start refused while it runs */
 TEST_F(CApiTest, SecondStartRefused)
 {
 	EXPECT_LT(dmodem_start(&c), 0);
 }
 
+/* ATE0: OK; ATI3: the peer line's driver */
 TEST_F(CApiTest, AnswersAtCommands)
 {
 	put(dte, "ATE0\r");
@@ -223,6 +230,7 @@ TEST_F(CApiTest, EndsWhenTheDteCloses)
 
 } // namespace
 
+/* the tests (SIGPIPE ignored: the line's fd closed under the modem) */
 int main(int argc, char *argv[])
 {
 	signal(SIGPIPE, SIG_IGN);
