@@ -20,11 +20,15 @@ let engineLinking: [LinkerSetting] = [
     ]),
     .linkedLibrary("dmodem_engine"), .linkedLibrary("dmodem_sip"), .linkedLibrary("re"),
     .linkedLibrary("ssl"), .linkedLibrary("crypto"), .linkedLibrary("stdc++"), .linkedLibrary("dl"),
-    .linkedLibrary("m"),
+    .linkedLibrary("m"), .linkedLibrary("resolv"),
 ]
 #else
 let engine: Target = .binaryTarget(name: "DModemEngine", path: "../../build-apple/DModemEngine.xcframework")
-let engineLinking: [LinkerSetting] = [.linkedLibrary("c++")]
+let engineLinking: [LinkerSetting] = [
+    .linkedLibrary("c++"), .linkedLibrary("resolv"),
+    // libre asks the system for its DNS servers (srv.c, SCDynamicStore)
+    .linkedFramework("SystemConfiguration"), .linkedFramework("CoreFoundation"),
+]
 #endif
 
 let package = Package(
