@@ -2,10 +2,12 @@
 // Copyright (C) 2026 Neo-Desktop
 package com.neodesktop.dmodem.io
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.selects.onTimeout
+import kotlinx.coroutines.selects.select
 import kotlin.time.TimeSource
 
 /**
@@ -84,11 +86,21 @@ class ByteQueue {
         ch.trySend(b)
     }
 
-    /** the next chunk, waiting up to [ms]; null if none came (the reader's thread) */
+    /**
+     * the next chunk, waiting up to [ms]; null if none came (the reader's
+     * thread). (A select, not receive() in withTimeoutOrNull: a chunk sent
+     * just as that timed out was taken by the cancelled receive and lost.)
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun poll(ms: Long): ByteArray? {
         poll()?.let { return it }
         if (ms <= 0) return null
-        return runBlocking { withTimeoutOrNull(ms) { ch.receive() } }
+        return runBlocking {
+            select {
+                ch.onReceive { it }
+                onTimeout(ms) { null }
+            }
+        }
     }
 
     /** the next chunk if one waits, else null */
