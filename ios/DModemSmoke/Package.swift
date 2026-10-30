@@ -14,7 +14,11 @@ let package = Package(
         .testTarget(
             name: "DModemSmokeTests",
             dependencies: ["DModemEngine"],
-            linkerSettings: [.linkedLibrary("c++")]
+            linkerSettings: [
+                .linkedLibrary("c++"), .linkedLibrary("resolv"),
+                // libre asks macOS for its DNS servers (srv.c, SCDynamicStore)
+                .linkedFramework("SystemConfiguration"), .linkedFramework("CoreFoundation"),
+            ]
         ),
     ]
 )
