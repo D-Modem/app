@@ -8,13 +8,23 @@
 # android.yml's).
 name: Apple
 
+# (a branch's commits run once, as its pull request: pushed, only main's)
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+# a newer commit on a pull request cancels the run before it (main's all run)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   engine:
     runs-on: macos-15
+    # (a hung test ends here, not at GitHub's 6 hours)
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
         with:

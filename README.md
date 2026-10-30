@@ -229,7 +229,9 @@ no `/etc/resolv.conf` for libre to read.
   `BoxDrawing`, `Themes`, the directory and snippets.
 - `native-test`: the engine on the build host, against a dmodemd over
   loopback SIP (dialling out, data both ways, restarting, a call coming
-  in, the app closing its end), and on fake USB modems (`usb_line_test.py`).
+  in, the app closing its end) and through the C API, as GoogleTest
+  tests (`engine_test.cpp`, `c_api_test.cpp`), and on fake USB modems
+  (`usb_line_test.py`).
 
 ## Building
 
@@ -260,11 +262,16 @@ The native library alone, without Gradle:
       -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-26
     cmake --build build-arm64 --target dmodem_jni
 
-The host test needs OpenSSL's headers (libssl-dev):
+The host test needs OpenSSL's headers (libssl-dev), and GoogleTest
+(libgtest-dev, else CMake fetches it):
 
     cmake -S native-test -B build-host -G Ninja
     cmake --build build-host
     ctest --test-dir build-host --output-on-failure
+
+Each engine test is a ctest test of its own (`ctest -R engine.` for
+those alone); `build-host/engine_test --gtest_filter=*Ringing` runs one
+directly, `ENGINE_TEST_LOG=1` with the engine's log as it comes.
 
 With `build-host` built, the unit tests also make calls on its test
 lines (fax between modems, against efax and D-Modem-RE's own T.30, over
