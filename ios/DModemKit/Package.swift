@@ -24,7 +24,11 @@ let engineLinking: [LinkerSetting] = [
 ]
 #else
 let engine: Target = .binaryTarget(name: "DModemEngine", path: "../../build-apple/DModemEngine.xcframework")
-let engineLinking: [LinkerSetting] = [.linkedLibrary("c++"), .linkedLibrary("resolv")]
+let engineLinking: [LinkerSetting] = [
+    .linkedLibrary("c++"), .linkedLibrary("resolv"),
+    // libre asks the system for its DNS servers (srv.c, SCDynamicStore)
+    .linkedFramework("SystemConfiguration"), .linkedFramework("CoreFoundation"),
+]
 #endif
 
 let package = Package(
