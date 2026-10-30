@@ -193,7 +193,7 @@ class SettingsStore(private val context: Context) {
             callTones = p[Keys.callTones] ?: d.callTones,
             adaptiveAnswer = p[Keys.adaptiveAnswer] ?: d.adaptiveAnswer,
             // V_CVM: the name before VCVM, kept by older versions
-            cellSpeed = (p[Keys.cellSpeed] ?: d.cellSpeed).let { if (it == "V_CVM") CELL_VCVM else it },
+            cellSpeed = (p[Keys.cellSpeed] ?: d.cellSpeed).let { if (it == "V_CVM") ModemSettings.CELL_VCVM else it },
             btModemAddress = p[Keys.btModemAddress] ?: d.btModemAddress,
             btModemName = p[Keys.btModemName] ?: d.btModemName,
             recordLine = p[Keys.recordLine] ?: d.recordLine,
