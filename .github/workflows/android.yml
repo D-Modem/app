@@ -97,7 +97,7 @@ jobs:
       - name: Packages
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake ninja-build g++ libssl-dev
+          sudo apt-get install -y --no-install-recommends cmake ninja-build g++ libssl-dev libgtest-dev
 
       - name: Build
         run: |
