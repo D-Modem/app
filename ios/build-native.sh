@@ -32,7 +32,10 @@ build() {
 		-DCMAKE_OSX_DEPLOYMENT_TARGET="$min" \
 		-DDMODEM_CRYPTO=mbedtls
 	if [ "$system" = iOS ]; then
-		set -- "$@" -DCMAKE_SYSTEM_NAME=iOS
+		# (no app bundles: D-Modem-RE's dmodemd, which is never built
+		# here, is an executable that CMake would make a bundle on iOS,
+		# and its install rule has no BUNDLE DESTINATION for one)
+		set -- "$@" -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_MACOSX_BUNDLE=OFF
 	fi
 	cmake "$@"
 	cmake --build "$dir/build" --target dmodem_engine
