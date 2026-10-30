@@ -49,13 +49,14 @@ jobs:
       - name: The shared Kotlin as an XCFramework
         run: ./gradlew :shared:assembleDModemSharedReleaseXCFramework
 
+      # arm64 only: the shared Kotlin's XCFramework has no x86_64 simulator slice
       - name: The iOS app (simulator)
         run: |
           brew install xcodegen
           cd ios/DModem && xcodegen generate
           xcodebuild -project DModem.xcodeproj -scheme DModem \
             -destination 'generic/platform=iOS Simulator' \
-            CODE_SIGNING_ALLOWED=NO build
+            ARCHS=arm64 CODE_SIGNING_ALLOWED=NO build
 
       - uses: actions/upload-artifact@v4
         with:
