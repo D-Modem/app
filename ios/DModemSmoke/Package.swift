@@ -14,7 +14,7 @@ let package = Package(
         .testTarget(
             name: "DModemSmokeTests",
             dependencies: ["DModemEngine"],
-            linkerSettings: [.linkedLibrary("c++")]
+            linkerSettings: [.linkedLibrary("c++"), .linkedLibrary("resolv")]
         ),
     ]
 )
