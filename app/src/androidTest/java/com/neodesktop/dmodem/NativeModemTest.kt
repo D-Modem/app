@@ -37,10 +37,15 @@ class NativeModemTest {
         NativeModem.listener = null
     }
 
-    /** a SIP account at nowhere (no call is made), the modem's data in the app's files */
+    /**
+     * a SIP account at nowhere (no call is made), the modem's data in the
+     * app's files; SIP's log at level 4, which names its addresses
+     * ("SIP on ...") before start returns: at 3 a modem with no call and
+     * no registrar has nothing to say in the test's time
+     */
     private fun config() = NativeModem.Config(
         user = "test", password = "x", domain = "127.0.0.1:5999", sipPort = 15060,
-        dns = listOf("127.0.0.1"), logLevel = 1, sipLogLevel = 3,
+        dns = listOf("127.0.0.1"), logLevel = 1, sipLogLevel = 4,
         dataFile = File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir, "test_dsp").path,
     )
 
