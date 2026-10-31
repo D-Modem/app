@@ -3,7 +3,7 @@
  * Copyright (C) 2026 Neo-Desktop
  *
  *    jni.cpp - the engine (engine.h) for Kotlin: the natives and the
- *              callbacks of com.neodesktop.dmodem.NativeModem
+ *              callbacks of org.dmodem.app.android.NativeModem
  *
  *    The callbacks come on the modem's and SIP's own threads, attached
  *    to the VM for as long as they run.
@@ -24,7 +24,7 @@ using dmodem_android::Status;
 
 namespace {
 
-const char CLASS[] = "com/neodesktop/dmodem/NativeModem";
+const char CLASS[] = "org/dmodem/app/android/NativeModem";
 
 JavaVM *vm;
 jclass cls;

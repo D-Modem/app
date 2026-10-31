@@ -1,6 +1,6 @@
 # The native library registers NativeModem's natives by name and calls its
 # callbacks (app/src/main/cpp/jni.cpp): keep them as they are.
--keep class com.neodesktop.dmodem.NativeModem {
+-keep class org.dmodem.app.android.NativeModem {
     native <methods>;
     static void onLog(java.lang.String);
     static void onStatus(int, boolean, int, int);
@@ -21,4 +21,4 @@
 -dontwarn org.bouncycastle.**
 
 # the local shell's pseudo-terminals: libdmodem_pty's JNI functions are named after these
--keep class com.neodesktop.dmodem.local.Pty { native <methods>; }
+-keep class org.dmodem.app.android.local.Pty { native <methods>; }

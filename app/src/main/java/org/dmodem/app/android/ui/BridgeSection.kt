@@ -1,0 +1,332 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Neo-Desktop
+package org.dmodem.app.android.ui
+
+import android.bluetooth.BluetoothAdapter
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import org.dmodem.app.android.bridge.BluetoothBridge
+import org.dmodem.app.android.bridge.Bridges
+import org.dmodem.app.android.bridge.PicoBoard
+import org.dmodem.app.android.bridge.PicoSerialProtocol
+import org.dmodem.app.android.bridge.TcpBridge
+import org.dmodem.app.android.modem.ModemState
+import org.dmodem.app.android.settings.BridgeSettings
+import org.dmodem.app.android.settings.BridgeSettingsStore
+import kotlinx.coroutines.launch
+import java.net.Inet4Address
+import java.net.NetworkInterface
+
+/** The modem's serial port for other programs and devices: on TCP and on Bluetooth. */
+@Composable
+fun BridgeSection() {
+    val context = LocalContext.current
+    val store = remember { BridgeSettingsStore(context.applicationContext) }
+    val scope = rememberCoroutineScope()
+    val current by store.settings.collectAsStateWithLifecycle(initialValue = null)
+    val s = current ?: return
+    /** [f] applied to the stored settings, the internet host's service brought in line with them */
+    fun change(f: (BridgeSettings) -> BridgeSettings) {
+        scope.launch {
+            store.update(f)
+            // (internet mode: its own service, on or off again as the settings now are)
+            val now = store.current()
+            if (now.internet && now.anyOn) runCatching { org.dmodem.app.android.bridge.HostService.update(context) }
+        }
+    }
+    val run by ModemState.run.collectAsStateWithLifecycle()
+    val tcpState by Bridges.tcpState.collectAsStateWithLifecycle()
+    val btState by Bridges.btState.collectAsStateWithLifecycle()
+    val usbState by Bridges.usbState.collectAsStateWithLifecycle()
+    val usbBoard by Bridges.usbBoard.collectAsStateWithLifecycle()
+    val gadgetState by Bridges.gadgetState.collectAsStateWithLifecycle()
+    val client by Bridges.serial.client.collectAsStateWithLifecycle()
+    var hasBt by remember { mutableStateOf(BluetoothBridge.hasPermission(context)) }
+    var paired by remember { mutableStateOf(BluetoothBridge.paired(context)) }
+    var pickDevice by remember { mutableStateOf(false) }
+    val askBt = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        hasBt = BluetoothBridge.hasPermission(context)
+        paired = BluetoothBridge.paired(context)
+        if (hasBt) change { it.copy(bluetooth = true) }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Serial port for other devices", style = MaterialTheme.typography.titleMedium)
+        Text(
+            if (s.internet) {
+                "Computers dial the phone as if it were their ISP's modem (ATDT anything, or a direct cable " +
+                    "connection) and get the internet through it: PPP, no call made, no SIP account needed."
+            } else {
+                "Programs and computers use the modem as if on a serial cable, one at a time, while the modem is on." +
+                    if (run == ModemState.Run.STOPPED) " (The modem is off now.)" else ""
+            },
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Text("Clients get", style = MaterialTheme.typography.bodyMedium)
+        Choice("The modem (calls over SIP)", !s.internet) { change { it.copy(internet = false) } }
+        Choice("The internet (the phone is their dial-up ISP)", s.internet) { change { it.copy(internet = true) } }
+        client?.let { c ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("In use: ${c.name} (${c.via})", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                TextButton(onClick = { Thread { Bridges.serial.kick() }.start() }) { Text("Disconnect") }
+            }
+        }
+
+        // TCP
+        Toggle("On TCP (ser2net, emulators, socat)", s.tcp) { v -> change { it.copy(tcp = v) } }
+        if (s.tcp) {
+            Text(tcpText(tcpState, s), style = MaterialTheme.typography.bodySmall)
+            Applied("Port", s.tcpPort.toString(), number = true) { v ->
+                v.toIntOrNull()?.takeIf { it in 1024..65535 }?.let { p -> change { it.copy(tcpPort = p) } }
+            }
+            Toggle("Telnet, with RFC 2217 port control (else raw)", s.tcpTelnet) { v -> change { it.copy(tcpTelnet = v) } }
+            Toggle("Other devices on the network can connect", s.tcpAnyAddress) { v -> change { it.copy(tcpAnyAddress = v) } }
+            if (s.tcpAnyAddress) {
+                Text(
+                    "Anyone on the same network can then dial out on your SIP account: set a password." +
+                        addresses().takeIf { it.isNotEmpty() }?.let { "\nThis phone: " + it.joinToString(", ") { a -> "$a:${s.tcpPort}" } }.orEmpty(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (s.tcpPassword.isEmpty()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Applied("Password (empty: none)", s.tcpPassword, password = true) { v -> change { it.copy(tcpPassword = v) } }
+        }
+
+        // Bluetooth
+        Toggle("On Bluetooth (serial port profile)", s.bluetooth) { v ->
+            if (v && !hasBt) askBt.launch(BluetoothBridge.permissions()) else change { it.copy(bluetooth = v) }
+        }
+        if (s.bluetooth) {
+            Text(btText(btState), style = MaterialTheme.typography.bodySmall)
+            Choice("Other devices connect to this phone", s.btConnectTo.isEmpty()) { change { it.copy(btConnectTo = "") } }
+            Choice(
+                "Connect to a paired device" + (s.btConnectTo.takeIf { it.isNotEmpty() }?.let { a ->
+                    ": " + (paired.firstOrNull { it.second == a }?.first ?: a)
+                } ?: ""),
+                s.btConnectTo.isNotEmpty(),
+            ) {
+                paired = BluetoothBridge.paired(context)
+                pickDevice = true
+            }
+            if (s.btConnectTo.isEmpty()) {
+                OutlinedButton(onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
+                                .putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 120)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                }) { Text("Make the phone visible for pairing") }
+            }
+            if (pickDevice) {
+                Column(Modifier.padding(start = 16.dp)) {
+                    if (paired.isEmpty()) Text("No paired devices: pair one in Android's Bluetooth settings", style = MaterialTheme.typography.bodySmall)
+                    for ((name, address) in paired) {
+                        Text(
+                            "$name  ($address)",
+                            Modifier.fillMaxWidth().clickable {
+                                pickDevice = false
+                                change { it.copy(btConnectTo = address) }
+                            }.padding(vertical = 8.dp),
+                        )
+                    }
+                    TextButton(onClick = { pickDevice = false }) { Text("Cancel") }
+                }
+            }
+        }
+
+        // USB
+        Toggle("On a USB serial adapter (OTG)", s.usb) { v -> change { it.copy(usb = v) } }
+        if (s.usb) {
+            Text(usbText(usbState), style = MaterialTheme.typography.bodySmall)
+            Applied("Speed (bit/s)", s.usbBaud.toString(), number = true) { v ->
+                v.toIntOrNull()?.takeIf { it in 50..4_000_000 }?.let { b -> change { it.copy(usbBaud = b) } }
+            }
+            Applied("Format (data bits, parity, stop bits)", s.usbFormat) { v ->
+                v.uppercase().takeIf { Regex("[5-8][NEOMS][12]").matches(it) }?.let { f -> change { it.copy(usbFormat = f) } }
+            }
+            Toggle("Its DTR is the modem's carrier (the computer's DCD)", s.usbCarrierOnDtr) { v -> change { it.copy(usbCarrierOnDtr = v) } }
+            Toggle("The computer dropping DTR hangs up", s.usbDtrHangsUp) { v -> change { it.copy(usbDtrHangsUp = v) } }
+            usbBoard?.let { PicoBoardPanel(it) }
+        }
+        if (s.usbGadget || org.dmodem.app.android.bridge.UsbGadget.rootAvailable()) {
+            Toggle("This phone's USB port as a serial port to a computer (root)", s.usbGadget) { v -> change { it.copy(usbGadget = v) } }
+            if (s.usbGadget) Text(gadgetText(gadgetState), style = MaterialTheme.typography.bodySmall)
+        }
+
+        Toggle("Hang up when the client disconnects (drops DTR)", s.hangUpOnClose) { v -> change { it.copy(hangUpOnClose = v) } }
+    }
+}
+
+/** the TCP bridge's state, as a line */
+private fun tcpText(st: TcpBridge.State, s: BridgeSettings): String = when (st) {
+    TcpBridge.State.Stopped -> "Starts with the modem"
+    is TcpBridge.State.Listening -> "Listening on " + (if (s.tcpAnyAddress) "port" else "localhost port") + " ${st.port}" +
+        if (s.tcpTelnet) " (Telnet)" else " (raw)"
+    is TcpBridge.State.Failed -> "Can't listen: ${st.why}"
+}
+
+/** the USB bridge's state, as a line */
+private fun usbText(st: org.dmodem.app.android.bridge.UsbBridge.State): String = when (st) {
+    org.dmodem.app.android.bridge.UsbBridge.State.Stopped -> "Starts with the modem"
+    org.dmodem.app.android.bridge.UsbBridge.State.Waiting -> "Waiting for an adapter to be plugged in"
+    is org.dmodem.app.android.bridge.UsbBridge.State.NeedsPermission -> "Allow D-Modem to use ${st.device} (Android asks)"
+    is org.dmodem.app.android.bridge.UsbBridge.State.Connected -> "On ${st.device}"
+    is org.dmodem.app.android.bridge.UsbBridge.State.Failed -> st.why
+}
+
+/** the USB gadget's state, as a line */
+private fun gadgetText(st: org.dmodem.app.android.bridge.UsbGadget.State): String = when (st) {
+    org.dmodem.app.android.bridge.UsbGadget.State.Stopped -> "Starts with the modem"
+    org.dmodem.app.android.bridge.UsbGadget.State.Ready -> "Ready: the computer sees a modem on its USB (COM port, /dev/ttyACM0)"
+    org.dmodem.app.android.bridge.UsbGadget.State.Connected -> "The computer is using the modem"
+    is org.dmodem.app.android.bridge.UsbGadget.State.Failed -> st.why
+}
+
+/** the Bluetooth bridge's state, as a line */
+private fun btText(st: BluetoothBridge.State): String = when (st) {
+    BluetoothBridge.State.Stopped -> "Starts with the modem"
+    is BluetoothBridge.State.Listening -> "Waiting for a device to connect to \"${st.name}\""
+    is BluetoothBridge.State.Connecting -> "Connecting to ${st.device}…"
+    is BluetoothBridge.State.Connected -> "Connected to ${st.device}"
+    is BluetoothBridge.State.Failed -> st.why
+}
+
+/** the phone's IPv4 addresses (not the loopback) */
+internal fun addresses(): List<String> = runCatching {
+    NetworkInterface.getNetworkInterfaces().toList().filter { it.isUp && !it.isLoopback }
+        .flatMap { it.inetAddresses.toList() }.filterIsInstance<Inet4Address>().mapNotNull { it.hostAddress }
+}.getOrDefault(emptyList())
+
+/**
+ * a pico-serial board on the USB bridge: what it is, its role and lines
+ * now, its speed; its settings (kept in the board's flash)
+ */
+@Composable
+private fun PicoBoardPanel(b: PicoBoard) {
+    val info = b.info
+    val i = b.inputs
+    Column(Modifier.padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            listOfNotNull(info?.boardName ?: "pico-serial", info?.let { "firmware ${it.firmware}" }).joinToString(", "),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        val role = i?.role ?: info?.role ?: PicoSerialProtocol.Role.NONE
+        Text("Working as ${role.label}", style = MaterialTheme.typography.bodySmall)
+        if (role == PicoSerialProtocol.Role.DTE) {
+            Text(
+                "Set it to the modem role (DCE) to plug it into a computer: as DTE it's for reaching a real modem.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        if (i != null && role == PicoSerialProtocol.Role.DCE) {
+            Text("To the computer: " + lines(i.outputs, listOf(PicoSerialProtocol.DCD to "DCD", PicoSerialProtocol.DSR to "DSR", PicoSerialProtocol.RI to "RI", PicoSerialProtocol.CTS to "CTS")), style = MaterialTheme.typography.bodySmall)
+            Text("From the computer: " + lines(i.inputs, listOf(PicoSerialProtocol.DTR to "DTR", PicoSerialProtocol.RTS to "RTS")), style = MaterialTheme.typography.bodySmall)
+        }
+        info?.let {
+            Text(
+                when {
+                    it.learning -> "Speed: learning it from the computer's typing (press Enter there)"
+                    it.learned -> "Speed: ${it.baud} bit/s, learned from the computer"
+                    else -> "Speed: ${it.baud} bit/s"
+                } + if (it.flowActive) ", RTS/CTS flow control" else "",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        b.stats?.let { st ->
+            val errs = st.framing + st.parity + st.overrun
+            Text(
+                "${st.toRs232} bytes out, ${st.fromRs232} in" + (if (errs > 0) ", $errs errors" else "") +
+                    if (st.dropped > 0) ", ${st.dropped} dropped" else "",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        Text("Role", style = MaterialTheme.typography.bodyMedium)
+        for (m in PicoSerialProtocol.Mode.entries) {
+            Choice(m.label, info?.mode == m) { Bridges.withUsbBoard { it.setMode(m) } }
+        }
+        Text("Speed", style = MaterialTheme.typography.bodyMedium)
+        for (m in PicoSerialProtocol.BaudMode.entries) {
+            Choice(m.label, info?.baudMode == m) { Bridges.withUsbBoard { it.setBaudMode(m) } }
+        }
+        Text("Flow control (RTS/CTS)", style = MaterialTheme.typography.bodyMedium)
+        for (f in PicoSerialProtocol.Flow.entries) {
+            Choice(f.label, info?.flow == f) { Bridges.withUsbBoard { it.setFlow(f) } }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { Bridges.withUsbBoard { it.relearnBaud() } }) { Text("Learn the speed again") }
+            TextButton(onClick = { Bridges.withUsbBoard { it.clearStats() } }) { Text("Clear counts") }
+        }
+    }
+}
+
+/** the lines in [bits] that are on, by name */
+private fun lines(bits: Int, names: List<Pair<Int, String>>): String =
+    names.filter { bits and it.first != 0 }.joinToString(" ") { it.second }.ifEmpty { "none" }
+
+/** a labelled switch */
+@Composable
+private fun Toggle(label: String, value: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, Modifier.weight(1f))
+        Switch(checked = value, onCheckedChange = onChange)
+    }
+}
+
+/** a labelled radio button, the whole row tappable */
+@Composable
+private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
+        RadioButton(selected = selected, onClick = onClick)
+        Text(label)
+    }
+}
+
+/** a field whose value is used when Set is pressed (a port half typed isn't listened on) */
+@Composable
+private fun Applied(label: String, value: String, number: Boolean = false, password: Boolean = false, onSet: (String) -> Unit) {
+    var text by remember(value) { mutableStateOf(value) }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = if (number) it.filter(Char::isDigit).take(5) else it },
+            label = { Text(label) },
+            singleLine = true,
+            visualTransformation = if (password) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+            keyboardOptions = KeyboardOptions(keyboardType = if (number) KeyboardType.Number else if (password) KeyboardType.Password else KeyboardType.Text),
+            modifier = Modifier.weight(1f),
+        )
+        Button(onClick = { onSet(text) }, enabled = text != value) { Text("Set") }
+    }
+}

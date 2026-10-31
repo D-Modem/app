@@ -1,0 +1,149 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Neo-Desktop
+package org.dmodem.app.android.ui
+
+import android.graphics.Bitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.test.core.app.ApplicationProvider
+import org.dmodem.app.android.modem.ModemState
+import org.dmodem.app.peer.PeerLine
+import org.dmodem.app.android.peer.Peers
+import org.dmodem.app.android.settings.ModemSettings
+import org.dmodem.app.android.settings.SettingsStore
+import kotlinx.coroutines.runBlocking
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+import java.io.File
+
+/** The line to another phone: its settings, Home on a call: build/screens/peer-*.png. */
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35], qualifiers = "w411dp-h891dp-xxhdpi")
+class PeerShotsTest {
+    @get:Rule
+    val compose = createAndroidComposeRule<MainActivity>()
+
+    /** the screen as it is, into build/screens/[name].png */
+    private fun shot(name: String) {
+        compose.waitForIdle()
+        val bmp = compose.onRoot().captureToImage().asAndroidBitmap()
+        val dir = File("build/screens").apply { mkdirs() }
+        File(dir, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+    }
+
+    /** [s] saved as the modem's settings */
+    private fun save(s: ModemSettings) {
+        val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+        runBlocking { SettingsStore(ctx).save(s) }
+    }
+
+    /** the line settings for another phone on Wi-Fi, drawn */
+    @Test
+    fun theSettings() {
+        save(ModemSettings(line = ModemSettings.LINE_WIFI, peerAddress = "192.168.1.20", listen = true))
+        SettingsNav.open(SettingsPage.LINE)
+        compose.onNodeWithText("Settings").performClick()
+        compose.onNodeWithText("Find phones on this network").performScrollTo()
+        shot("peer-1-settings")
+        compose.onNodeWithText("Another phone with D-Modem, on Wi-Fi").assertExists()
+    }
+
+    /** another phone on Wi-Fi picked from the line's menu: its settings, drawn */
+    @Test
+    fun theLineFromItsMenu() {
+        save(ModemSettings(line = ModemSettings.LINE_SIP))
+        SettingsNav.open(SettingsPage.LINE)
+        compose.onNodeWithText("Settings").performClick()
+        compose.onNodeWithText("A SIP account (calls over the internet)").performScrollTo().performClick()
+        compose.onNodeWithText("Another phone with D-Modem, on Wi-Fi").performClick()
+        compose.onNodeWithText("Find phones on this network").performScrollTo().assertExists()
+        shot("peer-0-line-menu")
+    }
+
+    /** no line picked: a dial gets NO DIALTONE, no SIP account asked for; drawn */
+    @Test
+    fun noLine() {
+        save(ModemSettings(line = ModemSettings.LINE_SIP))
+        SettingsNav.open(SettingsPage.LINE)
+        compose.onNodeWithText("Settings").performClick()
+        // (under More: the Wi-Fi / Cell lines' menu hasn't it)
+        compose.onNodeWithText("More").performClick()
+        compose.onNodeWithText("A SIP account (calls over the internet)").performScrollTo().performClick()
+        compose.onNodeWithText("No line (the modem on its own)").performClick()
+        compose.onNodeWithText("a dial gets NO DIALTONE", substring = true).assertExists()
+        // (no SIP account asked for)
+        compose.onNodeWithText("SIP account (saved with the button below)").assertDoesNotExist()
+        shot("peer-4-no-line")
+    }
+
+    /** the line kinds' buttons: Wi-Fi / Cell's menu only its lines, More's every one; drawn */
+    @Test
+    fun theLineKinds() {
+        save(ModemSettings(line = ModemSettings.LINE_SIP))
+        SettingsNav.open(SettingsPage.LINE)
+        compose.onNodeWithText("Settings").performClick()
+        compose.onNodeWithText("A SIP account (calls over the internet)").performScrollTo().performClick()
+        compose.onNodeWithText("Another phone with D-Modem, on Wi-Fi").assertExists()
+        compose.onNodeWithText("No line (the modem on its own)").assertDoesNotExist()
+        compose.onNodeWithText("A phone line, through a USB modem").assertDoesNotExist()
+        shot("peer-6-line-kinds")
+        compose.onNodeWithText("Another phone with D-Modem, on Wi-Fi").performClick()
+        compose.onNodeWithText("More").performClick()
+        compose.onNodeWithText("Another phone with D-Modem, on Wi-Fi").performScrollTo().performClick()
+        compose.onNodeWithText("No line (the modem on its own)").assertExists()
+        compose.onNodeWithText("A phone line, through a USB modem").assertExists()
+        shot("peer-7-line-kinds-more")
+    }
+
+    /** a USB modem picked: the ones known, none plugged in, no SIP account asked for; drawn */
+    @Test
+    fun aUsbModem() {
+        save(ModemSettings(line = ModemSettings.LINE_SIP))
+        SettingsNav.open(SettingsPage.LINE)
+        compose.onNodeWithText("Settings").performClick()
+        // (the USB button: its one line, no menu)
+        compose.onNodeWithText("USB").performClick()
+        compose.onNodeWithText("A phone line, through a USB modem").assertExists()
+        compose.onNodeWithText("pico-serial Line stick", substring = true).assertExists()
+        // (none on Robolectric's bus)
+        compose.onNodeWithText("Plugged in: none").assertExists()
+        compose.onNodeWithText("SIP account (saved with the button below)").assertDoesNotExist()
+        shot("peer-5-usb-modem")
+    }
+
+    /** Home on a call with another phone, drawn: who it's with */
+    @Test
+    fun homeOnACall() {
+        save(ModemSettings(line = ModemSettings.LINE_WIFI, peerAddress = "192.168.1.20:5070", peerName = "D-Modem on Pixel 8", listen = true))
+        ModemState.setRun(ModemState.Run.RUNNING)
+        Peers.show(PeerLine.State.Connected("192.168.1.20:5070", caller = true))
+        compose.onNodeWithText("another phone on Wi-Fi").performScrollTo()
+        shot("peer-2-home")
+        compose.onNodeWithText("On a call with D-Modem on Pixel 8").assertExists()
+        Peers.show(PeerLine.State.Off)
+        ModemState.setRun(ModemState.Run.STOPPED)
+    }
+
+    /** the mobile call line's settings, drawn: V.cvm first, V.21 for other modems */
+    @Test
+    fun theMobileCallLine() {
+        save(ModemSettings(line = ModemSettings.LINE_CELL, listen = true))
+        SettingsNav.open(SettingsPage.LINE)
+        compose.onNodeWithText("Settings").performClick()
+        compose.onNodeWithText("Calls ringing here go to the modem").performScrollTo()
+        shot("peer-3-cell-settings")
+        // (V.cvm first, the default; V.21 for other modems)
+        compose.onNodeWithText("About 1200 bit/s (V.cvm, made for mobile calls)", substring = true).assertExists()
+        compose.onNodeWithText("300 bit/s (V.21): what any modem's call carries").assertExists()
+    }
+}
