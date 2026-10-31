@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   engine:
-    runs-on: macos-15
+    runs-on: macos-latest
     # (a hung test ends here, not at GitHub's 6 hours)
     timeout-minutes: 50
     steps:
