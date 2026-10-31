@@ -1,7 +1,7 @@
 [submodule "external/d-modem-re"]
 	path = external/d-modem-re
 	url = https://github.com/D-Modem/D-Modem.git
-	branch = claude/awesome-curie-vuq5tj
+	branch = main
 [submodule "external/proot"]
 	path = external/proot
 	url = https://github.com/termux/proot.git
