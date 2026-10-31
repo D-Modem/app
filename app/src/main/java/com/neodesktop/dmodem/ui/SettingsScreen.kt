@@ -235,6 +235,12 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
                                 "a fax goes to the fax receiver by itself, a modem's call to the terminal.",
                             style = MaterialTheme.typography.bodySmall,
                         )
+                        Toggle("Caller ID: who's calling", s.callerId) { s = s.copy(callerId = it) }
+                        Text(
+                            "A ringing call's number and name (AT+VCID=1) in the call's popup and notification, and in the " +
+                                "terminal after the first RING (NMBR, NAME): a SIP call's from its caller, a phone line's from its caller ID.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                         Field("Init commands (sent at start)", s.initCommands) { s = s.copy(initCommands = it) }
                         CountryPicker(s.country) { s = s.copy(country = it) }
                         Toggle("Call progress tones: dial, ringing, busy, congestion", s.callTones) { s = s.copy(callTones = it) }

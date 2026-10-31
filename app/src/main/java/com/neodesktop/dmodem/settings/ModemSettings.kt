@@ -55,6 +55,8 @@ data class ModemSettings(
      * a fax machine's to the fax receiver, a modem's to the terminal
      */
     val adaptiveAnswer: Boolean = true,
+    /** caller ID on (AT+VCID=1): a ringing call's number and name in the terminal, its popup and notification */
+    val callerId: Boolean = true,
     /**
      * the modulation on mobile calls (+MS): VCVM (V.cvm, made for speech codecs: about 1200 bit/s
      * through AMR 12.2, to another D-Modem; V.22 or V.21 to other modems), V21 (300 bit/s), V22, V22B
@@ -162,6 +164,7 @@ class SettingsStore(private val context: Context) {
         val speaker = booleanPreferencesKey("speaker")
         val callTones = booleanPreferencesKey("callTones")
         val adaptiveAnswer = booleanPreferencesKey("adaptiveAnswer")
+        val callerId = booleanPreferencesKey("callerId")
         val cellSpeed = stringPreferencesKey("cell_speed")
         val btModemAddress = stringPreferencesKey("bt_modem_address")
         val btModemName = stringPreferencesKey("bt_modem_name")
@@ -192,6 +195,7 @@ class SettingsStore(private val context: Context) {
             speaker = p[Keys.speaker] ?: d.speaker,
             callTones = p[Keys.callTones] ?: d.callTones,
             adaptiveAnswer = p[Keys.adaptiveAnswer] ?: d.adaptiveAnswer,
+            callerId = p[Keys.callerId] ?: d.callerId,
             // V_CVM: the name before VCVM, kept by older versions
             cellSpeed = (p[Keys.cellSpeed] ?: d.cellSpeed).let { if (it == "V_CVM") ModemSettings.CELL_VCVM else it },
             btModemAddress = p[Keys.btModemAddress] ?: d.btModemAddress,
@@ -227,6 +231,7 @@ class SettingsStore(private val context: Context) {
             p[Keys.speaker] = s.speaker
             p[Keys.callTones] = s.callTones
             p[Keys.adaptiveAnswer] = s.adaptiveAnswer
+            p[Keys.callerId] = s.callerId
             p[Keys.cellSpeed] = s.cellSpeed
             p[Keys.btModemAddress] = s.btModemAddress
             p[Keys.btModemName] = s.btModemName

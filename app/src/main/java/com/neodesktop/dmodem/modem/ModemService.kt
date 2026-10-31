@@ -318,6 +318,8 @@ class ModemService : Service() {
         // (each call answered as fax or data by what it turns out to be: FAX, then the fax receiver)
         ModemState.adaptiveAnswer = settings.adaptiveAnswer
         if (settings.adaptiveAnswer) ModemState.dte.write("AT+FAA=1\r")
+        // (the caller's number and name after the first RING, for the call's popup and notification)
+        if (settings.callerId) ModemState.dte.write("AT+VCID=1\r")
         return true
     }
 
@@ -356,13 +358,13 @@ class ModemService : Service() {
             // a call ringing in: the phone's incoming call notification while it rings
             launch {
                 ModemState.incoming.state
-                    .map { c -> c?.takeIf { !it.ignored }?.let { it.since to it.from } }
+                    .map { c -> c?.takeIf { !it.ignored }?.let { Triple(it.since, it.who, it.detail) } }
                     .distinctUntilChanged()
                     .collect {
                         val c = ModemState.incoming.state.value
                         // (in the log: what the call's popup and notification came from)
                         if (c != null && !c.ignored) {
-                            log("a call ringing in (the modem's RING): its notification and popup" + (c.from?.let { " ($it)" } ?: ""))
+                            log("a call ringing in (the modem's RING): its notification and popup" + (c.who?.let { " ($it)" } ?: ""))
                         } else if (c == null) {
                             log("the incoming call's notification and popup gone")
                         }
@@ -659,13 +661,15 @@ class ModemService : Service() {
         val ignore = PendingIntent.getService(
             this, 5, Intent(this, ModemService::class.java).setAction(ACTION_IGNORE), PendingIntent.FLAG_IMMUTABLE,
         )
-        val who = c.from ?: callerOfLine()
-        val person = androidx.core.app.Person.Builder().setName(who).setImportant(true).build()
+        val who = c.who ?: callerOfLine()
+        val number = IncomingCalls.shown(c.number)
+        val person = androidx.core.app.Person.Builder().setName(who).setImportant(true)
+            .apply { if (number != null) setUri("tel:" + number) }.build()
         val b = NotificationCompat.Builder(this, DModemApp.CHANNEL_CALLS)
             .setSmallIcon(R.drawable.ic_modem)
             .setStyle(NotificationCompat.CallStyle.forIncomingCall(person, ignore, answer))
             .setContentTitle(who)
-            .setContentText("Calling the modem")
+            .setContentText(c.detail?.let { "$it, calling the modem" } ?: "Calling the modem")
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setOngoing(true)
