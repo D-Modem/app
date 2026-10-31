@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Neo-Desktop
 //
 // libdmodem_pty: a program on a pseudo-terminal of its own, for the local
-// shell (com.neodesktop.dmodem.local.Pty). Plain POSIX: built for Android
+// shell (org.dmodem.app.android.local.Pty). Plain POSIX: built for Android
 // and, in the unit tests, for the host.
 #define _GNU_SOURCE
 #include <jni.h>
@@ -60,7 +60,7 @@ static void free_strings(char **s)
  * (its pid in pidOut[0]).
  */
 JNIEXPORT jint JNICALL
-Java_com_neodesktop_dmodem_local_Pty_start(JNIEnv *env, jclass cls, jstring jpath,
+Java_org_dmodem_app_android_local_Pty_start(JNIEnv *env, jclass cls, jstring jpath,
 	jobjectArray jargv, jobjectArray jenvp, jstring jcwd, jint rows, jint cols, jintArray pid_out)
 {
 	(void)cls;
@@ -150,7 +150,7 @@ Java_com_neodesktop_dmodem_local_Pty_start(JNIEnv *env, jclass cls, jstring jpat
 
 /* resize(fd, rows, cols): the pty's window size set */
 JNIEXPORT void JNICALL
-Java_com_neodesktop_dmodem_local_Pty_resize(JNIEnv *env, jclass cls, jint fd, jint rows, jint cols)
+Java_org_dmodem_app_android_local_Pty_resize(JNIEnv *env, jclass cls, jint fd, jint rows, jint cols)
 {
 	(void)env; (void)cls;
 	struct winsize ws = { .ws_row = (unsigned short)rows, .ws_col = (unsigned short)cols };
@@ -159,7 +159,7 @@ Java_com_neodesktop_dmodem_local_Pty_resize(JNIEnv *env, jclass cls, jint fd, ji
 
 /* bytes read into b[off..off+len): their count, or -1 at the end (the program and its children gone) */
 JNIEXPORT jint JNICALL
-Java_com_neodesktop_dmodem_local_Pty_read(JNIEnv *env, jclass cls, jint fd, jbyteArray b, jint off, jint len)
+Java_org_dmodem_app_android_local_Pty_read(JNIEnv *env, jclass cls, jint fd, jbyteArray b, jint off, jint len)
 {
 	(void)cls;
 	char buf[16384];
@@ -177,7 +177,7 @@ Java_com_neodesktop_dmodem_local_Pty_read(JNIEnv *env, jclass cls, jint fd, jbyt
 
 /* all of b[off..off+len) written; false if it can't be */
 JNIEXPORT jboolean JNICALL
-Java_com_neodesktop_dmodem_local_Pty_write(JNIEnv *env, jclass cls, jint fd, jbyteArray b, jint off, jint len)
+Java_org_dmodem_app_android_local_Pty_write(JNIEnv *env, jclass cls, jint fd, jbyteArray b, jint off, jint len)
 {
 	(void)cls;
 	jbyte *p = (*env)->GetByteArrayElements(env, b, NULL);
@@ -196,7 +196,7 @@ Java_com_neodesktop_dmodem_local_Pty_write(JNIEnv *env, jclass cls, jint fd, jby
 
 /* the program's end waited for: its exit status, or 128 + the signal that ended it */
 JNIEXPORT jint JNICALL
-Java_com_neodesktop_dmodem_local_Pty_waitFor(JNIEnv *env, jclass cls, jint pid)
+Java_org_dmodem_app_android_local_Pty_waitFor(JNIEnv *env, jclass cls, jint pid)
 {
 	(void)env; (void)cls;
 	int st;
@@ -213,7 +213,7 @@ Java_com_neodesktop_dmodem_local_Pty_waitFor(JNIEnv *env, jclass cls, jint pid)
 
 /* a signal to the program's process group (its session: the shell and its jobs) */
 JNIEXPORT void JNICALL
-Java_com_neodesktop_dmodem_local_Pty_signal(JNIEnv *env, jclass cls, jint pid, jint sig)
+Java_org_dmodem_app_android_local_Pty_signal(JNIEnv *env, jclass cls, jint pid, jint sig)
 {
 	(void)env; (void)cls;
 	if (kill(-pid, sig) != 0)
@@ -226,7 +226,7 @@ Java_com_neodesktop_dmodem_local_Pty_signal(JNIEnv *env, jclass cls, jint pid, j
  * those signalled back
  */
 JNIEXPORT jint JNICALL
-Java_com_neodesktop_dmodem_local_Pty_signalSession(JNIEnv *env, jclass cls, jint sid, jint sig)
+Java_org_dmodem_app_android_local_Pty_signalSession(JNIEnv *env, jclass cls, jint sid, jint sig)
 {
 	(void)env; (void)cls;
 	int count = 0;
@@ -263,7 +263,7 @@ Java_com_neodesktop_dmodem_local_Pty_signalSession(JNIEnv *env, jclass cls, jint
 
 /* close(fd): the fd closed */
 JNIEXPORT void JNICALL
-Java_com_neodesktop_dmodem_local_Pty_close(JNIEnv *env, jclass cls, jint fd)
+Java_org_dmodem_app_android_local_Pty_close(JNIEnv *env, jclass cls, jint fd)
 {
 	(void)env; (void)cls;
 	close(fd);
@@ -276,7 +276,7 @@ Java_com_neodesktop_dmodem_local_Pty_close(JNIEnv *env, jclass cls, jint fd)
  * so the master's poll() says POLLHUP until a program has it open.
  */
 JNIEXPORT jint JNICALL
-Java_com_neodesktop_dmodem_local_Pty_openPort(JNIEnv *env, jclass cls)
+Java_org_dmodem_app_android_local_Pty_openPort(JNIEnv *env, jclass cls)
 {
 	(void)cls;
 	int m = posix_openpt(O_RDWR | O_NOCTTY);
@@ -308,7 +308,7 @@ Java_com_neodesktop_dmodem_local_Pty_openPort(JNIEnv *env, jclass cls)
 
 /* the slave's path of master fd (/dev/pts/N), or null */
 JNIEXPORT jstring JNICALL
-Java_com_neodesktop_dmodem_local_Pty_ptsName(JNIEnv *env, jclass cls, jint fd)
+Java_org_dmodem_app_android_local_Pty_ptsName(JNIEnv *env, jclass cls, jint fd)
 {
 	(void)cls;
 	char name[128];
@@ -319,7 +319,7 @@ Java_com_neodesktop_dmodem_local_Pty_ptsName(JNIEnv *env, jclass cls, jint fd)
 
 /* poll() on fd for reading, ms at most: its revents (POLLIN 1, POLLHUP 0x10), 0 if nothing came */
 JNIEXPORT jint JNICALL
-Java_com_neodesktop_dmodem_local_Pty_poll(JNIEnv *env, jclass cls, jint fd, jint ms)
+Java_org_dmodem_app_android_local_Pty_poll(JNIEnv *env, jclass cls, jint fd, jint ms)
 {
 	(void)env; (void)cls;
 	struct pollfd p = { .fd = fd, .events = POLLIN, .revents = 0 };

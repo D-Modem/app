@@ -27,12 +27,12 @@ val appAbis = providers.gradleProperty("dmodem.abis").orNull
     ?: listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
 
 android {
-    namespace = "com.neodesktop.dmodem"
+    namespace = "org.dmodem.app.android"
     compileSdk = 37
     ndkVersion = "29.0.14206865"
 
     defaultConfig {
-        applicationId = "com.neodesktop.dmodem"
+        applicationId = "org.dmodem.app.android"
         minSdk = 26
         targetSdk = 37
         versionCode = 1
