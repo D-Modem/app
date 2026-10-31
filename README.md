@@ -299,6 +299,14 @@ D-Modem-RE's own rule has it. `tools/doc_check.py` lists any that don't
 CI (`.github/workflows/android.yml`) runs all three, and that check; it needs a
 `DMODEM_TOKEN` secret that can read the private D-Modem-RE submodule.
 
+Signing comes from the environment: `ANDROID_KEYSTORE_FILE` (a PKCS12
+keystore), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and
+`ANDROID_KEY_PASSWORD` (the store's password if unset). Without them a
+debug build takes the SDK's debug key and a release build is unsigned. CI
+decodes `ANDROID_KEYSTORE_BASE64` into that file: the repository's secrets
+hold the debug keystore, the protected `release` environment's (main and
+`v*` tags) the release one, which CI's `release` job signs with.
+
 ## Apple's systems: the iOS app
 
 The native modem builds for iOS and macOS too: the engine's C API,

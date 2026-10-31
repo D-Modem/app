@@ -5,15 +5,27 @@
 # device: the instrumented tests on an emulator (x86_64, the one ABI it
 #   builds): the native library loads, binds and answers AT commands.
 #
+# release: the release APK and bundle (R8): signed with the release
+#   environment's key for main and v* tags, the debug key for a pull request.
+#
 # D-Modem-RE is a private submodule: the DMODEM_TOKEN secret is a token
 # that can read it (a fine-grained personal access token with Contents:
 # read on D-Modem/D-Modem).
+#
+# Signing: ANDROID_KEYSTORE_BASE64 (a PKCS12 keystore, base64),
+# ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD
+# (the store's if empty). The repository's secrets hold the debug
+# keystore, the protected "release" environment's the release one (an
+# environment's secret wins over the repository's of the same name). A
+# fork's pull request has neither: its builds take the SDK's debug key
+# (and its release build is unsigned).
 name: Android
 
 # (a branch's commits run once, as its pull request: pushed, only main's)
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
@@ -65,8 +77,30 @@ jobs:
 
       - name: OpenSSH, PuTTY, mksh (the interop tests), gawk (proot's build)
         run: sudo apt-get install -y -q openssh-client openssh-server putty-tools gawk mksh && sudo mkdir -p /run/sshd
+      # the keystore from its secret, for the build (app/build.gradle.kts); none on a fork's pull request
+      - name: Signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/keystore.p12"
+            echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/keystore.p12" >> "$GITHUB_ENV"
+          else
+            echo "No keystore secret: the SDK's debug key (a release build unsigned)"
+          fi
+
       - name: Build, unit tests, lint
         run: ./gradlew assembleDebug assembleDebugAndroidTest testDebugUnitTest lintDebug :shared:jvmTest :shared:linuxX64Test
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: The APK's signer
+        if: ${{ !cancelled() && hashFiles('app/build/outputs/apk/debug/app-debug.apk') != '' }}
+        run: |
+          tools=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$tools/apksigner" verify --print-certs app/build/outputs/apk/debug/app-debug.apk
 
       # the APK even when a test fails, so a build can still be tried on a phone; as
       # the .apk itself, not zipped (archive: false, upload-artifact v7: the artifact
@@ -84,6 +118,68 @@ jobs:
           path: |
             app/build/reports
             app/build/test-results
+
+  release:
+    runs-on: ubuntu-24.04
+    # (a hung build ends here, not at GitHub's 6 hours)
+    timeout-minutes: 40
+    # main and v* tags: the release environment and its key (that environment takes only those);
+    # anything else (a pull request) none, so the repository's debug key
+    environment: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && 'release' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.DMODEM_TOKEN || github.token }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: SDK packages
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "ndk;$NDK_VERSION" "cmake;$CMAKE_VERSION" "platforms;android-37.0"
+
+      - name: gawk (proot's build)
+        run: sudo apt-get install -y -q gawk
+
+      # the keystore from its secret, for the build (app/build.gradle.kts); none on a fork's pull request
+      - name: Signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/keystore.p12"
+            echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/keystore.p12" >> "$GITHUB_ENV"
+          else
+            echo "No keystore secret: the SDK's debug key (a release build unsigned)"
+          fi
+
+      - name: Release APK and bundle
+        run: ./gradlew assembleRelease bundleRelease
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: The APK's signer
+        if: ${{ env.ANDROID_KEYSTORE_FILE != '' }}
+        run: |
+          tools=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$tools/apksigner" verify --print-certs app/build/outputs/apk/release/app-release.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/bundle/release/*.aab
+            app/build/outputs/mapping/release/mapping.txt
 
   native:
     runs-on: ubuntu-24.04
