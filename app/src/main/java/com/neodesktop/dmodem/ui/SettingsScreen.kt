@@ -66,6 +66,7 @@ enum class SettingsPage(val title: String) {
     TERMINAL("Terminal"),
     SSH("SSH keys"),
     LINUX("Linux"),
+    AT_COMMANDS("AT commands"),
     ;
 
     /** its icon in the menu */
@@ -80,6 +81,7 @@ enum class SettingsPage(val title: String) {
             TERMINAL -> SettingsIcons.Terminal
             SSH -> SettingsIcons.Keys
             LINUX -> SettingsIcons.Linux
+            AT_COMMANDS -> SettingsIcons.Manual
         }
 }
 
@@ -95,8 +97,8 @@ object SettingsNav {
 
 /**
  * Settings: a menu of its pages (the line, the modem, the bridges, fax,
- * dial-up, appearance, the terminal, SSH keys, Linux), each with what it
- * is set to; back from a page to the menu. The line's and the modem's
+ * dial-up, appearance, the terminal, SSH keys, Linux, and the AT command
+ * reference), each with what it is set to; back from a page to the menu. The line's and the modem's
  * settings are saved with their Save button, and apply when the modem next
  * starts; their edits are kept across the two pages until then.
  */
@@ -155,6 +157,11 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
                     )
                 }
                 Text(p.title, style = MaterialTheme.typography.titleLarge)
+            }
+            // (the reference scrolls its pages itself)
+            if (p == SettingsPage.AT_COMMANDS) {
+                AtReferenceViewer(Modifier.weight(1f))
+                return@Column
             }
             Column(
                 Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(bottom = 16.dp).verticalScroll(rememberScrollState()),
@@ -266,6 +273,7 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
                     SettingsPage.TERMINAL -> TerminalSettingsSection()
                     SettingsPage.SSH -> SshKeysSection()
                     SettingsPage.LINUX -> LinuxSection(onOpened = onOpenTerminal)
+                    SettingsPage.AT_COMMANDS -> {}
                 }
             }
         }
@@ -309,6 +317,7 @@ private fun SettingsMenu(modifier: Modifier, s: ModemSettings, unsaved: Boolean)
         SettingsPage.TERMINAL to "Emulation, fonts, colours, keys",
         SettingsPage.SSH to "This phone's keys for SSH",
         SettingsPage.LINUX to "Linux on the phone, the modem at /dev/ttyDM0",
+        SettingsPage.AT_COMMANDS to "The modem's AT command reference",
     )
     Column(
         modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),

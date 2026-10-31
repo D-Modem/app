@@ -110,6 +110,7 @@ fun TerminalScreen(
     val capture by session.capture.collectAsStateWithLifecycle()
     var view by remember { mutableStateOf<TerminalView?>(null) }
     var showSnippets by remember { mutableStateOf(false) }
+    var showAtReference by remember { mutableStateOf(false) }
     var showSsh by remember { mutableStateOf(false) }
     var showLinuxInstall by remember { mutableStateOf(false) }
     var pickLinux by remember { mutableStateOf<List<com.neodesktop.dmodem.local.LinuxSystem>?>(null) }
@@ -217,6 +218,7 @@ fun TerminalScreen(
                 onClear = { session.clear() },
                 onReset = { session.reset() },
                 onFullscreen = { onFullscreen(true) },
+                onAtReference = { showAtReference = true },
                 charset = s.charset,
                 onCharset = { cs -> scope.launch { store.save(s.copy(charset = cs)) } },
             )
@@ -322,6 +324,7 @@ fun TerminalScreen(
     if (showSsh && ssh != null) {
         SshSessionDialog(ssh) { showSsh = false }
     }
+    if (showAtReference) AtReferenceDialog(onDismiss = { showAtReference = false })
     if (showSnippets) {
         SnippetsDialog(
             onSend = { text ->
@@ -427,7 +430,7 @@ private fun barText(
     return if (title.isNotBlank()) "$state — $title" else state
 }
 
-/** the terminal's bar: its line, the keyboard, snippets and capture buttons, and a menu of the rest (hang up, paste, new shells, files, character set, clear, reset, full screen) */
+/** the terminal's bar: its line, the keyboard, snippets and capture buttons, and a menu of the rest (hang up, paste, new shells, files, character set, clear, reset, full screen, the AT command reference) */
 @Composable
 private fun TopBar(
     text: String,
@@ -447,6 +450,8 @@ private fun TopBar(
     onClear: () -> Unit,
     onReset: () -> Unit,
     onFullscreen: () -> Unit,
+    /** the AT command reference */
+    onAtReference: () -> Unit,
     charset: TermCharset,
     onCharset: (TermCharset) -> Unit,
 ) {
@@ -485,6 +490,8 @@ private fun TopBar(
                     DropdownMenuItem(text = { Text("Clear screen and scrollback") }, onClick = { menu = false; onClear() })
                     DropdownMenuItem(text = { Text("Reset terminal") }, onClick = { menu = false; onReset() })
                     DropdownMenuItem(text = { Text("Full screen") }, onClick = { menu = false; onFullscreen() })
+                    HorizontalDivider()
+                    DropdownMenuItem(text = { Text("AT command reference") }, onClick = { menu = false; onAtReference() })
                 }
             }
         }
