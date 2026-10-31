@@ -26,6 +26,14 @@ val appAbis = providers.gradleProperty("dmodem.abis").orNull
     ?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }
     ?: listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
 
+// signing from the environment, as CI has it (android.yml): ANDROID_KEYSTORE_FILE (a PKCS12 keystore),
+// ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD (the store's if empty: PKCS12 has one).
+// Without them, debug builds take the SDK's own debug key and release builds are unsigned.
+val signingEnv = listOf("ANDROID_KEYSTORE_FILE", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD")
+    .associateWith { providers.environmentVariable(it).orNull?.takeIf { v -> v.isNotEmpty() } }
+val signingKeystore = signingEnv["ANDROID_KEYSTORE_FILE"]?.let { file(it) }?.takeIf { it.isFile }
+    ?.takeIf { signingEnv["ANDROID_KEYSTORE_PASSWORD"] != null && signingEnv["ANDROID_KEY_ALIAS"] != null }
+
 android {
     namespace = "org.dmodem.app.android"
     compileSdk = 37
@@ -74,8 +82,25 @@ android {
         }
     }
 
+    signingConfigs {
+        if (signingKeystore != null) {
+            // the one keystore CI gives both: its debug key for a pull request's builds, the release
+            // environment's for main's and tags' release build
+            for (name in listOf("debug", "release")) {
+                maybeCreate(name).apply {
+                    storeFile = signingKeystore
+                    storeType = "PKCS12"
+                    storePassword = signingEnv["ANDROID_KEYSTORE_PASSWORD"]
+                    keyAlias = signingEnv["ANDROID_KEY_ALIAS"]
+                    keyPassword = signingEnv["ANDROID_KEY_PASSWORD"] ?: signingEnv["ANDROID_KEYSTORE_PASSWORD"]
+                }
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (signingKeystore != null) signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
