@@ -180,6 +180,11 @@ this line.
   AT commands it needs before ATD, its character set and backspace; one
   tap starts the modem if it is off and dials.
 - **Log**: the modem's and SIP's log (Copy for all of it).
+- **AT commands** (Settings, AT commands, and the terminal's menu): the
+  AT command reference, D-Modem-RE's manual (`docs/at_commands.pdf`, the
+  A5 edition) in the app (`app/src/main/assets/docs`), its pages shown
+  in the app with a zoom, or opened in the phone's PDF app for its search
+  and its contents' links.
 - **Back**: from any other tab back to Home; on Home the app goes to the
   background (the modem keeps running), as the Home button would.
 - **Local Linux** (Settings, Linux): distributions installed and run
