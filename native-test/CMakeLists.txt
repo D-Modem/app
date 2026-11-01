@@ -47,7 +47,7 @@ gtest_discover_tests(engine_test TEST_PREFIX engine.
 # (the app's fax tests, FaxCallTest, call over it)
 find_package(Threads REQUIRED)
 add_executable(fax_line fax_line.cpp)
-target_include_directories(fax_line PRIVATE ${DMODEM_RE_DIR}/dmodemd)
+target_include_directories(fax_line PRIVATE ${DMODEM_RE_DMODEMD})
 target_compile_options(fax_line PRIVATE -Wall -Wextra -O2)
 target_link_libraries(fax_line PRIVATE dmodem_front dmodem_core dmodem_dsp
 	dmodem_link m Threads::Threads)
@@ -63,7 +63,7 @@ add_dependencies(sip_fax_line dmodemd)
 # t30_line: a class 1 modem on a line to D-Modem-RE's own T.30 fax machine
 # (with or without ECM, noise if asked): FaxCallTest's interop with it
 add_executable(t30_line t30_line.cpp)
-target_include_directories(t30_line PRIVATE ${DMODEM_RE_DIR}/dmodemd)
+target_include_directories(t30_line PRIVATE ${DMODEM_RE_DMODEMD})
 target_compile_options(t30_line PRIVATE -Wall -Wextra -O2)
 target_link_libraries(t30_line PRIVATE dmodem_front dmodem_core dmodem_dsp
 	dmodem_t30 dmodem_link m Threads::Threads)
@@ -81,7 +81,7 @@ target_compile_options(peer_host PRIVATE -Wall -Wextra)
 find_library(GSM_LIB gsm)
 find_library(AMRNB_LIB opencore-amrnb)
 add_executable(codec_line codec_line.cpp)
-target_include_directories(codec_line PRIVATE ${DMODEM_RE_DIR}/dmodemd)
+target_include_directories(codec_line PRIVATE ${DMODEM_RE_DMODEMD})
 target_compile_options(codec_line PRIVATE -Wall -Wextra -O2)
 target_link_libraries(codec_line PRIVATE dmodem_front dmodem_core dmodem_dsp
 	dmodem_link m Threads::Threads)
@@ -110,7 +110,7 @@ gtest_discover_tests(c_api_test TEST_PREFIX c_api. PROPERTIES TIMEOUT 120)
 # the release the app builds
 include(${CMAKE_CURRENT_SOURCE_DIR}/../app/src/main/cpp/usb/libusb.cmake)
 set(_app ${CMAKE_CURRENT_SOURCE_DIR}/../app/src/main/cpp)
-set(_dmd ${DMODEM_RE_DIR}/dmodemd)
+set(_dmd ${DMODEM_RE_DMODEMD})
 add_library(dmodem_engine_usb STATIC ${_app}/engine.cpp
 	${_app}/peer_modem.cpp ${_app}/dmodem_engine.cpp
 	${_app}/usb/usb_modem.cpp ${_dmd}/usb_line.cpp ${_dmd}/usb_agere.cpp ${_dmd}/usb_wb.cpp ${_dmd}/si3056.cpp
