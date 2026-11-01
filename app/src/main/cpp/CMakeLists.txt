@@ -17,6 +17,13 @@ if(NOT EXISTS ${DMODEM_RE_DIR}/CMakeLists.txt)
 	message(FATAL_ERROR "D-Modem-RE not found in ${DMODEM_RE_DIR}: "
 		"git submodule update --init")
 endif()
+# dmodemd's sources: D-Modem-RE's frontend/dmodemd (dmodemd/ in trees
+# from before frontend/ and platforms/)
+if(EXISTS ${DMODEM_RE_DIR}/frontend/dmodemd/CMakeLists.txt)
+	set(DMODEM_RE_DMODEMD ${DMODEM_RE_DIR}/frontend/dmodemd CACHE INTERNAL "")
+else()
+	set(DMODEM_RE_DMODEMD ${DMODEM_RE_DIR}/dmodemd CACHE INTERNAL "")
+endif()
 
 # only the modem on SIP: no tests, no PBX modules
 set(DMODEM_DMODEMD ON CACHE BOOL "" FORCE)
@@ -49,11 +56,11 @@ if(ANDROID)
 	include(usb/libusb.cmake)
 	target_sources(dmodem_engine PRIVATE usb/usb_modem.cpp
 		usb/usb_android.cpp usb/usb_transfers.cpp
-		${DMODEM_RE_DIR}/dmodemd/usb_line.cpp
-		${DMODEM_RE_DIR}/dmodemd/usb_agere.cpp
-		${DMODEM_RE_DIR}/dmodemd/usb_wb.cpp
-		${DMODEM_RE_DIR}/dmodemd/si3056.cpp)
-	set_source_files_properties(${DMODEM_RE_DIR}/dmodemd/usb_line.cpp
+		${DMODEM_RE_DMODEMD}/usb_line.cpp
+		${DMODEM_RE_DMODEMD}/usb_agere.cpp
+		${DMODEM_RE_DMODEMD}/usb_wb.cpp
+		${DMODEM_RE_DMODEMD}/si3056.cpp)
+	set_source_files_properties(${DMODEM_RE_DMODEMD}/usb_line.cpp
 		PROPERTIES COMPILE_DEFINITIONS
 		"libusb_init=dmodem_libusb_init;libusb_get_device_list=dmodem_libusb_get_device_list;libusb_open=dmodem_libusb_open;libusb_submit_transfer=dmodem_libusb_submit_transfer")
 	# (a special build, -Pdmodem.special=led-probe: the Agere's GPIOs
@@ -62,7 +69,7 @@ if(ANDROID)
 	if(DMODEM_SPECIAL STREQUAL "led-probe")
 		list(APPEND agere_defs DMODEM_AGERE_LED_PROBE)
 	endif()
-	set_source_files_properties(${DMODEM_RE_DIR}/dmodemd/usb_agere.cpp
+	set_source_files_properties(${DMODEM_RE_DMODEMD}/usb_agere.cpp
 		PROPERTIES COMPILE_DEFINITIONS "${agere_defs}")
 	target_compile_definitions(dmodem_engine PUBLIC DMODEM_ENGINE_USB)
 	target_link_libraries(dmodem_engine PUBLIC dmodem_android_libusb)
