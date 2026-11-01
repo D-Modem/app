@@ -31,8 +31,11 @@ jobs:
           submodules: recursive
           token: ${{ secrets.DMODEM_TOKEN || github.token }}
 
-      - name: Ninja
-        run: brew install ninja
+      # (Homebrew's downloads cached: .github/actions/brew)
+      - name: Ninja, XcodeGen
+        uses: ./.github/actions/brew
+        with:
+          packages: ninja xcodegen
 
       - uses: actions/setup-java@v4
         with:
@@ -62,7 +65,6 @@ jobs:
       # arm64 only: the shared Kotlin's XCFramework has no x86_64 simulator slice
       - name: The iOS app (simulator)
         run: |
-          brew install xcodegen
           cd ios/DModem && xcodegen generate
           xcodebuild -project DModem.xcodeproj -scheme DModem \
             -destination 'generic/platform=iOS Simulator' \

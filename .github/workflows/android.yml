@@ -8,6 +8,9 @@
 # release: the release APK and bundle (R8): signed with the release
 #   environment's key for main and v* tags, the debug key for a pull request.
 #
+# Packages: apt's downloads are cached (.github/actions/apt), keyed on
+# the runner image and the package list.
+#
 # D-Modem-RE is a private submodule: the DMODEM_TOKEN secret is a token
 # that can read it (a fine-grained personal access token with Contents:
 # read on D-Modem/D-Modem).
@@ -76,7 +79,11 @@ jobs:
             "ndk;$NDK_VERSION" "cmake;$CMAKE_VERSION" "platforms;android-37.0"
 
       - name: OpenSSH, PuTTY, mksh (the interop tests), gawk (proot's build)
-        run: sudo apt-get install -y -q openssh-client openssh-server putty-tools gawk mksh && sudo mkdir -p /run/sshd
+        uses: ./.github/actions/apt
+        with:
+          packages: openssh-client openssh-server putty-tools gawk mksh
+          recommends: 'true'
+      - run: sudo mkdir -p /run/sshd
       # the keystore from its secret, for the build (app/build.gradle.kts); none on a fork's pull request
       - name: Signing keystore
         env:
@@ -146,7 +153,9 @@ jobs:
             "ndk;$NDK_VERSION" "cmake;$CMAKE_VERSION" "platforms;android-37.0"
 
       - name: gawk (proot's build)
-        run: sudo apt-get install -y -q gawk
+        uses: ./.github/actions/apt
+        with:
+          packages: gawk
 
       # the keystore from its secret, for the build (app/build.gradle.kts); none on a fork's pull request
       - name: Signing keystore
@@ -192,9 +201,9 @@ jobs:
           token: ${{ secrets.DMODEM_TOKEN || github.token }}
 
       - name: Packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake ninja-build g++ libssl-dev libgtest-dev
+        uses: ./.github/actions/apt
+        with:
+          packages: cmake ninja-build g++ libssl-dev libgtest-dev
 
       - name: Build
         run: |
@@ -240,7 +249,9 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: gawk (proot's build)
-        run: sudo apt-get install -y -q gawk
+        uses: ./.github/actions/apt
+        with:
+          packages: gawk
 
       - name: KVM
         run: |
