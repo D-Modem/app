@@ -47,7 +47,7 @@ jobs:
     # (a hung test ends here, not at GitHub's 6 hours)
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
           token: ${{ secrets.DMODEM_TOKEN || github.token }}
@@ -60,17 +60,17 @@ jobs:
     # (a hung test ends here, not at GitHub's 6 hours)
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
           token: ${{ secrets.DMODEM_TOKEN || github.token }}
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v5
 
       - name: SDK packages
         run: |
@@ -118,7 +118,7 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           archive: false
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: reports
@@ -134,17 +134,17 @@ jobs:
     # anything else (a pull request) none, so the repository's debug key
     environment: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && 'release' || '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
           token: ${{ secrets.DMODEM_TOKEN || github.token }}
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v5
 
       - name: SDK packages
         run: |
@@ -182,7 +182,7 @@ jobs:
           tools=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           "$tools/apksigner" verify --print-certs app/build/outputs/apk/release/app-release.apk
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release
           path: |
@@ -195,7 +195,7 @@ jobs:
     # (a hung test ends here, not at GitHub's 6 hours)
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
           token: ${{ secrets.DMODEM_TOKEN || github.token }}
@@ -214,9 +214,9 @@ jobs:
         run: ctest --test-dir build-host --output-on-failure
 
       # the iOS app's DModemKit (its Swift) on this engine: Swift runs on Linux too
-      - uses: swift-actions/setup-swift@v2
-        with:
-          swift-version: "6.1"
+      # (the runner image's Swift: setup-swift still runs on Node 20)
+      - name: Swift
+        run: swift --version
 
       - name: DModemKit (Swift) on the engine
         run: swift test --package-path ios/DModemKit
@@ -236,17 +236,17 @@ jobs:
     # (a hung test ends here, not at GitHub's 6 hours)
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
           token: ${{ secrets.DMODEM_TOKEN || github.token }}
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v5
 
       - name: gawk (proot's build)
         uses: ./.github/actions/apt
@@ -275,7 +275,7 @@ jobs:
           # (the emulator's ABI only: the other three are the build job's)
           script: ./gradlew -Pdmodem.abis=x86_64 connectedDebugAndroidTest
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: device-reports
