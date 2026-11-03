@@ -52,8 +52,9 @@ class UsbSerialAdaptersTest {
     /** a USB modem and an unknown device get none */
     @Test
     fun notOthers() {
-        // the Agere USB modem (UsbModems'), and nothing in particular
+        // the Agere and Apple USB modems (UsbModems'), and nothing in particular
         assertNull(driver(0x047e, 0x2892))
+        assertNull(driver(0x05ac, 0x1401))
         assertNull(driver(0x1234, 0x5678))
         assertTrue(UsbSerialAdapters.known > 1000)
     }

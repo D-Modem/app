@@ -99,7 +99,10 @@ with caller ID, its ST7554 or ST75951 DAA), or a
 (1209:0002, a Si3056 DAA: caller ID on hook, and the country's line
 settings in its registers), or an Agere USB 2.0 soft modem (047E:2892,
 047E:2828: 8000 Hz, caller ID, on its ROM's own isochronous stream,
-nothing downloaded into it; a USB 2.0 port). The phone runs the modem; plugged into it
+nothing downloaded into it; a USB 2.0 port), or Apple's USB Modem for
+Macs (A1101, 05AC:1401: a Si3056 DAA, USB audio for its samples,
+`usb_apple.cpp`; caller ID and the country's line settings; not yet
+tried on a real one). The phone runs the modem; plugged into it
 (USB OTG) the stick is its line, with no SIP account or network. Settings,
 Line, "A phone line, through a USB modem"; Android asks once whether
 D-Modem may use it, and offers the app when one is plugged in.
@@ -123,7 +126,7 @@ allowed and gives its descriptor. libusb is built for Android in the app
 renamed to `usb/usb_android.cpp`'s, which start libusb without its device
 discovery and give it that descriptor, wrapped, as the only device on the
 bus. Tested on the build host on D-Modem-RE's fake pico-serial Line
-sticks and Agere modems, and simulated exchange (`native-test/usb_line_test.py`, its `agere` run on the ROM's isochronous stream: dialling,
+sticks, Agere modems and Apple USB Modems, and simulated exchange (`native-test/usb_line_test.py`, its `agere` run on the ROM's isochronous stream, its `apple` run on USB audio's streams: dialling,
 caller ID, answering, CONNECT 33600, data each way, hanging up, unplugged);
 not yet on a phone with a real stick. The phone's speaker isn't fed on
 this line.
