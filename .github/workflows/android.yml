@@ -5,8 +5,10 @@
 # device: the instrumented tests on an emulator (x86_64, the one ABI it
 #   builds): the native library loads, binds and answers AT commands.
 #
-# release: the release APK and bundle (R8): signed with the release
-#   environment's key for main and v* tags, the debug key for a pull request.
+# release: the release APK and bundle (R8), signed with the release
+#   environment's key: main, v* tags and a manual run only, not a pull
+#   request (its R8 build is the slow one; build's debug APK is what a
+#   pull request is tried with).
 #
 # Packages: apt's downloads are cached (.github/actions/apt), keyed on
 # the runner image and the package list.
@@ -127,6 +129,7 @@ jobs:
             app/build/test-results
 
   release:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     # (a hung build ends here, not at GitHub's 6 hours)
     timeout-minutes: 40
