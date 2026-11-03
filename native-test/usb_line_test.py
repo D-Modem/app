@@ -2,12 +2,13 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 Neo-Desktop
 #
-# usb_line_test.py <usb_host> <line_exchange> [agere]: the app's engine on
-# a USB modem's line (usb_modem.h), two of them (usb_host) on D-Modem-RE's
-# fake pico-serial Line sticks (or, agere, its fake Agere USB 2.0 soft
-# modems at 8000 Hz, on their ROM's isochronous stream) whose
-# lines are the simulated exchange's, 1001 and 1002 (as D-Modem-RE's
-# pico_line_test.py and agere_test.py run dmodemd --usb):
+# usb_line_test.py <usb_host> <line_exchange> [agere|apple]: the app's
+# engine on a USB modem's line (usb_modem.h), two of them (usb_host) on
+# D-Modem-RE's fake pico-serial Line sticks (or, agere, its fake Agere USB
+# 2.0 soft modems at 8000 Hz, on their ROM's isochronous stream; or,
+# apple, its fake Apple USB Modems) whose lines are the simulated
+# exchange's, 1001 and 1002 (as D-Modem-RE's pico_line_test.py,
+# agere_test.py and apple_test.py run dmodemd --usb):
 #
 # - each says what it's on (ATI3);
 # - 1001 dials 1002 (ATX4: after the dial tone, in DTMF); 1002 rings,
@@ -20,9 +21,11 @@ import os, re, shutil, subprocess, sys, tempfile, threading, time
 
 host, exchange = sys.argv[1], sys.argv[2]
 agere = len(sys.argv) > 3 and sys.argv[3] == "agere"
+apple = len(sys.argv) > 3 and sys.argv[3] == "apple"
 rate = "8000" if agere else "9600"
 tmp = tempfile.mkdtemp(prefix="dmodem-usb-line-")
-device = b"Agere USB 2.0 \\(Mercury\\)" if agere else b"pico-serial Line \\(Si3056\\)"
+device = (b"Agere USB 2.0 \\(Mercury\\)" if agere else b"Apple USB Modem \\(Si3056\\)" if apple
+          else b"pico-serial Line \\(Si3056\\)")
 
 procs = []
 events = []
@@ -43,6 +46,8 @@ class Modem:
         sock = os.path.join(tmp, n + ".sock")
         if agere:
             env = dict(os.environ, FAKE_AGERE_SOCKET=sock)
+        elif apple:
+            env = dict(os.environ, FAKE_APPLE_SOCKET=sock)
         else:
             env = dict(os.environ, FAKE_PICO_LINE_SOCKET=sock)
         self.p = subprocess.Popen([host, rate], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
