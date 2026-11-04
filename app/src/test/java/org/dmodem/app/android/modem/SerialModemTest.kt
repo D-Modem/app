@@ -61,6 +61,7 @@ class SerialModemTest {
     fun statusFromCarrierAndResults() {
         val seen = mutableListOf<NativeModem.Status>()
         val r = ResultCodeStatus { seen += it }
+        /** [s] fed to the status as the modem's output */
         fun say(s: String) = s.toByteArray().let { r.feed(it, it.size) }
         r.carrier(true)
         assertEquals(NativeModem.Status(NativeModem.Link.ONLINE, true, 0, 0), seen.last())
