@@ -242,6 +242,9 @@ class LinuxSystem(
     /** the modem's pty here (its slave's path), bound in as /dev/ttyDM0; null without one */
     var modemTty: () -> String? = { runCatching { org.dmodem.app.android.bridge.Bridges.tty.slave() }.getOrNull() }
 
+    /** a USB serial adapter's pty here (its slave's path), bound in as /dev/ttyUSB0; null without one */
+    var serialTty: () -> String? = { null }
+
     /** proot's command: the system's login shell, as root, in /root */
     fun command(): List<String> {
         val shell = loginShell()
@@ -260,6 +263,8 @@ class LinuxSystem(
         storage()?.let { c.addAll(listOf("-b", "${it.path}:/sdcard")) }
         // the modem as a serial port (/dev/ttyDM0: minicom, pppd, efax ...)
         modemTty()?.let { c.addAll(listOf("-b", "$it:${org.dmodem.app.android.bridge.ModemTty.PATH}")) }
+        // a USB serial adapter plugged into the phone as a serial port (/dev/ttyUSB0)
+        serialTty()?.let { c.addAll(listOf("-b", "$it:${org.dmodem.app.android.bridge.SerialTty.PATH}")) }
         c.addAll(listOf("-w", "/root", "/usr/bin/env", "-i"))
         val env = linkedMapOf(
             "HOME" to "/root",

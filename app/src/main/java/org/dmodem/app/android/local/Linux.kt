@@ -75,7 +75,10 @@ object Linux {
     /** the system with [id] (installed or not), where [place] has it */
     fun system(context: Context, id: String): LinuxSystem {
         val p = place(context.applicationContext)
-        return LinuxSystem(File(p.root, id), p.programDir, p.tmpDir, p.storage, p.nameServers, p.extraEnv)
+        val app = context.applicationContext
+        return LinuxSystem(File(p.root, id), p.programDir, p.tmpDir, p.storage, p.nameServers, p.extraEnv).also { s ->
+            s.serialTty = { runCatching { org.dmodem.app.android.bridge.Bridges.usbTty(app).slave() }.getOrNull() }
+        }
     }
 
     /** the systems installed, the first installed first */

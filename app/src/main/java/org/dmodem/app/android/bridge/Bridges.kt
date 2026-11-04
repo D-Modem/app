@@ -33,6 +33,27 @@ object Bridges {
     /** the modem as /dev/ttyDM0 in the local Linux: a client of the serial bridge too */
     val tty = ModemTty(serial) { ModemState.log.add("bridge: $it") }
 
+    private var usbTty: SerialTty? = null
+
+    /**
+     * a USB serial adapter as /dev/ttyUSB0 in the local Linux (one no one else has, opened as a program
+     * opens the port), made the first time
+     */
+    @Synchronized
+    fun usbTty(context: Context): SerialTty = usbTty ?: run {
+        val app = context.applicationContext
+        val log: (String) -> Unit = { ModemState.log.add("linux: $it") }
+        SerialTty(SerialTty.PATH, { f ->
+            when (val o = kotlinx.coroutines.runBlocking { SerialAdapters.open(app, "the local Linux's ${SerialTty.PATH}", f) }) {
+                is SerialAdapters.Opened.Line -> o.line
+                is SerialAdapters.Opened.Failed -> {
+                    log("${SerialTty.PATH}: ${o.why}")
+                    null
+                }
+            }
+        }, log).also { usbTty = it }
+    }
+
     private val _tcp = MutableStateFlow<TcpBridge.State>(TcpBridge.State.Stopped)
     val tcpState: StateFlow<TcpBridge.State> = _tcp.asStateFlow()
     private val _bt = MutableStateFlow<BluetoothBridge.State>(BluetoothBridge.State.Stopped)

@@ -132,6 +132,20 @@ fun TerminalScreen(
             if (!session.sendFiles(proto, files)) Toast.makeText(context, "A transfer is running already", Toast.LENGTH_SHORT).show()
         }
     }
+    /** the app's PPP on the call the modem has now (logged in by hand), the phone's traffic through it; why not in a toast */
+    fun startPpp() {
+        val app = context.applicationContext
+        scope.launch {
+            val isp = org.dmodem.app.android.settings.IspSettingsStore(app).current()
+            org.dmodem.app.android.ppp.Internet.connect(isp, dial = false) { cfg -> org.dmodem.app.android.ppp.PppVpnService.open(app, cfg) }
+                ?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+                ?: Toast.makeText(context, "PPP started on the call: Home shows the connection", Toast.LENGTH_SHORT).show()
+        }
+    }
+    // the system's VPN consent, the first time
+    val pppConsent = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        if (r.resultCode == android.app.Activity.RESULT_OK) startPpp() else Toast.makeText(context, "The VPN wasn't allowed", Toast.LENGTH_LONG).show()
+    }
     // the remote's rz waiting: files to pick for it
     DisposableEffect(session) {
         session.onSendWanted = { proto ->
@@ -215,6 +229,10 @@ fun TerminalScreen(
                         Terminal.close(session)
                     }
                 },
+                onStartPpp = if (isModem && status.link == NativeModem.Link.ONLINE) ({
+                    val ask = android.net.VpnService.prepare(context)
+                    if (ask != null) pppConsent.launch(ask) else startPpp()
+                }) else null,
                 onClear = { session.clear() },
                 onReset = { session.reset() },
                 onFullscreen = { onFullscreen(true) },
@@ -430,7 +448,7 @@ private fun barText(
     return if (title.isNotBlank()) "$state — $title" else state
 }
 
-/** the terminal's bar: its line, the keyboard, snippets and capture buttons, and a menu of the rest (hang up, paste, new shells, files, character set, clear, reset, full screen, the AT command reference) */
+/** the terminal's bar: its line, the keyboard, snippets and capture buttons, and a menu of the rest (hang up, start PPP, paste, new shells, files, character set, clear, reset, full screen, the AT command reference) */
 @Composable
 private fun TopBar(
     text: String,
@@ -447,6 +465,8 @@ private fun TopBar(
     onReceiveFiles: () -> Unit,
     onCapture: () -> Unit,
     onHangUp: () -> Unit,
+    /** PPP started on the modem's call (dialled and logged in by hand): null when the modem isn't online */
+    onStartPpp: (() -> Unit)?,
     onClear: () -> Unit,
     onReset: () -> Unit,
     onFullscreen: () -> Unit,
@@ -471,6 +491,9 @@ private fun TopBar(
                 IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "More") }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(text = { Text(if (isModem) "Hang up" else "Disconnect") }, onClick = { menu = false; onHangUp() })
+                    if (onStartPpp != null) {
+                        DropdownMenuItem(text = { Text("Start PPP (the internet on this call)") }, onClick = { menu = false; onStartPpp() })
+                    }
                     DropdownMenuItem(text = { Text("Paste") }, onClick = { menu = false; onPaste() })
                     DropdownMenuItem(text = { Text("New local shell") }, onClick = { menu = false; onNewShell() })
                     DropdownMenuItem(text = { Text("New Linux shell…") }, onClick = { menu = false; onNewLinux() })

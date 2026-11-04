@@ -125,7 +125,9 @@ fun LinuxSection(onOpened: () -> Unit = {}) {
         if (systems.isNotEmpty()) {
             Text(
                 "In each: /root is home, /sdcard the phone's storage, and /dev/ttyDM0 the modem as a serial port " +
-                    "(minicom -D /dev/ttyDM0, pppd, efax: the program that opens it has the modem until it closes it).",
+                    "(minicom -D /dev/ttyDM0, pppd, efax: the program that opens it has the modem until it closes it). " +
+                    "A USB serial adapter plugged into the phone is /dev/ttyUSB0 (the speed and RTS/CTS as the program sets " +
+                    "them; 8 data bits, no parity; closing it drops DTR). Android asks once whether D-Modem may use it.",
                 style = MaterialTheme.typography.bodySmall,
             )
         }

@@ -71,12 +71,13 @@ object Internet {
         _state.value = _state.value?.let(f)
     }
 
-    /** why it can't start now, or null */
-    fun busy(): String? = when {
+    /** why it can't start now, or null; [dial]: it dials (the modem on hook), else it takes the call there is (online) */
+    fun busy(dial: Boolean = true): String? = when {
         ModemState.run.value != ModemState.Run.RUNNING -> "the modem is off"
         running -> "it's connected already"
         Fax.running -> "a fax call is going on"
-        ModemState.status.value.offhook -> "the modem is in a call"
+        dial && ModemState.status.value.offhook -> "the modem is in a call"
+        !dial && ModemState.status.value.link != NativeModem.Link.ONLINE -> "no call to start PPP on: dial and log in first"
         Bridges.serial.client.value != null -> "the modem is in use by ${Bridges.serial.client.value?.name}"
         else -> null
     }
@@ -85,11 +86,13 @@ object Internet {
      * the ISP dialled and PPP brought up; [openTunnel] gets the link's
      * address and DNS servers (its packets to [sendIp]): null when it
      * can't (the link comes down again). Null when it has started, else
-     * why it can't.
+     * why it can't. Not [dial]: PPP started on the call the modem has now
+     * (dialled and logged in by hand in the terminal), the ISP's user and
+     * password for PPP's own login if it asks; PPP's end hangs it up.
      */
-    fun connect(isp: IspSettings, openTunnel: (Ppp.IpConfig) -> Tunnel?): String? {
-        busy()?.let { return it }
-        if (!isp.complete) return "no number for the ISP"
+    fun connect(isp: IspSettings, dial: Boolean = true, openTunnel: (Ppp.IpConfig) -> Tunnel?): String? {
+        busy(dial)?.let { return it }
+        if (dial && !isp.complete) return "no number for the ISP"
         val hub = ModemState.dte
         lateinit var listener: TerminalLink.Listener
         val io = TransferIo { b -> if (!hub.writeAs(listener, b)) throw IOException("the modem has gone") }
@@ -98,26 +101,15 @@ object Internet {
         if (!hub.claim(listener)) return "the modem is in use"
         line = io
         stopping = false
-        _state.value = State("Dialling ${isp.number}")
+        _state.value = if (dial) State("Dialling ${isp.number}") else State("Starting PPP", connect = "CONNECT")
         Thread({
             var why: String? = null
-            var online = false
+            var online = !dial
             try {
-                val c = Class1(io) { ModemState.log.add("internet: $it") }
-                // (data mode; X3: a SIP line has no dial tone)
-                if (c.command("E0V1X3+FCLASS=0") != "OK") throw IOException("the modem didn't answer")
-                for (cmd in isp.initCommands.split(Regex("[\\r\\n;]+")).map { it.trim() }.filter { it.isNotEmpty() }) {
-                    c.command(cmd.removePrefix("AT").removePrefix("at"))
-                }
-                val r = c.command("D${isp.number}", 90_000)
-                if (r == null || !r.startsWith("CONNECT")) throw IOException(dialResult(r))
-                online = true
-                set { it.copy(phase = "Logging in", connect = r) }
-                // the ISP's login script first, if it has one (a text login before PPP)
-                if (isp.script.isNotBlank()) {
-                    set { it.copy(phase = "Running the login script") }
-                    ChatScript(isp.script, isp.user, isp.password).run(io) { ModemState.log.add("script: $it") }
-                    set { it.copy(phase = "Logging in") }
+                if (dial) {
+                    dialIsp(isp, io) { online = true }
+                } else {
+                    ModemState.log.add("internet: PPP on the call the modem has")
                 }
                 val done = java.util.concurrent.CountDownLatch(1)
                 val p = Ppp(
@@ -181,6 +173,29 @@ object Internet {
             }
         }, "internet").apply { isDaemon = true; start() }
         return null
+    }
+
+    /**
+     * the ISP dialled on [io] (the modem's, claimed), [onConnect] told at its CONNECT, and its login script
+     * (if any) run; an IOException saying why if it doesn't connect
+     */
+    private fun dialIsp(isp: IspSettings, io: TransferIo, onConnect: () -> Unit) {
+        val c = Class1(io) { ModemState.log.add("internet: $it") }
+        // (data mode; X3: a SIP line has no dial tone)
+        if (c.command("E0V1X3+FCLASS=0") != "OK") throw IOException("the modem didn't answer")
+        for (cmd in isp.initCommands.split(Regex("[\\r\\n;]+")).map { it.trim() }.filter { it.isNotEmpty() }) {
+            c.command(cmd.removePrefix("AT").removePrefix("at"))
+        }
+        val r = c.command("D${isp.number}", 90_000)
+        if (r == null || !r.startsWith("CONNECT")) throw IOException(dialResult(r))
+        onConnect()
+        set { it.copy(phase = "Logging in", connect = r) }
+        // the ISP's login script first, if it has one (a text login before PPP)
+        if (isp.script.isNotBlank()) {
+            set { it.copy(phase = "Running the login script") }
+            ChatScript(isp.script, isp.user, isp.password).run(io) { ModemState.log.add("script: $it") }
+            set { it.copy(phase = "Logging in") }
+        }
     }
 
     /** a packet from the phone (the VPN's) to the link */

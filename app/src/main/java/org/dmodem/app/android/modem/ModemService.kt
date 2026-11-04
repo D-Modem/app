@@ -64,6 +64,8 @@ class ModemService : Service() {
         private const val CALL_NOTIFICATION_ID = 3
         private const val NOTIFICATION_ID = 1
         private const val DATA_FILE = "dsp_data"
+        /** the modem's line, as SerialAdapters says who has an adapter */
+        private const val SERIAL_WHO = "the modem's line"
         /** the speaker's sound socket, kept open for the process's life */
         @Volatile private var speakerSocket: android.os.ParcelFileDescriptor? = null
 
@@ -93,9 +95,9 @@ class ModemService : Service() {
     /** the USB modem that's the line (LINE_USB), open while the modem runs */
     private var usbModem: UsbModems.Opened.Device? = null
 
-    /** the Bluetooth modem's connection (LINE_BT_MODEM), in place of D-Modem's modem while it runs */
+    /** a modem of its own's connection (a Bluetooth modem's socket, a serial adapter's port), in place of D-Modem's modem while it runs */
     @Volatile
-    private var btSocket: android.bluetooth.BluetoothSocket? = null
+    private var external: java.io.Closeable? = null
     private var btWatch: kotlinx.coroutines.Job? = null
     private val btStatus = ResultCodeStatus { ModemState.setStatus(it) }
     private val btResults = org.dmodem.app.android.terminal.TerminalLink.Listener { d, n -> btStatus.feed(d, n) }
@@ -241,6 +243,7 @@ class ModemService : Service() {
     /** the native modem on the default network now, its DTE on the hub, the init commands sent */
     private fun startNative(): Boolean {
         if (settings.btModem) return startBtModem()
+        if (settings.serialModem) return startSerialModem()
         val cm = getSystemService(ConnectivityManager::class.java)
         val net = cm.activeNetwork
         val lp = net?.let { cm.getLinkProperties(it) }
@@ -374,11 +377,7 @@ class ModemService : Service() {
         }
     }
 
-    /**
-     * The Bluetooth modem connected in place of D-Modem's modem: what's written to the modem goes to it,
-     * what it says to the terminal, the internet and fax; the status from its result codes. Its line's
-     * own tones: no tones of the app's. Its connection dropping: connected again once, else the modem stops.
-     */
+    /** The Bluetooth modem connected in place of D-Modem's modem ([startExternal]). */
     private fun startBtModem(): Boolean {
         stopping = false
         val name = settings.btModemName.ifBlank { settings.btModemAddress }
@@ -389,8 +388,39 @@ class ModemService : Service() {
             ModemState.setError("the Bluetooth modem $name: ${e.message}")
             return false
         }
-        btSocket = s
-        ModemState.dte.attach(s.inputStream, s.outputStream)
+        return startExternal(s, s.inputStream, s.outputStream, "the Bluetooth modem's")
+    }
+
+    /**
+     * A modem on a USB serial adapter in place of D-Modem's modem (the first adapter no one else has,
+     * Android asked first if need be), as a Bluetooth modem is: its result codes and its DCD the status.
+     */
+    private fun startSerialModem(): Boolean {
+        stopping = false
+        val f = org.dmodem.app.android.bridge.SerialFormat(settings.serialModemBaud)
+        val o = runBlocking { org.dmodem.app.android.bridge.SerialAdapters.open(this@ModemService, SERIAL_WHO, f) }
+        if (o is org.dmodem.app.android.bridge.SerialAdapters.Opened.Failed) {
+            ModemState.setError("the modem on a USB serial adapter: ${o.why}")
+            return false
+        }
+        val m = SerialModem((o as org.dmodem.app.android.bridge.SerialAdapters.Opened.Line).line)
+        log("the modem: a modem on ${m.name} at $f" + if (settings.serialModemRtsCts) ", RTS/CTS" else "")
+        m.start(settings.serialModemRtsCts, ::log) { on ->
+            log("the modem's DCD " + if (on) "on" else "off")
+            btStatus.carrier(on)
+        }
+        return startExternal(m, m.input, m.output, "the serial adapter's")
+    }
+
+    /**
+     * A modem of its own connected ([conn], its streams [input] and [output]): what's written to the modem
+     * goes to it, what it says to the terminal, the internet and fax; the status from its result codes.
+     * Its line's own tones: no tones of the app's. Its connection dropping ([what] connection): connected
+     * again once, else the modem stops.
+     */
+    private fun startExternal(conn: java.io.Closeable, input: java.io.InputStream, output: java.io.OutputStream, what: String): Boolean {
+        external = conn
+        ModemState.dte.attach(input, output)
         ModemState.setStatus(ModemState.IDLE)
         ModemState.speaker.enabled = false
         ModemState.tones.enabled = false
@@ -406,7 +436,7 @@ class ModemService : Service() {
         btWatch = scope.launch {
             // (the reader's end: the connection gone, not by our stop)
             ModemState.dte.state.first { it is org.dmodem.app.android.terminal.TerminalLink.State.Closed && !stopping }
-            log("the Bluetooth modem's connection dropped: connecting again")
+            log("$what connection dropped: connecting again")
             restart()
         }
         return true
@@ -426,9 +456,9 @@ class ModemService : Service() {
         callNotification(null)
         ModemState.speaker.setLevel(0)
         org.dmodem.app.android.peer.Peers.stop()
-        // (a Bluetooth modem's connection, or D-Modem's modem)
-        btSocket?.let { s -> runCatching { s.close() } } ?: NativeModem.stop()
-        btSocket = null
+        // (a modem of its own's connection, or D-Modem's modem)
+        external?.let { s -> runCatching { s.close() } } ?: NativeModem.stop()
+        external = null
         // (the device let go once the modem has)
         usbModem?.connection?.close()
         usbModem = null
@@ -607,6 +637,7 @@ class ModemService : Service() {
                 ModemSettings.LINE_NONE -> " (no line)"
                 ModemSettings.LINE_USB -> " (line: the ${usbModem?.kind?.label ?: "USB modem"})"
                 ModemSettings.LINE_BT_MODEM -> " (the Bluetooth modem ${settings.btModemName.ifBlank { settings.btModemAddress }})"
+                ModemSettings.LINE_SERIAL_MODEM -> " (the modem on the USB serial adapter)"
                 else -> ""
             }
         }
@@ -633,7 +664,7 @@ class ModemService : Service() {
     private fun callerOfLine(): String = when (settings.line) {
         ModemSettings.LINE_WIFI, ModemSettings.LINE_BLUETOOTH -> "The other phone"
         ModemSettings.LINE_CELL -> "A mobile call"
-        ModemSettings.LINE_USB, ModemSettings.LINE_BT_MODEM -> "A call on the phone line"
+        ModemSettings.LINE_USB, ModemSettings.LINE_BT_MODEM, ModemSettings.LINE_SERIAL_MODEM -> "A call on the phone line"
         else -> "A SIP call"
     }
 

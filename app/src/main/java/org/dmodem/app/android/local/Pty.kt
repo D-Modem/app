@@ -43,6 +43,12 @@ object Pty {
     /** a pty with no program on it, its slave raw (the modem's /dev/ttyDM0): the master's fd */
     @JvmStatic external fun openPort(): Int
 
+    /**
+     * what the program on the slave of master [fd] set its port to: bit/s (0 for a rate it doesn't name),
+     * stop bits, RTS/CTS (1 on), DTR (0 after B0, its hang-up); null if it can't be read
+     */
+    @JvmStatic external fun termios(fd: Int): IntArray?
+
     /** the slave's path of master [fd] (/dev/pts/N) */
     @JvmStatic external fun ptsName(fd: Int): String?
 

@@ -57,14 +57,30 @@ object BluetoothModem {
 }
 
 /**
- * The status of a modem that says only its result codes (a Bluetooth modem's): online from its CONNECT
- * (and its speed), idle again from NO CARRIER, BUSY, NO DIALTONE or NO ANSWER. Fed what the modem sends.
+ * The status of a modem that says only its result codes (a Bluetooth modem's, a serial adapter's): online
+ * from its CONNECT (and its speed), idle again from NO CARRIER, BUSY, NO DIALTONE or NO ANSWER. Fed what
+ * the modem sends, and its DCD where there is one.
  */
 class ResultCodeStatus(private val onStatus: (NativeModem.Status) -> Unit) {
     private val line = StringBuilder()
     private var status = ModemState.IDLE
 
+    /** the modem's DCD (a serial adapter's modem): on is online (at the speed its CONNECT said, if it did), off idle */
+    @Synchronized
+    fun carrier(on: Boolean) {
+        val next = when {
+            !on -> ModemState.IDLE
+            status.link == NativeModem.Link.ONLINE -> status
+            else -> NativeModem.Status(NativeModem.Link.ONLINE, true, 0, 0)
+        }
+        if (next != status) {
+            status = next
+            onStatus(next)
+        }
+    }
+
     /** what the modem sent, [length] octets of [data], read a line at a time for its result codes */
+    @Synchronized
     fun feed(data: ByteArray, length: Int) {
         for (i in 0 until length) {
             val c = data[i].toInt() and 0xff

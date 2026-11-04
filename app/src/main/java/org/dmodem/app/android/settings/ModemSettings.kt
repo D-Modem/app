@@ -65,6 +65,9 @@ data class ModemSettings(
     /** the Bluetooth modem's (LINE_BT_MODEM): the paired device's address, its name to show */
     val btModemAddress: String = "",
     val btModemName: String = "",
+    /** the modem on a USB serial adapter's (LINE_SERIAL_MODEM): the adapter's speed, and RTS/CTS flow control (8N1) */
+    val serialModemBaud: Int = 115200,
+    val serialModemRtsCts: Boolean = true,
     /** each call on a USB modem's line recorded (LineRecordings), for a bug report */
     val recordLine: Boolean = false,
     /** a USB modem's line: the modem's sound to it louder or softer, dB (-20 to 20; D-Modem-RE's DMODEM_USB_TX_GAIN) */
@@ -82,7 +85,7 @@ data class ModemSettings(
         }
 
     /** the line is another phone (or this phone's mobile calls, or none), not SIP: the app carries its samples */
-    val peer: Boolean get() = line != LINE_SIP && line != LINE_USB && line != LINE_BT_MODEM
+    val peer: Boolean get() = line != LINE_SIP && line != LINE_USB && line != LINE_BT_MODEM && line != LINE_SERIAL_MODEM
 
     /** the line is a SIP account's */
     val sip: Boolean get() = line == LINE_SIP
@@ -92,6 +95,9 @@ data class ModemSettings(
 
     /** a modem of its own on Bluetooth (BluetoothModem) in place of D-Modem's: it has the line */
     val btModem: Boolean get() = line == LINE_BT_MODEM
+
+    /** a modem of its own on a USB serial adapter (SerialModem) in place of D-Modem's: it has the line */
+    val serialModem: Boolean get() = line == LINE_SERIAL_MODEM
 
     /** no line at all: the modem on its own (AT commands, the terminal, the bridges); a dial gets NO DIALTONE */
     val noLine: Boolean get() = line == LINE_NONE
@@ -120,6 +126,9 @@ data class ModemSettings(
         const val LINE_NONE = "none"
         const val LINE_USB = "usb"
         const val LINE_BT_MODEM = "bt_modem"
+        const val LINE_SERIAL_MODEM = "serial_modem"
+        /** the speeds offered for a serial adapter's modem */
+        val SERIAL_SPEEDS = listOf(2400, 9600, 19200, 38400, 57600, 115200, 230400)
         /** the mobile-call line's V.cvm (D-Modem-RE's +MS=VCVM) */
         const val CELL_VCVM = "VCVM"
 
@@ -168,6 +177,8 @@ class SettingsStore(private val context: Context) {
         val cellSpeed = stringPreferencesKey("cell_speed")
         val btModemAddress = stringPreferencesKey("bt_modem_address")
         val btModemName = stringPreferencesKey("bt_modem_name")
+        val serialModemBaud = intPreferencesKey("serial_modem_baud")
+        val serialModemRtsCts = booleanPreferencesKey("serial_modem_rtscts")
         val recordLine = booleanPreferencesKey("record_line")
         val usbTxGain = intPreferencesKey("usb_tx_gain")
         val usbTxAuto = booleanPreferencesKey("usb_tx_auto")
@@ -200,6 +211,8 @@ class SettingsStore(private val context: Context) {
             cellSpeed = (p[Keys.cellSpeed] ?: d.cellSpeed).let { if (it == "V_CVM") ModemSettings.CELL_VCVM else it },
             btModemAddress = p[Keys.btModemAddress] ?: d.btModemAddress,
             btModemName = p[Keys.btModemName] ?: d.btModemName,
+            serialModemBaud = p[Keys.serialModemBaud] ?: d.serialModemBaud,
+            serialModemRtsCts = p[Keys.serialModemRtsCts] ?: d.serialModemRtsCts,
             recordLine = p[Keys.recordLine] ?: d.recordLine,
             usbTxGain = p[Keys.usbTxGain] ?: d.usbTxGain,
             usbTxAuto = p[Keys.usbTxAuto] ?: d.usbTxAuto,
@@ -235,6 +248,8 @@ class SettingsStore(private val context: Context) {
             p[Keys.cellSpeed] = s.cellSpeed
             p[Keys.btModemAddress] = s.btModemAddress
             p[Keys.btModemName] = s.btModemName
+            p[Keys.serialModemBaud] = s.serialModemBaud
+            p[Keys.serialModemRtsCts] = s.serialModemRtsCts
             p[Keys.recordLine] = s.recordLine
             p[Keys.usbTxGain] = s.usbTxGain.coerceIn(-20, 20)
             p[Keys.usbTxAuto] = s.usbTxAuto

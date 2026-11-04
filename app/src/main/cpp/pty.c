@@ -306,6 +306,48 @@ Java_org_dmodem_app_android_local_Pty_openPort(JNIEnv *env, jclass cls)
 	return m;
 }
 
+/* a baud rate's speed_t as bit/s (0 for one not listed) */
+static int baud_of(speed_t s)
+{
+	static const struct { speed_t s; int bps; } t[] = {
+		{ B50, 50 }, { B75, 75 }, { B110, 110 }, { B134, 134 }, { B150, 150 }, { B200, 200 },
+		{ B300, 300 }, { B600, 600 }, { B1200, 1200 }, { B1800, 1800 }, { B2400, 2400 },
+		{ B4800, 4800 }, { B9600, 9600 }, { B19200, 19200 }, { B38400, 38400 },
+		{ B57600, 57600 }, { B115200, 115200 }, { B230400, 230400 }, { B460800, 460800 },
+		{ B500000, 500000 }, { B576000, 576000 }, { B921600, 921600 }, { B1000000, 1000000 },
+	};
+	for (size_t i = 0; i < sizeof t / sizeof t[0]; i++)
+		if (t[i].s == s)
+			return t[i].bps;
+	return 0;
+}
+
+/*
+ * termios(fd): what the program on the slave of master fd set its port to
+ * (Linux's TCGETS on a master reads its slave's): { bit/s, stop bits,
+ * RTS/CTS (1 or 0), DTR wanted (0 after B0, else 1) }, or null. A pty keeps
+ * no character size or parity (it is always CS8, no parity).
+ */
+JNIEXPORT jintArray JNICALL
+Java_org_dmodem_app_android_local_Pty_termios(JNIEnv *env, jclass cls, jint fd)
+{
+	(void)cls;
+	struct termios t;
+	if (tcgetattr(fd, &t) != 0)
+		return NULL;
+	speed_t sp = cfgetospeed(&t);
+	jint v[4] = {
+		baud_of(sp),
+		(t.c_cflag & CSTOPB) ? 2 : 1,
+		(t.c_cflag & CRTSCTS) ? 1 : 0,
+		sp == B0 ? 0 : 1,
+	};
+	jintArray a = (*env)->NewIntArray(env, 4);
+	if (a != NULL)
+		(*env)->SetIntArrayRegion(env, a, 0, 4, v);
+	return a;
+}
+
 /* the slave's path of master fd (/dev/pts/N), or null */
 JNIEXPORT jstring JNICALL
 Java_org_dmodem_app_android_local_Pty_ptsName(JNIEnv *env, jclass cls, jint fd)
