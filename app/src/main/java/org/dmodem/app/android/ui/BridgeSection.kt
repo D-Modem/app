@@ -25,7 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,16 +51,16 @@ import java.net.NetworkInterface
 fun BridgeSection() {
     val context = LocalContext.current
     val store = remember { BridgeSettingsStore(context.applicationContext) }
-    val scope = rememberCoroutineScope()
     val current by store.settings.collectAsStateWithLifecycle(initialValue = null)
     val s = current ?: return
     /** [f] applied to the stored settings, the internet host's service brought in line with them */
     fun change(f: (BridgeSettings) -> BridgeSettings) {
-        scope.launch {
+        val app = context.applicationContext
+        SettingsSaving.scope.launch {
             store.update(f)
             // (internet mode: its own service, on or off again as the settings now are)
             val now = store.current()
-            if (now.internet && now.anyOn) runCatching { org.dmodem.app.android.bridge.HostService.update(context) }
+            if (now.internet && now.anyOn) runCatching { org.dmodem.app.android.bridge.HostService.update(app) }
         }
     }
     val run by ModemState.run.collectAsStateWithLifecycle()
@@ -80,7 +80,6 @@ fun BridgeSection() {
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Serial port for other devices", style = MaterialTheme.typography.titleMedium)
         Text(
             if (s.internet) {
                 "Computers dial the phone as if it were their ISP's modem (ATDT anything, or a direct cable " +
@@ -313,20 +312,32 @@ private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** a field whose value is used when Set is pressed (a port half typed isn't listened on) */
+/** a field whose value is used a moment after typing stops, or on Done, or when the page closes
+ *  (so a port half typed isn't listened on); [onSet] ignores a value that isn't valid */
 @Composable
 private fun Applied(label: String, value: String, number: Boolean = false, password: Boolean = false, onSet: (String) -> Unit) {
     var text by remember(value) { mutableStateOf(value) }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(
-            value = text,
-            onValueChange = { text = if (number) it.filter(Char::isDigit).take(5) else it },
-            label = { Text(label) },
-            singleLine = true,
-            visualTransformation = if (password) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-            keyboardOptions = KeyboardOptions(keyboardType = if (number) KeyboardType.Number else if (password) KeyboardType.Password else KeyboardType.Text),
-            modifier = Modifier.weight(1f),
-        )
-        Button(onClick = { onSet(text) }, enabled = text != value) { Text("Set") }
+    val latest by androidx.compose.runtime.rememberUpdatedState(text to value)
+    val set by androidx.compose.runtime.rememberUpdatedState(onSet)
+    LaunchedEffect(text) {
+        if (text == value) return@LaunchedEffect
+        kotlinx.coroutines.delay(1500)
+        set(text)
     }
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose { latest.let { (t, v) -> if (t != v) set(t) } }
+    }
+    OutlinedTextField(
+        value = text,
+        onValueChange = { text = if (number) it.filter(Char::isDigit).take(5) else it },
+        label = { Text(label) },
+        singleLine = true,
+        visualTransformation = if (password) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+        keyboardOptions = KeyboardOptions(
+            keyboardType = if (number) KeyboardType.Number else if (password) KeyboardType.Password else KeyboardType.Text,
+            imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+        ),
+        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { if (text != value) onSet(text) }),
+        modifier = Modifier.fillMaxWidth(),
+    )
 }

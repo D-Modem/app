@@ -33,7 +33,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -190,17 +189,15 @@ private fun open(context: Context, name: String) {
 fun FaxSettingsSection() {
     val context = LocalContext.current
     val store = remember { FaxSettingsStore(context.applicationContext) }
-    val scope = rememberCoroutineScope()
     val current by store.settings.collectAsStateWithLifecycle(initialValue = null)
     val s = current ?: return
     var ident by remember(s.ident) { mutableStateOf(s.ident) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Fax", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
             value = ident,
             onValueChange = { v ->
                 ident = v.filter { it.isDigit() || it == '+' || it == ' ' }.take(20)
-                scope.launch { store.update { it.copy(ident = ident) } }
+                SettingsSaving.scope.launch { store.update { it.copy(ident = ident) } }
             },
             label = { Text("This fax's number (sent to the other machine)") }, singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth(),
@@ -210,23 +207,23 @@ fun FaxSettingsSection() {
                 if (ModemState.adaptiveAnswer) "Answer every call that rings (a fax machine's as a fax)" else "Answer calls that ring as faxes",
                 Modifier.weight(1f),
             )
-            Switch(checked = s.answer, onCheckedChange = { v -> scope.launch { store.update { it.copy(answer = v) } } })
+            Switch(checked = s.answer, onCheckedChange = { v -> SettingsSaving.scope.launch { store.update { it.copy(answer = v) } } })
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Fine resolution (196 lines per inch)", Modifier.weight(1f))
-            Switch(checked = s.fine, onCheckedChange = { v -> scope.launch { store.update { it.copy(fine = v) } } })
+            Switch(checked = s.fine, onCheckedChange = { v -> SettingsSaving.scope.launch { store.update { it.copy(fine = v) } } })
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Error correction (ECM)")
                 Text("What a noisy line spoils is sent again, when the other machine can", style = MaterialTheme.typography.bodySmall)
             }
-            Switch(checked = s.ecm, onCheckedChange = { v -> scope.launch { store.update { it.copy(ecm = v) } } })
+            Switch(checked = s.ecm, onCheckedChange = { v -> SettingsSaving.scope.launch { store.update { it.copy(ecm = v) } } })
         }
         Text("Fastest rate", style = MaterialTheme.typography.bodyMedium)
         for ((bps, label) in listOf(14400 to "14400 (V.17)", 9600 to "9600 (V.29)", 4800 to "4800 (V.27ter: poor lines)")) {
             Row(
-                Modifier.fillMaxWidth().clickable { scope.launch { store.update { it.copy(maxBps = bps) } } },
+                Modifier.fillMaxWidth().clickable { SettingsSaving.scope.launch { store.update { it.copy(maxBps = bps) } } },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 RadioButton(selected = s.maxBps == bps, onClick = null)

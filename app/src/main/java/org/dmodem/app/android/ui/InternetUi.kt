@@ -156,12 +156,13 @@ private fun size(n: Long) = when {
 fun IspSettingsSection() {
     val context = LocalContext.current
     val store = remember { IspSettingsStore(context.applicationContext) }
-    val scope = rememberCoroutineScope()
-    val current by store.settings.collectAsStateWithLifecycle(initialValue = null)
-    val loaded = current ?: return
-    var s by remember(loaded) { mutableStateOf(loaded) }
+    // (read once: what's typed is saved as it changes, not read back over the typing)
+    var loaded by remember { mutableStateOf<IspSettings?>(null) }
+    LaunchedEffect(Unit) { loaded = store.current() }
+    val initial = loaded ?: return
+    var s by remember(initial) { mutableStateOf(initial) }
+    rememberAutoSave(s) { store.save(it) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Dial-up internet (ISP)", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
             value = s.number, onValueChange = { s = s.copy(number = it) }, label = { Text("The ISP's number") }, singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth(),
@@ -201,9 +202,5 @@ fun IspSettingsSection() {
                 "network. Calls in need the line to take them (on SIP: \"Take calls\", registered).",
             style = MaterialTheme.typography.bodySmall,
         )
-        Button(onClick = {
-            scope.launch { store.save(s) }
-            Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
-        }, enabled = s != loaded) { Text("Save") }
     }
 }

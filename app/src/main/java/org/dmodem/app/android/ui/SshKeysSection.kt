@@ -56,7 +56,6 @@ fun SshKeysSection() {
     var hosts by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("SSH keys", style = MaterialTheme.typography.titleMedium)
         if (keys.isEmpty()) {
             Text("None yet. Make one here and put its public key in the server's ~/.ssh/authorized_keys.", style = MaterialTheme.typography.bodySmall)
         }
