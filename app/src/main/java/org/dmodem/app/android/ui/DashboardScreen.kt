@@ -310,6 +310,14 @@ private fun LineCard(s: ModemSettings, run: ModemState.Run, network: String?, on
                 PeerLineRows(s, run, network)
                 return@Column
             }
+            if (s.serialModem) {
+                InfoRow("Via", "a phone line, through a modem on a USB serial adapter")
+                InfoRow("Port", "${s.serialModemBaud} bit/s 8N1" + if (s.serialModemRtsCts) ", RTS/CTS" else "")
+                if (run == ModemState.Run.RUNNING) {
+                    Text("Its own AT commands: calls ring in the terminal (RING)", style = MaterialTheme.typography.bodySmall)
+                }
+                return@Column
+            }
             if (s.btModem) {
                 InfoRow("Via", "a phone line, through a Bluetooth modem")
                 InfoRow("Modem", s.btModemName.ifBlank { s.btModemAddress }.ifBlank { "none chosen" })

@@ -28,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -65,13 +66,14 @@ fun LineChoice(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
         ModemSettings.LINE_BLUETOOTH to "Another phone with D-Modem, on Bluetooth",
         ModemSettings.LINE_CELL to "This phone's mobile calls (slow; root)",
         ModemSettings.LINE_USB to "A phone line, through a USB modem",
+        ModemSettings.LINE_SERIAL_MODEM to "A phone line, through a modem on a USB serial adapter",
         ModemSettings.LINE_BT_MODEM to "A phone line, through a Bluetooth modem (Dial-Up Networking)",
         ModemSettings.LINE_NONE to "No line (the modem on its own)",
     )
     // the line chosen: the permission asked for first where it needs one
     fun choose(line: String) {
         when (line) {
-            ModemSettings.LINE_SIP, ModemSettings.LINE_CELL, ModemSettings.LINE_NONE, ModemSettings.LINE_USB ->
+            ModemSettings.LINE_SIP, ModemSettings.LINE_CELL, ModemSettings.LINE_NONE, ModemSettings.LINE_USB, ModemSettings.LINE_SERIAL_MODEM ->
                 onChange(s.copy(line = line))
             ModemSettings.LINE_WIFI -> onChange(
                 s.copy(line = line, peerAddress = if (s.line == line) s.peerAddress else "", peerName = ""),
@@ -124,7 +126,7 @@ fun LineChoice(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
 
 /** the line menu's filters: the kinds of line, each its icon's button; MORE every line */
 enum class LineKind(val label: String, private val lines: Set<String>) {
-    USB("USB", setOf(ModemSettings.LINE_USB)),
+    USB("USB", setOf(ModemSettings.LINE_USB, ModemSettings.LINE_SERIAL_MODEM)),
     BLUETOOTH("Bluetooth", setOf(ModemSettings.LINE_BLUETOOTH, ModemSettings.LINE_BT_MODEM)),
     NETWORK("Wi-Fi / Cell", setOf(ModemSettings.LINE_SIP, ModemSettings.LINE_WIFI, ModemSettings.LINE_CELL)),
     MORE("More", emptySet());
@@ -375,6 +377,53 @@ fun BluetoothModemFields(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
                 runCatching { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)) }
             }) { Text("Pair a modem…") }
         }
+    }
+}
+
+/** A modem of its own on a USB serial adapter (a Hayes modem on a PL2303's cable, say): the port's speed, RTS/CTS */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SerialModemFields(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
+    val context = LocalContext.current
+    val free = remember { org.dmodem.app.android.bridge.SerialAdapters.free(context) }
+    Text(
+        "An external modem (a US Robotics, a Zoom, any Hayes modem) on a USB serial adapter (Prolific PL2303, FTDI, " +
+            "CP210x, CH34x, CDC-ACM) plugged into the phone: it dials and answers, and the terminal, the internet, fax " +
+            "and the Linux's /dev/ttyDM0 talk to it in place of D-Modem's own modem (its own AT commands). DTR is held " +
+            "up while the modem runs; stopping it drops DTR. Android asks once whether D-Modem may use the adapter.",
+        style = MaterialTheme.typography.bodySmall,
+    )
+    Text(
+        "Adapter: " + if (free.isEmpty()) "none plugged in (or in use)" else free.joinToString(", "),
+        style = MaterialTheme.typography.bodyMedium,
+    )
+    var open by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(expanded = open, onExpandedChange = { open = it }) {
+        OutlinedTextField(
+            value = "${s.serialModemBaud} bit/s",
+            onValueChange = {},
+            readOnly = true,
+            singleLine = true,
+            label = { Text("The port's speed (8N1)") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = open) },
+            modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+        )
+        ExposedDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            for (b in ModemSettings.SERIAL_SPEEDS) {
+                DropdownMenuItem(
+                    text = { Text("$b bit/s") },
+                    onClick = {
+                        open = false
+                        onChange(s.copy(serialModemBaud = b))
+                    },
+                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
+                )
+            }
+        }
+    }
+    Row(Modifier.fillMaxWidth().clickable { onChange(s.copy(serialModemRtsCts = !s.serialModemRtsCts)) }, verticalAlignment = Alignment.CenterVertically) {
+        Text("RTS/CTS flow control (the modem's &K3)", Modifier.weight(1f))
+        Switch(checked = s.serialModemRtsCts, onCheckedChange = { onChange(s.copy(serialModemRtsCts = it)) })
     }
 }
 

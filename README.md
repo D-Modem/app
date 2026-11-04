@@ -107,6 +107,21 @@ tried on a real one). The phone runs the modem; plugged into it
 Line, "A phone line, through a USB modem"; Android asks once whether
 D-Modem may use it, and offers the app when one is plugged in.
 
+## A real phone line: a modem on a USB serial adapter
+
+An external modem of its own (a US Robotics, a Zoom, any Hayes modem) on a
+USB serial adapter plugged into the phone (a Prolific PL2303, PL2303GS
+among them, FTDI, CP210x, CH34x, CDC-ACM, Exar: the adapters the serial
+bridges know) can take D-Modem's modem's place: Settings, Line, "A phone
+line, through a modem on a USB serial adapter", its speed (8N1) and
+RTS/CTS. As with a Bluetooth modem, the terminal, the internet, fax and the
+Linux's `/dev/ttyDM0` talk to it with its own AT commands; the status comes
+from its result codes and its DCD, where the adapter reads it. DTR is held
+up while the modem runs, and stopping it drops DTR (a modem at `&D2` hangs
+up). Android asks once whether D-Modem may use the adapter
+(`SerialAdapters`, which also keeps the modem's line, the Linux's
+`/dev/ttyUSB0` and the USB bridge off each other's adapter). `SerialModemTest`.
+
 ## A real phone line: a Bluetooth modem
 
 A modem of its own with Bluetooth's Dial-Up Networking profile, such as
@@ -170,7 +185,10 @@ this line.
   an extra keys bar (Esc, sticky Ctrl/Alt, Tab, arrows with auto-repeat,
   Home/End/PgUp/PgDn, F1-F12), volume keys as font size or Ctrl/Alt,
   bell as vibration or flash, full screen, snippets, session capture to a
-  file (shared to other apps), hang up (+++ with its guard times, ATH).
+  file (shared to other apps), hang up (+++ with its guard times, ATH),
+  and Start PPP: once a call is up (dialled and logged in by hand), the
+  app's PPP takes it, the phone's traffic through it as the internet's
+  own dial has it (`PppTakeoverTest`).
   Files sent and received by ZMODEM, YMODEM, XMODEM(-1K) and Kermit, and
   as Intel HEX or Motorola S-records for EPROM programmers, monitors and
   boot loaders: a file sent as records (a file of them already, as it is:
@@ -199,6 +217,13 @@ this line.
   closing it drops DTR, so the call hangs up as a serial cable's end
   would. `ModemTtyTest`, and `LinuxSystemTest` in a real Alpine under
   proot: ATI from the distro, the modem's answer back.
+  A USB serial adapter plugged into the phone is `/dev/ttyUSB0` there (a
+  pty of the app's too: Android lets no app's programs at a USB device):
+  the app opens the adapter when a program opens the port and closes it
+  (DTR down) when the program does; the speed, stop bits, RTS/CTS and B0's
+  hang-up follow what the program sets (`stty`, minicom, pppd); a pty keeps
+  no character size or parity, so it is 8 data bits, no parity.
+  `SerialTtyTest`.
 - **Dial-in** (Settings, Dial-up internet): the phone as an ISP for whoever
   calls the modem, on SIP or any other line. A call that rings is answered
   (unless the fax settings answer calls already); once it connects, the

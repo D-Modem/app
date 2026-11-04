@@ -241,7 +241,8 @@ class MainActivity : ComponentActivity() {
     private fun callerOfLine(): String = when (org.dmodem.app.android.modem.ModemState.line) {
         org.dmodem.app.android.settings.ModemSettings.LINE_WIFI, org.dmodem.app.android.settings.ModemSettings.LINE_BLUETOOTH -> "The other phone"
         org.dmodem.app.android.settings.ModemSettings.LINE_CELL -> "A mobile call"
-        org.dmodem.app.android.settings.ModemSettings.LINE_USB, org.dmodem.app.android.settings.ModemSettings.LINE_BT_MODEM -> "A call on the phone line"
+        org.dmodem.app.android.settings.ModemSettings.LINE_USB, org.dmodem.app.android.settings.ModemSettings.LINE_BT_MODEM,
+        org.dmodem.app.android.settings.ModemSettings.LINE_SERIAL_MODEM -> "A call on the phone line"
         else -> "A SIP call"
     }
 

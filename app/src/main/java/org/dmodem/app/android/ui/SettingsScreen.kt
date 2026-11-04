@@ -178,6 +178,8 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
                             )
                         } else if (s.btModem) {
                             BluetoothModemFields(s) { s = it }
+                        } else if (s.serialModem) {
+                            SerialModemFields(s) { s = it }
                         } else {
                             Text("SIP account", style = MaterialTheme.typography.titleSmall)
                             OutlinedTextField(
@@ -356,6 +358,7 @@ private fun lineSummary(s: ModemSettings): String = when (s.line) {
     ModemSettings.LINE_NONE -> "No line: the modem on its own"
     ModemSettings.LINE_USB -> "A phone line, through a USB modem"
     ModemSettings.LINE_BT_MODEM -> "A Bluetooth modem" + s.btModemName.let { if (it.isBlank()) "" else ": $it" }
+    ModemSettings.LINE_SERIAL_MODEM -> "A modem on a USB serial adapter, ${s.serialModemBaud} bit/s"
     else -> if (s.complete) "SIP: ${s.user}@${s.domain}" + (if (s.listen) ", taking calls" else "") else "SIP: no account set up yet"
 }
 

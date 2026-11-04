@@ -238,7 +238,8 @@ class UsbBridge(
     private fun find() {
         if (!running || link != null) return
         val m = usb ?: return
-        val driver = UsbSerialAdapters.prober.findAllDrivers(m).firstOrNull()
+        // (not one the modem's line or the local Linux has: SerialAdapters)
+        val driver = UsbSerialAdapters.prober.findAllDrivers(m).firstOrNull { SerialAdapters.holder(it.device.deviceName).let { h -> h == null || h == WHO } }
         if (driver == null) {
             _state.value = State.Waiting
             return
@@ -251,8 +252,13 @@ class UsbBridge(
             m.requestPermission(dev, pi)
             return
         }
+        if (!SerialAdapters.take(dev.deviceName, WHO)) {
+            _state.value = State.Waiting
+            return
+        }
         val conn = m.openDevice(dev)
         if (conn == null) {
+            SerialAdapters.release(dev.deviceName)
             _state.value = State.Failed("can't open ${label(dev)}")
             return
         }
@@ -262,6 +268,7 @@ class UsbBridge(
             port.setParameters(format.baud, format.dataBits, format.stopCode, format.parityCode)
         } catch (e: IOException) {
             runCatching { port.close() }
+            SerialAdapters.release(dev.deviceName)
             _state.value = State.Failed("${label(dev)}: ${e.message}")
             return
         }
@@ -285,6 +292,7 @@ class UsbBridge(
         _state.value = State.Connected(label(dev))
         Thread({
             val served = l.serve()
+            SerialAdapters.release(dev.deviceName)
             pico = null
             boardJob?.interrupt()
             _board.value = null
@@ -317,5 +325,7 @@ class UsbBridge(
 
     companion object {
         const val ACTION_PERMISSION = "org.dmodem.app.android.USB_PERMISSION"
+        /** the bridge, as SerialAdapters says who has an adapter */
+        const val WHO = "the USB bridge"
     }
 }
