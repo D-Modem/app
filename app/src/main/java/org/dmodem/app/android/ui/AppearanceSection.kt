@@ -61,7 +61,6 @@ fun AppearanceSection() {
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Appearance", style = MaterialTheme.typography.titleMedium)
         Text("Theme", style = MaterialTheme.typography.labelMedium)
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             DarkMode.entries.forEachIndexed { i, m ->

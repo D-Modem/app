@@ -74,7 +74,6 @@ fun LinuxSection(onOpened: () -> Unit = {}) {
     val busy = work is Linux.Work.Busy
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Linux", style = MaterialTheme.typography.titleMedium)
         if (Linux.machine() == null) {
             Text("There is no Linux built for this phone's processor.", style = MaterialTheme.typography.bodySmall)
             return@Column

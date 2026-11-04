@@ -28,7 +28,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.text.font.FontWeight
 import org.dmodem.app.tones.CountryTones
@@ -41,7 +40,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,7 +51,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.dmodem.app.android.modem.ModemState
 import org.dmodem.app.android.settings.ModemSettings
 import org.dmodem.app.android.settings.SettingsStore
-import kotlinx.coroutines.launch
 
 /** Settings' pages: the menu's rows, each a page of its own. */
 enum class SettingsPage(val title: String) {
@@ -98,15 +95,13 @@ object SettingsNav {
 /**
  * Settings: a menu of its pages (the line, the modem, the bridges, fax,
  * dial-up, appearance, the terminal, SSH keys, Linux, and the AT command
- * reference), each with what it is set to; back from a page to the menu. The line's and the modem's
- * settings are saved with their Save button, and apply when the modem next
- * starts; their edits are kept across the two pages until then.
+ * reference), each with what it is set to; back from a page to the menu. Every setting is
+ * saved as it's changed; the line's and the modem's apply when the modem next starts.
  */
 @Composable
 fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {}) {
     val context = LocalContext.current
     val store = remember { SettingsStore(context.applicationContext) }
-    val scope = rememberCoroutineScope()
     val run by ModemState.run.collectAsStateWithLifecycle()
     val page by SettingsNav.page.collectAsStateWithLifecycle()
 
@@ -115,32 +110,18 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
     val initial = loaded ?: return
 
     var s by remember(initial) { mutableStateOf(initial) }
-    var savedAs by remember(initial) { mutableStateOf(initial) }
     var login by remember { mutableStateOf("") }
-    var saved by remember { mutableStateOf(false) }
+    // (each change saved as it's made; it applies when the modem next starts)
+    val stored = rememberAutoSave(s) { store.save(it) }
 
     // back: a page to the menu (the menu's own back is the app's: Home)
     androidx.activity.compose.BackHandler(enabled = page != null) { SettingsNav.open(null) }
 
-    /** the line's and the modem's Save button, and whether they're saved (and need a restart to apply) */
+    /** the line's and the modem's note: their changes are saved, and wait for the modem's restart */
     @Composable
-    fun SaveRow() {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = {
-                scope.launch {
-                    store.save(s)
-                    savedAs = s
-                    saved = true
-                }
-            }, enabled = s != savedAs) { Text("Save") }
-            if (s != savedAs) {
-                Text("Not saved yet", style = MaterialTheme.typography.bodyMedium)
-            } else if (saved) {
-                Text(
-                    if (run == ModemState.Run.STOPPED) "Saved" else "Saved: restart the modem to apply",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
+    fun AppliesNote() {
+        if (stored != initial && run != ModemState.Run.STOPPED) {
+            Text("Saved: restart the modem to apply", style = MaterialTheme.typography.bodyMedium)
         }
     }
 
@@ -164,7 +145,7 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
                 return@Column
             }
             Column(
-                Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(bottom = 16.dp).verticalScroll(rememberScrollState()),
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 when (p) {
@@ -227,7 +208,7 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
                             Toggle("Fax over T.38", s.t38) { s = s.copy(t38 = it) }
                             NumberField("SIP log level (0-4)", s.sipLogLevel) { s = s.copy(sipLogLevel = it.coerceIn(0, 4)) }
                         }
-                        SaveRow()
+                        AppliesNote()
                     }
                     SettingsPage.MODEM -> {
                         Toggle("Speaker: hear the dialling and the handshake", s.speaker) { s = s.copy(speaker = it) }
@@ -270,7 +251,7 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
                             color = if (org.dmodem.app.android.modem.LogFormat.valid(s.logTimestamp)) androidx.compose.ui.graphics.Color.Unspecified
                             else MaterialTheme.colorScheme.error,
                         )
-                        SaveRow()
+                        AppliesNote()
                     }
                     SettingsPage.BRIDGES -> BridgeSection()
                     SettingsPage.FAX -> FaxSettingsSection()
@@ -293,7 +274,7 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
         label = "settings page",
         modifier = modifier,
     ) { p ->
-        if (p == null) SettingsMenu(Modifier, s, s != savedAs) else Page(p)
+        if (p == null) SettingsMenu(Modifier, s) else Page(p)
     }
 }
 
@@ -311,9 +292,9 @@ private fun settingsTransition(back: Boolean): ContentTransform {
 
 /** Settings' menu: a row for each page, what it's set to beneath */
 @Composable
-private fun SettingsMenu(modifier: Modifier, s: ModemSettings, unsaved: Boolean) {
+private fun SettingsMenu(modifier: Modifier, s: ModemSettings) {
     val rows = listOf(
-        SettingsPage.LINE to lineSummary(s) + if (unsaved) " (not saved)" else "",
+        SettingsPage.LINE to lineSummary(s),
         SettingsPage.MODEM to "${CountryTones.find(s.country)?.label ?: s.country}; speaker " +
             (if (s.speaker) "on" else "off") + "; " + (if (s.adaptiveAnswer) "fax or data as calls turn out" else "calls answered as data"),
         SettingsPage.BRIDGES to "The modem for another computer: TCP, Bluetooth, USB serial",

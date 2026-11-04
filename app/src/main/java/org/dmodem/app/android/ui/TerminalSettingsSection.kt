@@ -64,7 +64,6 @@ fun TerminalSettingsSection() {
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Terminal", style = MaterialTheme.typography.titleMedium)
         Choice("Colours", TermTheme.byId(s.themeId).name, TermTheme.ALL.map { it.name to it.id }) { set { t -> t.copy(themeId = it) } }
         Choice("Font", s.font.label, TerminalFont.entries.map { it.label to it }) { set { t -> t.copy(font = it) } }
         FontPreview(s.font, TermTheme.byId(s.themeId))
