@@ -51,7 +51,7 @@ data class ModemSettings(
     /** the country's call progress tones (dial, ringing, busy, congestion) where the line has none of its own */
     val callTones: Boolean = true,
     /**
-     * calls answered as fax or data by what they turn out to be (D-Modem-RE's adaptive answer, AT+FAA=1):
+     * calls answered as fax or data by what they turn out to be (D-Modem's adaptive answer, AT+FAA=1):
      * a fax machine's to the fax receiver, a modem's to the terminal
      */
     val adaptiveAnswer: Boolean = true,
@@ -70,12 +70,12 @@ data class ModemSettings(
     val serialModemRtsCts: Boolean = true,
     /** each call on a USB modem's line recorded (LineRecordings), for a bug report */
     val recordLine: Boolean = false,
-    /** a USB modem's line: the modem's sound to it louder or softer, dB (-20 to 20; D-Modem-RE's DMODEM_USB_TX_GAIN) */
+    /** a USB modem's line: the modem's sound to it louder or softer, dB (-20 to 20; D-Modem's DMODEM_USB_TX_GAIN) */
     val usbTxGain: Int = 0,
     /** a USB modem's line: its transmit level set for each call from the remote's answer tone (DMODEM_USB_TX_GAIN=auto), not [usbTxGain] */
     val usbTxAuto: Boolean = true,
 ) {
-    /** D-Modem-RE's DMODEM_USB_TX_GAIN for this line: "auto", the dB, or null (none: 0 dB, or not a USB line) */
+    /** D-Modem's DMODEM_USB_TX_GAIN for this line: "auto", the dB, or null (none: 0 dB, or not a USB line) */
     val usbTxGainEnv: String?
         get() = when {
             !usb -> null
@@ -129,7 +129,7 @@ data class ModemSettings(
         const val LINE_SERIAL_MODEM = "serial_modem"
         /** the speeds offered for a serial adapter's modem */
         val SERIAL_SPEEDS = listOf(2400, 9600, 19200, 38400, 57600, 115200, 230400)
-        /** the mobile-call line's V.cvm (D-Modem-RE's +MS=VCVM) */
+        /** the mobile-call line's V.cvm (D-Modem's +MS=VCVM) */
         const val CELL_VCVM = "VCVM"
 
         /**

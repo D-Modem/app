@@ -417,7 +417,7 @@ private fun Toggle(label: String, value: Boolean, onChange: (Boolean) -> Unit) {
 
 /**
  * the modem's country (its line settings, how it hears busy) and the call
- * progress tones': D-Modem-RE's ITU list, searched by name, each with its
+ * progress tones': D-Modem's ITU list, searched by name, each with its
  * tones; the value its name ("" for the default, the USA)
  */
 @Composable

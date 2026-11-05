@@ -61,7 +61,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * D-Modem's AT command reference (the A5 manual, D-Modem-RE's
+ * D-Modem's AT command reference (the A5 manual, D-Modem's
  * docs/at_commands.pdf), in the app's assets: out of them into the cache
  * for PdfRenderer and PDF apps, which want a file.
  */

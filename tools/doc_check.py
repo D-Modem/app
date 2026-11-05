@@ -9,7 +9,7 @@
 #    usage: tools/doc_check.py [FILE...]
 #
 #    Without FILEs, git's tracked *.kt, *.kts, *.swift, *.py, *.sh, *.c,
-#    *.cpp and *.h outside external/.  C and C++ go to D-Modem-RE's own
+#    *.cpp and *.h outside external/.  C and C++ go to D-Modem's own
 #    check (external/d-modem-re/cmake/doc_check.py), the same rule.
 #    Prints each undocumented function as file:line and exits 1 if there
 #    are any.

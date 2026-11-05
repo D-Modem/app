@@ -278,7 +278,7 @@ class ModemService : Service() {
                 else -> 100
             },
         )
-        // each call on a USB modem's line recorded if the settings say so (D-Modem-RE's DMODEM_USB_REC)
+        // each call on a USB modem's line recorded if the settings say so (D-Modem's DMODEM_USB_REC)
         val rec = if (settings.usb && settings.recordLine) LineRecordings.path(this) else null
         runCatching {
             if (rec != null) {
@@ -288,7 +288,7 @@ class ModemService : Service() {
                 android.system.Os.unsetenv("DMODEM_USB_REC")
             }
         }
-        // the modem's sound to a USB modem's line louder or softer (D-Modem-RE's DMODEM_USB_TX_GAIN)
+        // the modem's sound to a USB modem's line louder or softer (D-Modem's DMODEM_USB_TX_GAIN)
         runCatching {
             val gain = settings.usbTxGainEnv
             if (gain != null) {

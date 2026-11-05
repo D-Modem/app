@@ -13,7 +13,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * The countries' tones (D-Modem-RE's ITU table): found by any of their
+ * The countries' tones (D-Modem's ITU table): found by any of their
  * names; their sound, the right frequencies in the right cadence.
  */
 class CountryTonesTest {

@@ -244,7 +244,7 @@ object Fax {
                     if (c.command("E0V1X3") != "OK" || c.command("+FCLASS=1") != "OK") throw FaxException("the modem has no fax mode")
                     rates = T30.modemRates(c, s.maxBps)
                 } else {
-                    // (no commands now: the modem's waiting for our frames. D-Modem-RE has every rate)
+                    // (no commands now: the modem's waiting for our frames. D-Modem has every rate)
                     rates = T30.RATES.filter { it.bps <= s.maxBps }
                 }
                 val (p, f) = body(c, s)

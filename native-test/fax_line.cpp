@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  * Copyright (C) 2026 Neo-Desktop
  *
- *    fax_line.cpp - D-Modem-RE's modem_test (two modems back to back on
+ *    fax_line.cpp - D-Modem's modem_test (two modems back to back on
  *                   an audio pipe, a pty for each one's DTE) paced as a
  *                   phone line is: at the sample clock (MODEM_REALTIME,
  *                   as the interop tests have it), so that a fax

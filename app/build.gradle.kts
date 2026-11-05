@@ -59,7 +59,7 @@ android {
         }
         externalNativeBuild {
             cmake {
-                // only the app's libraries (the modem's, the local shell's ptys): not dmodemd or D-Modem-RE's other programs
+                // only the app's libraries (the modem's, the local shell's ptys): not dmodemd or D-Modem's other programs
                 targets += listOf("dmodem_jni", "dmodem_pty")
                 arguments += listOf("-DANDROID_STL=c++_static")
                 // (a special build's name for the native code too: "led-probe" probes the Agere's LEDs)

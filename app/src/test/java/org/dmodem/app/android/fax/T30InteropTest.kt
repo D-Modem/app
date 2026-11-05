@@ -18,7 +18,7 @@ import java.io.File
 
 /**
  * Our fax (its T.30 on a class 1 modem) against another machine's:
- * D-Modem-RE's own T.30 (dsp/t30.cpp), on the far end of a phone line
+ * D-Modem's own T.30 (dsp/t30.cpp), on the far end of a phone line
  * from the modem (native-test's t30_line: cmake -S native-test -B
  * build-host && cmake --build build-host, or DMODEM_T30_LINE; skipped
  * without it). With error correction mode both ways, on a clean line
@@ -64,7 +64,7 @@ class T30InteropTest {
         return mapOf("ok" to f[1], "pages" to f[3], "bps" to f[5], "ecm" to f[7], "why" to f.drop(8).joinToString(" "))
     }
 
-    /** two pages from us to D-Modem-RE's T.30, [ecm] or not, on a line [snr] dB clean if given: it got them, every pel, as we sent them */
+    /** two pages from us to D-Modem's T.30, [ecm] or not, on a line [snr] dB clean if given: it got them, every pel, as we sent them */
     private fun theyReceive(ecm: Boolean, snr: Double = 0.0) {
         val dir = tmp.newFolder()
         val args = mutableListOf("receive", dir.path)
@@ -92,7 +92,7 @@ class T30InteropTest {
         }
     }
 
-    /** D-Modem-RE's T.30 sends us its pages, [ecm] or not, at most [maxBps], [snr] dB clean if given: every pel as it sent them; the pages */
+    /** D-Modem's T.30 sends us its pages, [ecm] or not, at most [maxBps], [snr] dB clean if given: every pel as it sent them; the pages */
     private fun theySend(ecm: Boolean, snr: Double = 0.0, maxBps: Int = 14400): List<FaxPage> {
         val dir = tmp.newFolder()
         val args = mutableListOf("send", dir.path, "--bps", maxBps.toString())
@@ -135,7 +135,7 @@ class T30InteropTest {
         theySend(ecm = true)
     }
 
-    // (at V.17's 14400, which lost a row of 1-pel runs before D-Modem-RE's
+    // (at V.17's 14400, which lost a row of 1-pel runs before D-Modem's
     // steadier V.17 receiver, d2b0626)
     @Test
     fun weReceiveWithoutEcm() {

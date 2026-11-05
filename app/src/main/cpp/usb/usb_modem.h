@@ -3,7 +3,7 @@
  * Copyright (C) 2026 Neo-Desktop
  *
  *    usb_modem.h - the modem core on a telephone line through a USB
- *                  modem (D-Modem-RE's UsbLine: a Smart Link SmartUSB56,
+ *                  modem (D-Modem's UsbLine: a Smart Link SmartUSB56,
  *                  or a pico-serial Line stick), its DTE a descriptor
  *
  *    As dmodemd --usb runs it (its run_line()), on the device Android

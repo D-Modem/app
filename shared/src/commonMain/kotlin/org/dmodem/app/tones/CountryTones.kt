@@ -59,7 +59,7 @@ class Tone(val f1: Int, val f2: Int, val mod: Float, val cadence: FloatArray) {
 }
 
 /**
- * A country's call progress tones, from D-Modem-RE's table (the ITU's
+ * A country's call progress tones, from D-Modem's table (the ITU's
  * list, after E.180): the ringing tone a caller hears (the ring signal to
  * the called line keeps its cadence, at [ringHz]), the dial tone, the busy
  * tone (the called line busy) and the congestion tone (the network's lines

@@ -8,12 +8,12 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * The shared table is D-Modem-RE's as it is now: tools/country_tones.py
+ * The shared table is D-Modem's as it is now: tools/country_tones.py
  * run on the submodule's dsp/tones.cpp gives the file there is (when the
  * submodule and Python are here).
  */
 class CountryTonesSourceTest {
-    /** tools/country_tones.py run on D-Modem-RE's tones.cpp gives the committed table (skipped without them or Python) */
+    /** tools/country_tones.py run on D-Modem's tones.cpp gives the committed table (skipped without them or Python) */
     @Test
     fun theTableIsD_ModemREs() {
         val root = generateSequence(File("").absoluteFile) { it.parentFile }.firstOrNull { File(it, "tools/country_tones.py").exists() } ?: return

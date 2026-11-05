@@ -3,7 +3,7 @@
 # Copyright (C) 2026 Neo-Desktop
 #
 # The modem for Apple's systems: the app's engine (app/src/main/cpp) with
-# D-Modem-RE, libre and Mbed TLS, built for iOS (devices), the iOS
+# D-Modem, libre and Mbed TLS, built for iOS (devices), the iOS
 # simulator and macOS, each as one static library, together as
 # build-apple/DModemEngine.xcframework (its header dmodem_engine.h, its
 # module DModemEngine: Swift imports it).
@@ -32,7 +32,7 @@ build() {
 		-DCMAKE_OSX_DEPLOYMENT_TARGET="$min" \
 		-DDMODEM_CRYPTO=mbedtls
 	if [ "$system" = iOS ]; then
-		# (no app bundles: D-Modem-RE's dmodemd, which is never built
+		# (no app bundles: D-Modem's dmodemd, which is never built
 		# here, is an executable that CMake would make a bundle on iOS,
 		# and its install rule has no BUNDLE DESTINATION for one)
 		set -- "$@" -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_MACOSX_BUNDLE=OFF
