@@ -28,3 +28,7 @@ ios/DModem/Tunnel/DModemTunnel.entitlements
 
 # the Dockerfile's APKs (docker build --target apk --output out .)
 /out/
+
+# the site, built with brand's tools/site.sh
+/.site/
+/site/

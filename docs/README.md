@@ -4,6 +4,7 @@
 - [Fax](fax.md)
 - [Serial adapters and real phone lines](adapters.md): pico-serial, USB modems, a modem on a USB serial adapter, a Bluetooth modem
 - [The app, screen by screen](features.md)
+- [Settings reference](settings.md): every setting, its key and default, made from the code (`tools/settings_ref.py`)
 - [Building the Android app](building.md)
 - [The iOS app](ios.md): building and running on iPhone and iPad
 - [Source layout](layout.md)

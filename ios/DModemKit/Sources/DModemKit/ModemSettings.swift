@@ -15,18 +15,22 @@ public struct ModemSettings: Codable, Equatable, Sendable {
     public var password = ""
     /// the registrar's or proxy's host[:port]
     public var domain = ""
+    /// the local SIP port
     public var sipPort = 5060
     /// register and take calls (on Wi-Fi: take the other phone's)
     public var listen = false
+    /// fax calls may go over to T.38
     public var t38 = true
     /// the modem's country (empty: USA)
     public var country = ""
     /// AT commands sent each time it starts (SIP has no dial tone: ATX3)
     public var initCommands = "ATX3"
+    /// the modem's log level (0 errors .. 5), SIP's (0 none .. 4 the SIP messages)
     public var logLevel = 0
     public var sipLogLevel = 1
     /// the modem's speaker on the phone's: the dialling and the handshake heard
     public var speaker = true
+    /// the modem's line: a SIP account, another phone with the app on Wi-Fi, or none
     public var line = Line.sip
     /// the other phone to call (host[:port]), and the PIN between the two
     public var peerAddress = ""

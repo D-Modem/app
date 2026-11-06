@@ -27,14 +27,15 @@
 name: Android
 
 # (a branch's commits run once, as its pull request: pushed, only main's;
-# a change to docs alone runs nothing: the Markdown, docs/ and COPYING)
+# a change to docs alone runs nothing: the Markdown, docs/, COPYING and
+# the site's files, which pages.yml builds)
 on:
   push:
     branches: [main]
     tags: ["v*"]
-    paths: ['**', '!**.md', '!docs/**', '!COPYING']
+    paths: ['**', '!**.md', '!docs/**', '!COPYING', '!mkdocs.yml', '!.github/workflows/pages.yml', '!tools/settings_ref.py']
   pull_request:
-    paths: ['**', '!**.md', '!docs/**', '!COPYING']
+    paths: ['**', '!**.md', '!docs/**', '!COPYING', '!mkdocs.yml', '!.github/workflows/pages.yml', '!tools/settings_ref.py']
   workflow_dispatch:
 
 # a newer commit on a pull request cancels the run before it (main's all run)
