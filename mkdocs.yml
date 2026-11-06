@@ -1,0 +1,23 @@
+INHERIT: .site/mkdocs-base.yml
+# The app's site, https://d-modem.github.io/app/: docs/ and the README with
+# brand's shared theme and workflow (brand's docs/sites.md).
+# docs/settings.md is made from the apps' ModemSettings (tools/settings_ref.py).
+site_name: D-Modem app
+site_description: A dial-up modem in your pocket, on Android and iOS
+site_url: https://d-modem.github.io/app/
+repo_url: https://github.com/D-Modem/app
+repo_name: D-Modem/app
+docs_dir: .site/docs
+extra:
+  repo: app
+nav:
+  - Home: index.md
+  - The app, screen by screen: features.md
+  - The modem's line: lines.md
+  - Fax: fax.md
+  - Serial adapters and phone lines: adapters.md
+  - Settings reference: settings.md
+  - Building for Android: building.md
+  - The iOS app: ios.md
+  - Source layout: layout.md
+  - Documentation index: README.md

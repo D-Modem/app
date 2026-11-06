@@ -13,9 +13,9 @@ name: Apple
 on:
   push:
     branches: [main]
-    paths: ['**', '!**.md', '!docs/**', '!COPYING']
+    paths: ['**', '!**.md', '!docs/**', '!COPYING', '!mkdocs.yml', '!.github/workflows/pages.yml', '!tools/settings_ref.py']
   pull_request:
-    paths: ['**', '!**.md', '!docs/**', '!COPYING']
+    paths: ['**', '!**.md', '!docs/**', '!COPYING', '!mkdocs.yml', '!.github/workflows/pages.yml', '!tools/settings_ref.py']
   workflow_dispatch:
 
 # a newer commit on a pull request cancels the run before it (main's all run)
