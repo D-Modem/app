@@ -192,6 +192,8 @@ tasks.withType<Test>().configureEach {
     providers.gradleProperty("robolectricRepoUrl").orNull?.let {
         systemProperty("robolectric.dependency.repo.url", it)
     }
+    // each test named as it starts in CI's log, so a test that hangs is the last one started
+    if (System.getenv("CI") != null) testLogging { events("started", "failed", "skipped") }
 }
 
 // proot and its loader for the local shell's Linux (native-proot/build.sh: Termux's proot, external/proot)
