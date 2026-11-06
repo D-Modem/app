@@ -6,7 +6,7 @@
 # CMake 3.31.6, and gawk for proot; and for the unit tests, the host's
 # compilers (the engine's host build, native-test) and the SSH tools.
 #
-# D-Modem-RE is a private submodule, so it isn't cloned here: check the
+# D-Modem is a private submodule, so it isn't cloned here: check the
 # submodules out first (git submodule update --init --recursive), and the
 # build takes them from the tree.
 #

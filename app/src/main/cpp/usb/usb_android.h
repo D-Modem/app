@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  * Copyright (C) 2026 Neo-Desktop
  *
- *    usb_android.h - D-Modem-RE's USB line (usb_line.cpp) on a device
+ *    usb_android.h - D-Modem's USB line (usb_line.cpp) on a device
  *                    Android has opened for the app
  *
  *    An app can't list the USB devices (no /dev/bus/usb to read): Android

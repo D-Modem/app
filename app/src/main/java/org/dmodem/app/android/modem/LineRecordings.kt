@@ -6,7 +6,7 @@ import android.content.Context
 import java.io.File
 
 /**
- * Calls on a USB modem's line recorded, for a bug report (the settings' "Record each call"): D-Modem-RE
+ * Calls on a USB modem's line recorded, for a bug report (the settings' "Record each call"): D-Modem
  * writes each, off hook to on hook, as a stereo WAV (left what came from the line, right what the modem
  * sent) into the captures folder, where the log screen shares the latest. The last [KEEP] are kept.
  */
@@ -17,7 +17,7 @@ object LineRecordings {
     /** the app's captures folder on external storage (null: none to have) */
     private fun dir(context: Context): File? = context.applicationContext.getExternalFilesDir("captures")
 
-    /** the path D-Modem-RE's DMODEM_USB_REC is given (null: nowhere to record to) */
+    /** the path D-Modem's DMODEM_USB_REC is given (null: nowhere to record to) */
     fun path(context: Context): String? = dir(context)?.let { File(it, PREFIX).path }
 
     /** the recordings there are, the newest first */

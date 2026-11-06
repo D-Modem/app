@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  * Copyright (C) 2026 Neo-Desktop
  *
- *    codec_line.cpp - two modems back to back (D-Modem-RE's PipeModem,
+ *    codec_line.cpp - two modems back to back (D-Modem's PipeModem,
  *                     a pty for each one's DTE) on a cellular call's
  *                     line: each way through a speech codec, 20 ms
  *                     frames encoded and decoded as a phone and the

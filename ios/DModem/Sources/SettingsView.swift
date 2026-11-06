@@ -160,7 +160,7 @@ private struct PeerSection: View {
     }
 }
 
-/// the modem's country (D-Modem-RE's ITU list: its line settings, how it hears busy), searched by name
+/// the modem's country (D-Modem's ITU list: its line settings, how it hears busy), searched by name
 private struct CountryList: View {
     @Binding var selection: String
     @Environment(\.dismiss) private var dismiss

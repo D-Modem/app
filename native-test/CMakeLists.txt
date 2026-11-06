@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 Neo-Desktop
 # The app's native engine on the build host: the same CMake as the app's
-# (app/src/main/cpp), with dmodemd from the same D-Modem-RE tree as the
+# (app/src/main/cpp), with dmodemd from the same D-Modem tree as the
 # other end of the calls.
 #
 #   cmake -S native-test -B build-host && cmake --build build-host
@@ -11,11 +11,11 @@ project(dmodem_android_test LANGUAGES C CXX)
 
 enable_testing()
 add_subdirectory(../app/src/main/cpp app)
-# (D-Modem-RE's u8 .. s64, its include/dm_types.h)
+# (D-Modem's u8 .. s64, its include/dm_types.h)
 include_directories(${DMODEM_RE_INCLUDE})
 
 # GoogleTest for the engine's tests: the system's (libgtest-dev) or else
-# fetched, as D-Modem-RE has it (its cmake/gtest.cmake)
+# fetched, as D-Modem has it (its cmake/gtest.cmake)
 find_package(GTest 1.10 QUIET)
 if(NOT GTest_FOUND)
 	include(FetchContent)
@@ -60,7 +60,7 @@ target_compile_definitions(sip_fax_line PRIVATE DMODEMD_PATH="$<TARGET_FILE:dmod
 target_link_libraries(sip_fax_line PRIVATE dmodem_engine Threads::Threads)
 add_dependencies(sip_fax_line dmodemd)
 
-# t30_line: a class 1 modem on a line to D-Modem-RE's own T.30 fax machine
+# t30_line: a class 1 modem on a line to D-Modem's own T.30 fax machine
 # (with or without ECM, noise if asked): FaxCallTest's interop with it
 add_executable(t30_line t30_line.cpp)
 target_include_directories(t30_line PRIVATE ${DMODEM_RE_DMODEMD})
@@ -103,7 +103,7 @@ target_compile_options(c_api_test PRIVATE -Wall -Wextra)
 gtest_discover_tests(c_api_test TEST_PREFIX c_api. PROPERTIES TIMEOUT 120)
 
 # usb_line_test: the engine on a USB modem's line (usb/usb_modem.h), two
-# of them on D-Modem-RE's fake pico-serial Line sticks (its
+# of them on D-Modem's fake pico-serial Line sticks (its
 # test/fake_pico_line.cpp linked in as libusb, so usb_line.cpp finds the
 # stick by libusb's own calls: usb_fake_device.cpp) calling each other
 # through its simulated exchange (test/line_exchange.cpp); libusb.h from
@@ -140,7 +140,7 @@ add_test(NAME usb_line COMMAND python3
 	$<TARGET_FILE:usb_exchange>)
 set_tests_properties(usb_line PROPERTIES TIMEOUT 300)
 
-# the same on D-Modem-RE's fake Agere USB 2.0 soft modems
+# the same on D-Modem's fake Agere USB 2.0 soft modems
 # (test/fake_agere.cpp): the ROM's isochronous stream
 add_library(dmodem_engine_agere STATIC ${_app}/engine.cpp
 	${_app}/peer_modem.cpp ${_app}/dmodem_engine.cpp
@@ -162,7 +162,7 @@ add_test(NAME agere_line COMMAND python3
 	$<TARGET_FILE:usb_exchange> agere)
 set_tests_properties(agere_line PROPERTIES TIMEOUT 300)
 
-# the same on D-Modem-RE's fake Apple USB Modems (test/fake_apple.cpp):
+# the same on D-Modem's fake Apple USB Modems (test/fake_apple.cpp):
 # USB audio's streams, CDC's line control
 add_library(dmodem_engine_apple STATIC ${_app}/engine.cpp
 	${_app}/peer_modem.cpp ${_app}/dmodem_engine.cpp

@@ -2,8 +2,8 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  * Copyright (C) 2026 Neo-Desktop
  *
- *    t30_line.cpp - a class 1 modem (D-Modem-RE's PipeModem, a pty for
- *                   its DTE) on a phone line to D-Modem-RE's own T.30
+ *    t30_line.cpp - a class 1 modem (D-Modem's PipeModem, a pty for
+ *                   its DTE) on a phone line to D-Modem's own T.30
  *                   fax machine (dsp/t30.cpp), with or without error
  *                   correction mode, noise on the line if asked: the
  *                   app's fax (its T.30 on the DTE) against another

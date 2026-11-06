@@ -13,7 +13,7 @@
 # Packages: apt's downloads are cached (.github/actions/apt), keyed on
 # the runner image and the package list.
 #
-# D-Modem-RE is a private submodule: the DMODEM_TOKEN secret is a token
+# D-Modem is a private submodule: the DMODEM_TOKEN secret is a token
 # that can read it (a fine-grained personal access token with Contents:
 # read on D-Modem/D-Modem).
 #
@@ -26,12 +26,15 @@
 # (and its release build is unsigned).
 name: Android
 
-# (a branch's commits run once, as its pull request: pushed, only main's)
+# (a branch's commits run once, as its pull request: pushed, only main's;
+# a change to docs alone runs nothing: the Markdown, docs/ and COPYING)
 on:
   push:
     branches: [main]
     tags: ["v*"]
+    paths: ['**', '!**.md', '!docs/**', '!COPYING']
   pull_request:
+    paths: ['**', '!**.md', '!docs/**', '!COPYING']
   workflow_dispatch:
 
 # a newer commit on a pull request cancels the run before it (main's all run)

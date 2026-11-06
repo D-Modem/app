@@ -7,7 +7,7 @@ import org.dmodem.app.tones.Tone
 import org.dmodem.app.tones.ToneSynth
 
 /**
- * The country's call progress tones on the phone's speaker (D-Modem-RE's
+ * The country's call progress tones on the phone's speaker (D-Modem's
  * ITU table, the shared [CountryTones]): the dial tone as an entry is
  * dialled, the ringing tone while the other phone rings, the busy and
  * congestion tones when a call can't be made. What a phone line would

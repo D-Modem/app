@@ -1,18 +1,21 @@
-# The modem for Apple's systems, and the Kotlin the apps share on iOS: the engine with D-Modem-RE, libre and
+# The modem for Apple's systems, and the Kotlin the apps share on iOS: the engine with D-Modem, libre and
 # Mbed TLS built for iOS (devices and simulator) and macOS as an
 # XCFramework (ios/build-native.sh), and its Swift tests run on macOS
 # (ios/DModemSmoke): the modem through its C API, as the iOS app has it;
 # DModemKit's tests, and the iOS app (ios/DModem) built for the simulator.
 #
-# D-Modem-RE is a private submodule: the DMODEM_TOKEN secret (as
+# D-Modem is a private submodule: the DMODEM_TOKEN secret (as
 # android.yml's).
 name: Apple
 
-# (a branch's commits run once, as its pull request: pushed, only main's)
+# (a branch's commits run once, as its pull request: pushed, only main's;
+# a change to docs alone runs nothing: the Markdown, docs/ and COPYING)
 on:
   push:
     branches: [main]
+    paths: ['**', '!**.md', '!docs/**', '!COPYING']
   pull_request:
+    paths: ['**', '!**.md', '!docs/**', '!COPYING']
   workflow_dispatch:
 
 # a newer commit on a pull request cancels the run before it (main's all run)

@@ -4,7 +4,7 @@
  *
  *    usb_host.cpp - the app's engine on a USB modem's line (engine.h,
  *                   usb_modem.h) as a program, for usb_line_test.py: the
- *                   device D-Modem-RE's fake pico-serial Line stick
+ *                   device D-Modem's fake pico-serial Line stick
  *                   (test/fake_pico_line.cpp, linked in as libusb), its
  *                   line the simulated exchange's at $FAKE_PICO_LINE_SOCKET
  *

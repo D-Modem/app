@@ -4,10 +4,10 @@
 #
 # usb_line_test.py <usb_host> <line_exchange> [agere|apple]: the app's
 # engine on a USB modem's line (usb_modem.h), two of them (usb_host) on
-# D-Modem-RE's fake pico-serial Line sticks (or, agere, its fake Agere USB
+# D-Modem's fake pico-serial Line sticks (or, agere, its fake Agere USB
 # 2.0 soft modems at 8000 Hz, on their ROM's isochronous stream; or,
 # apple, its fake Apple USB Modems) whose lines are the simulated
-# exchange's, 1001 and 1002 (as D-Modem-RE's pico_line_test.py,
+# exchange's, 1001 and 1002 (as D-Modem's pico_line_test.py,
 # agere_test.py and apple_test.py run dmodemd --usb):
 #
 # - each says what it's on (ATI3);

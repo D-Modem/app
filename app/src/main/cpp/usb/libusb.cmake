@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Neo-Desktop
 # libusb-1.0 for Android, as the static library `dmodem_android_libusb`
 # (the build host's tests take its libusb.h alone, DMODEM_LIBUSB_SRC):
-# D-Modem-RE's pinned release (its cmake/libusb.cmake: the same version
+# D-Modem's pinned release (its cmake/libusb.cmake: the same version
 # and SHA-256), downloaded once while configuring into the build tree,
 # its core and Linux backend (usbfs) built with the NDK, with the config.h
 # it ships for Android.  An app can't list the USB devices itself: the

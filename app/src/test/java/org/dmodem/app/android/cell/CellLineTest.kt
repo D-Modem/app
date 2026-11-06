@@ -93,7 +93,7 @@ class CellLineTest {
         val net = FakeNetwork("amr122", closers)
         val a = CellModem("cvmA", net.phone("5550001"), listen = false)
         val b = CellModem("cvmB", net.phone("5550002"), listen = true)
-        // V.cvm (D-Modem-RE's, for speech codecs): V.8, then 15 to 21 s probing the codec and
+        // V.cvm (D-Modem's, for speech codecs): V.8, then 15 to 21 s probing the codec and
         // loading a mode for it; S7 long enough for that
         a.command("ATE0\\V1+MS=VCVM;S7=90")
         b.command("ATE0\\V1S0=1+MS=VCVM;S7=90")

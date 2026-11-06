@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 Neo-Desktop
 # libdmodem_jni.so: D-Modem's modem on a SIP line (libdmodem_sip, from the
-# D-Modem-RE submodule) with the app's engine and its JNI binding.
+# D-Modem submodule) with the app's engine and its JNI binding.
 #
-# D-Modem-RE fetches libre and Mbed TLS while configuring and builds them
+# D-Modem fetches libre and Mbed TLS while configuring and builds them
 # with the NDK's toolchain for each ABI (cmake/libre.cmake there).
 cmake_minimum_required(VERSION 3.22)
 project(dmodem_android LANGUAGES C CXX)
@@ -12,12 +12,12 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(DMODEM_RE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../../external/d-modem-re
-	CACHE PATH "the D-Modem-RE tree")
+	CACHE PATH "the D-Modem tree")
 if(NOT EXISTS ${DMODEM_RE_DIR}/CMakeLists.txt)
-	message(FATAL_ERROR "D-Modem-RE not found in ${DMODEM_RE_DIR}: "
+	message(FATAL_ERROR "D-Modem not found in ${DMODEM_RE_DIR}: "
 		"git submodule update --init")
 endif()
-# dmodemd's sources: D-Modem-RE's frontend/dmodemd (dmodemd/ in trees
+# dmodemd's sources: D-Modem's frontend/dmodemd (dmodemd/ in trees
 # from before frontend/ and platforms/)
 if(EXISTS ${DMODEM_RE_DIR}/frontend/dmodemd/CMakeLists.txt)
 	set(DMODEM_RE_DMODEMD ${DMODEM_RE_DIR}/frontend/dmodemd CACHE INTERNAL "")
@@ -45,7 +45,7 @@ target_compile_options(dmodem_engine PRIVATE -Wall -Wextra)
 set_target_properties(dmodem_engine PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 if(ANDROID)
-	# the USB modems (D-Modem-RE's usb_line.cpp: a SmartUSB56, a
+	# the USB modems (D-Modem's usb_line.cpp: a SmartUSB56, a
 	# pico-serial Line stick, an Agere USB 2.0 soft modem, usb_agere.cpp,
 	# Apple's USB Modem, usb_apple.cpp, a pico-serial WB stick, usb_wb.cpp)
 	# on the
@@ -66,7 +66,7 @@ if(ANDROID)
 		PROPERTIES COMPILE_DEFINITIONS
 		"libusb_init=dmodem_libusb_init;libusb_get_device_list=dmodem_libusb_get_device_list;libusb_open=dmodem_libusb_open;libusb_submit_transfer=dmodem_libusb_submit_transfer")
 	# (a special build, -Pdmodem.special=led-probe: the Agere's GPIOs
-	# flipped one by one at start, docs/agere-usb.md in D-Modem-RE)
+	# flipped one by one at start, docs/agere-usb.md in D-Modem)
 	set(agere_defs "libusb_submit_transfer=dmodem_libusb_submit_transfer")
 	if(DMODEM_SPECIAL STREQUAL "led-probe")
 		list(APPEND agere_defs DMODEM_AGERE_LED_PROBE)

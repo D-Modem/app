@@ -17,7 +17,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 
 /**
- * The USB modems that can be the modem's line (D-Modem-RE's usb_line.cpp,
+ * The USB modems that can be the modem's line (D-Modem's usb_line.cpp,
  * on the device Android opens for the app): a Smart Link SmartUSB56
  * (ST7554), a pico-serial Line stick (a Si3056 DAA on a phone line), an
  * Agere USB 2.0 soft modem and Apple's USB Modem (a Si3056 too).
@@ -27,9 +27,9 @@ object UsbModems {
     enum class Kind(val vendor: Int, val products: List<Int>, val label: String, val rate: Int) {
         SMART_USB56(0x0483, listOf(0x7554), "SmartUSB56", 9600),
         PICO_LINE(0x1209, listOf(0x0002), "pico-serial Line", 9600),
-        /** on its ROM's own isochronous stream (D-Modem-RE's usb_agere.cpp); a USB 2.0 port */
+        /** on its ROM's own isochronous stream (D-Modem's usb_agere.cpp); a USB 2.0 port */
         AGERE(0x047E, listOf(0x2892, 0x2828), "Agere USB 2.0 modem", 8000),
-        /** Apple's USB Modem for Macs (A1101): USB audio for its samples, CDC's line control (D-Modem-RE's usb_apple.cpp) */
+        /** Apple's USB Modem for Macs (A1101): USB audio for its samples, CDC's line control (D-Modem's usb_apple.cpp) */
         APPLE(0x05AC, listOf(0x1401, 0x8220), "Apple USB Modem", 9600),
         ;
 
