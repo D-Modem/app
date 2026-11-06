@@ -28,6 +28,9 @@ class CellSettingsTest {
         val label = org.dmodem.app.android.modem.ConnectInfo::label
         assertEquals("V.cvm · LAPM", label("ATD5550002\r\nCONNECT 1200/CVM/LAPM\r\n"))
         assertEquals("V.92 · LAPM · V.44", label("CONNECT 48000/V92/LAPM/V44\r\nhello"))
+        assertEquals("HST · HST", label("CONNECT 16800/HST/HST\r\n"))
+        assertEquals("V.FC · LAPM", label("CONNECT 28800/VFC/LAPM\r\n"))
+        assertEquals("PEP", label("CONNECT 19200/PEP\r\n"))
         assertEquals("", label("CONNECT 300\r\n"))
         assertEquals("", label("OK\r\n"))
         // (the last one)
