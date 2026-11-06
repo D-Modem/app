@@ -11,6 +11,7 @@ object ConnectInfo {
     private val NAMES = mapOf(
         "CVM" to "V.cvm", "V92" to "V.92", "V90" to "V.90", "V91" to "V.91", "V34" to "V.34",
         "V32B" to "V.32bis", "V32" to "V.32", "V22B" to "V.22bis", "V22" to "V.22", "V23" to "V.23",
+        "VFC" to "V.FC", "HST" to "HST", "PEP" to "PEP",
         "V21" to "V.21", "B103" to "Bell 103", "B212" to "Bell 212", "LAPM" to "LAPM", "MNP" to "MNP",
         "V44" to "V.44", "V42BIS" to "V.42bis", "MNP5" to "MNP 5",
     )

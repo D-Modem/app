@@ -227,6 +227,9 @@ final class DModemKitTests: XCTestCase {
     func testWhatTheConnectSaid() {
         XCTAssertEqual(ConnectInfo.label("ATD5550002\r\nCONNECT 1200/CVM/LAPM\r\n"), "V.cvm · LAPM")
         XCTAssertEqual(ConnectInfo.label("CONNECT 48000/V92/LAPM/V44\r\nhello"), "V.92 · LAPM · V.44")
+        XCTAssertEqual(ConnectInfo.label("CONNECT 16800/HST/HST\r\n"), "HST · HST")
+        XCTAssertEqual(ConnectInfo.label("CONNECT 28800/VFC/LAPM\r\n"), "V.FC · LAPM")
+        XCTAssertEqual(ConnectInfo.label("CONNECT 19200/PEP\r\n"), "PEP")
         XCTAssertEqual(ConnectInfo.label("CONNECT 300\r\n"), "")
         XCTAssertEqual(ConnectInfo.label("OK\r\n"), "")
         XCTAssertEqual(ConnectInfo.label("CONNECT 9600/V32\r\nNO CARRIER\r\nCONNECT 1200/CVM\r\n"), "V.cvm")
