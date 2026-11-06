@@ -30,6 +30,8 @@ in [docs/building.md](docs/building.md).
 
 ## Documentation
 
+The documentation is also a website, [d-modem.github.io/app](https://d-modem.github.io/app/), with reference pages made from the code.
+
 [docs/](docs/README.md) covers the modem's lines, fax, adapters and
 phone lines, every screen of the app, building for Android and iOS, and
 the source layout.
