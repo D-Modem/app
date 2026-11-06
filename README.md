@@ -1,3 +1,5 @@
+<img src=".github/banner.png" alt="D-Modem/app: A dial-up modem in your pocket" width="100%">
+
 # D-Modem app
 
 A dial-up modem in your pocket: the D-Modem app for Android and iOS.
