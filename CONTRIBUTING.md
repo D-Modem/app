@@ -5,10 +5,9 @@ sending a change, build it and run its tests ([docs/building.md](docs/building.m
 
 ## The contributor agreement
 
-The app is offered under the AGPL-3.0 ([COPYING](COPYING)).  So that the
-D-Modem Authors can also offer it under other terms, commercial licenses
-included, as they do the rest of D-Modem, each contribution comes with
-this agreement.
+The app is offered under the AGPL-3.0 and, by the D-Modem Authors, under
+commercial licenses ([COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md)).
+For contributions to be part of both, each one comes with this agreement.
 By submitting a contribution (a pull request, a patch or
 any other code or text meant for inclusion), you agree that:
 
