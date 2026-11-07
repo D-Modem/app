@@ -50,6 +50,7 @@ the source layout.
 
 ## Licence
 
-GNU Affero General Public License version 3 only ([COPYING](COPYING)), as
+GNU Affero General Public License version 3 only ([COPYING](COPYING)), or a
+commercial licence from the D-Modem Authors ([COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md)), as
 D-Modem (see its LICENSING.md for the parts it fetches: libre is
-BSD-3-Clause, Mbed TLS Apache-2.0).
+BSD-3-Clause, Mbed TLS Apache-2.0). Contributions come with a contributor agreement ([CONTRIBUTING.md](CONTRIBUTING.md)).
