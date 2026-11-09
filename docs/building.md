@@ -60,6 +60,11 @@ D-Modem's own rule has it. `tools/doc_check.py` lists any that don't
 CI (`.github/workflows/android.yml`) runs all three, and that check; it needs a
 `DMODEM_TOKEN` secret that can read the private D-Modem submodule.
 
+`.github/workflows/d-modem-bump.yml` keeps the submodule on D-Modem's
+main: daily (or by hand) it opens a pull request that moves it, set to
+merge once CI passes. It needs a `DMODEM_BUMP_TOKEN` secret (its header
+says which permissions).
+
 Signing comes from the environment: `ANDROID_KEYSTORE_FILE` (a PKCS12
 keystore), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and
 `ANDROID_KEY_PASSWORD` (the store's password if unset). Without them a
