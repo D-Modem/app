@@ -19,7 +19,8 @@ let engineLinking: [LinkerSetting] = [
         "-L\(host)/app", "-L\(host)/app/d-modem-re/dmodemd", "-L\(host)/_deps/libre-install/lib",
     ]),
     .linkedLibrary("dmodem_engine"), .linkedLibrary("dmodem_sip"), .linkedLibrary("re"),
-    .linkedLibrary("ssl"), .linkedLibrary("crypto"), .linkedLibrary("stdc++"), .linkedLibrary("dl"),
+    // (libre's digests and AES: D-Modem's default, Mbed TLS's crypto library, built beside it)
+    .linkedLibrary("mbedcrypto"), .linkedLibrary("stdc++"), .linkedLibrary("dl"),
     .linkedLibrary("m"), .linkedLibrary("resolv"),
 ]
 #else
