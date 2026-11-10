@@ -6,6 +6,7 @@ import org.dmodem.app.terminal.Key
 import org.dmodem.app.terminal.KeyEncoder
 import org.dmodem.app.terminal.TermCharset
 import org.dmodem.app.terminal.TerminalEmulator
+import org.dmodem.app.terminal.TerminalProfile
 import org.dmodem.app.transfer.Incoming
 import org.dmodem.app.transfer.Outgoing
 import org.dmodem.app.transfer.Protocol
@@ -79,6 +80,14 @@ class TerminalSession(
     val capture: StateFlow<File?> = _capture.asStateFlow()
     private var captureOut: FileOutputStream? = null
     private val captureLock = Any()
+
+    /** the kind of terminal the session is (its sequences, its answers) */
+    var profile: TerminalProfile
+        get() = synchronized(emulator) { emulator.profile }
+        set(v) {
+            synchronized(emulator) { emulator.profile = v }
+            onChange?.invoke()
+        }
 
     var charset: TermCharset
         get() = emulator.decoder.charset

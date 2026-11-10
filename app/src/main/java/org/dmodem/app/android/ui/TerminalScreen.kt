@@ -162,6 +162,8 @@ fun TerminalScreen(
     // the modem session's character set follows the settings (a directory entry's own while its call
     // lasts); an SSH or Telnet session keeps its entry's
     LaunchedEffect(s.charset) { Terminal.session.charset = s.charset }
+    // (and its kind of terminal)
+    LaunchedEffect(s.terminalType) { Terminal.session.profile = s.profile }
 
     // the bell
     DisposableEffect(s.bell, view, session) {

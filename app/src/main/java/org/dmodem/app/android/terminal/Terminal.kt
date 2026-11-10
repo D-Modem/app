@@ -4,6 +4,8 @@ package org.dmodem.app.android.terminal
 
 import org.dmodem.app.terminal.BackspaceMode
 import org.dmodem.app.terminal.TermCharset
+import org.dmodem.app.terminal.TerminalProfile
+import org.dmodem.app.terminal.TerminalProfiles
 import android.content.Context
 import org.dmodem.app.android.NativeModem
 import org.dmodem.app.android.modem.ModemService
@@ -101,6 +103,9 @@ object Terminal {
         if (!e.complete) return "the entry is missing its host, user or key"
         val t = TerminalSettingsStore(context).current()
         val (cols, rows) = synchronized(session.emulator) { session.emulator.cols to session.emulator.rows }
+        // (SSH reaches a Unix host: xterm unless the entry says)
+        val profile = TerminalProfiles.byId(e.terminal) ?: if (e.kind == EntryKind.SSH) TerminalProfiles.XTERM else t.profile
+        val charset = e.charset ?: profile.charset ?: (if (e.kind == EntryKind.SSH) TermCharset.UTF8 else t.charset)
         val link: TerminalLink = when (e.kind) {
             EntryKind.SSH -> {
                 val key = if (e.auth == SshAuth.KEY) {
@@ -119,6 +124,7 @@ object Terminal {
                     savedPassword = if (e.auth == SshAuth.PASSWORD) passwords.get(e.id) else null,
                     // (a password that can't be kept is still used for this login)
                     keepPassword = { runCatching { passwords.put(e.id, it) } },
+                    term = profile.term,
                     cols = cols, rows = rows,
                     forwardSpecs = e.forwards.mapNotNull { ForwardSpec.parse(it) },
                     agent = if (e.agentForwarding) agentKeys(e) else null,
@@ -126,7 +132,7 @@ object Terminal {
             }
             EntryKind.TELNET -> TelnetLink(
                 e.host.trim(), e.portOrDefault,
-                termType = if ((e.charset ?: t.charset) == TermCharset.CP437) "ANSI" else "XTERM-256COLOR",
+                termType = telnetType(profile, charset),
                 cols = cols, rows = rows,
             ).also { it.connect() }
             EntryKind.MODEM -> return "a modem entry is dialled, not opened"
@@ -137,7 +143,8 @@ object Terminal {
             kind = if (e.kind == EntryKind.SSH) TerminalSession.Kind.SSH else TerminalSession.Kind.TELNET,
             entry = e,
         ) { app.getExternalFilesDir("captures") }
-        s.charset = e.charset ?: (if (e.kind == EntryKind.SSH) TermCharset.UTF8 else t.charset)
+        s.profile = profile
+        s.charset = charset
         s.keys.backspace = e.backspace ?: (if (e.kind == EntryKind.SSH) BackspaceMode.DEL else t.backspace)
         s.keys.enter = t.enter
         s.incoming = ::downloads
@@ -147,6 +154,10 @@ object Terminal {
         ConnectionService.update(app)
         return null
     }
+
+    /** what Telnet's TERMINAL-TYPE says for [profile] in [charset]: xterm in CP437 as ANSI (a BBS's), as before profiles */
+    internal fun telnetType(profile: TerminalProfile, charset: TermCharset): String =
+        if (profile === TerminalProfiles.XTERM && charset == TermCharset.CP437) TerminalProfiles.ANSI_BBS.telnetType else profile.telnetType
 
     /** the app's keys as an agent for [e]'s connection: each use asked of the user unless the entry says not to */
     private fun agentKeys(e: DialEntry) = AgentKeys(
@@ -276,7 +287,9 @@ object Terminal {
             return "the modem is in a call: hang up first"
         }
         val t = TerminalSettingsStore(context).current()
-        session.charset = e.charset ?: t.charset
+        val profile = TerminalProfiles.byId(e.terminal) ?: t.profile
+        session.profile = profile
+        session.charset = e.charset ?: profile.charset ?: t.charset
         session.keys.backspace = e.backspace ?: t.backspace
         for (cmd in e.initCommands.split(';', '\n').map { it.trim() }.filter { it.isNotEmpty() }) {
             withContext(Dispatchers.IO) { sendAndWait(cmd + "\r", 2000) }

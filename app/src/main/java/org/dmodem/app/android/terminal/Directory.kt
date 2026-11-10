@@ -35,6 +35,8 @@ data class DialEntry(
     val keyId: String = "",
     /** AT commands before the dial (AT+MS=..., AT&K...), empty: none */
     val initCommands: String = "",
+    /** the kind of terminal it is reached as (a profile's id); null: the terminal's setting (SSH: xterm) */
+    val terminal: String? = null,
     /** the entry's character set; null: the terminal's */
     val charset: TermCharset? = null,
     /** the entry's backspace; null: the terminal's */
@@ -70,7 +72,7 @@ data class DialEntry(
     fun toJson(): JSONObject = JSONObject()
         .put("id", id).put("name", name).put("kind", kind.name).put("number", number)
         .put("host", host).put("port", port).put("user", user).put("auth", auth.name).put("keyId", keyId)
-        .put("init", initCommands).put("charset", charset?.name ?: "")
+        .put("init", initCommands).put("terminal", terminal ?: "").put("charset", charset?.name ?: "")
         .put("backspace", backspace?.name ?: "").put("notes", notes)
         .put("lastDialed", lastDialed).put("dialCount", dialCount)
         .put("forwards", org.json.JSONArray(forwards)).put("agent", agentForwarding).put("agentConfirm", agentConfirm)
@@ -88,6 +90,7 @@ data class DialEntry(
             auth = runCatching { SshAuth.valueOf(o.optString("auth")) }.getOrDefault(SshAuth.PASSWORD),
             keyId = o.optString("keyId"),
             initCommands = o.optString("init"),
+            terminal = o.optString("terminal").takeIf { it.isNotEmpty() },
             charset = o.optString("charset").takeIf { it.isNotEmpty() }
                 ?.let { runCatching { TermCharset.valueOf(it) }.getOrNull() },
             backspace = o.optString("backspace").takeIf { it.isNotEmpty() }

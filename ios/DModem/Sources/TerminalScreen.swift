@@ -10,6 +10,7 @@ struct TerminalScreen: View {
     @ObservedObject var model: TerminalModel
     @State private var focused = true
     @AppStorage("terminalFontSize") private var fontSize: Double = 12
+    @AppStorage("terminalProfile") private var profile = "xterm"
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,6 +28,8 @@ struct TerminalScreen: View {
             }
             ExtraKeys(model: model)
         }
+        .onAppear { model.setProfile(profile) }
+        .onChange(of: profile) { model.setProfile($0) }
         .navigationTitle(model.bridge.title.isEmpty ? "Terminal" : model.bridge.title)
         .navigationBarTitleDisplayMode(.inline)
     }

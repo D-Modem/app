@@ -64,6 +64,17 @@ class TerminalBridge(cols: Int, rows: Int) {
         emulator.decoder.charset = TermCharset.entries.firstOrNull { it.name == charset } ?: TermCharset.UTF8
     }
 
+    /** the kind of terminal it is: a [TerminalProfiles] id (one not known: the default) */
+    var profile: String
+        get() = emulator.profile.id
+        set(v) { emulator.profile = TerminalProfiles.byId(v) ?: TerminalProfiles.DEFAULT }
+
+    /** the profiles' ids, in the pickers' order */
+    val profileIds: List<String> get() = TerminalProfiles.all.map { it.id }
+
+    /** profile [id]'s name, for a picker */
+    fun profileLabel(id: String): String = TerminalProfiles.byId(id)?.label ?: id
+
     /** text typed: its octets in the character set (Latin-1, one character each); a newline as Enter */
     fun typed(text: String, ctrl: Boolean = false, alt: Boolean = false): String {
         val out = StringBuilder()

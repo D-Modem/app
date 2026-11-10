@@ -53,6 +53,7 @@ import org.dmodem.app.android.terminal.EntryKind
 import org.dmodem.app.android.terminal.SshAuth
 import org.dmodem.app.android.terminal.Snippet
 import org.dmodem.app.terminal.TermCharset
+import org.dmodem.app.terminal.TerminalProfiles
 import org.dmodem.app.android.terminal.Terminal
 import kotlinx.coroutines.launch
 
@@ -210,6 +211,10 @@ internal fun EntryDialog(entry: DialEntry, onSave: (DialEntry) -> Unit, onDismis
                         }
                     }
                 }
+                Choice(
+                    "Terminal type", TerminalProfiles.byId(e.terminal)?.label ?: "Default",
+                    listOf<Pair<String, String?>>("Default" to null) + TerminalProfiles.all.map { it.label to it.id },
+                ) { e = e.copy(terminal = it) }
                 Choice(
                     "Character set", e.charset?.label ?: "Default",
                     listOf("Default" to null) + TermCharset.entries.map { it.label to it },

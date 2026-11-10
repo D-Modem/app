@@ -25,6 +25,12 @@ final class TerminalModel: ObservableObject {
         bridge.setLook(themeId: "vga", boldBright: true, iceColors: false, charset: "CP437")
     }
 
+    /// the kind of terminal (a profile's id, as Settings keeps it under "terminalProfile")
+    func setProfile(_ id: String) {
+        bridge.profile = id
+        revision = bridge.revision
+    }
+
     var cols: Int { Int(bridge.cols) }
     var rows: Int { Int(bridge.rows) }
 

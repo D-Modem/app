@@ -28,7 +28,12 @@
   colours, the alternate screen, bracketed paste, DEC line drawing) that
   also speaks what BBSes expect: CP437, ANSI.SYS's cursor save/restore and
   clear-home, bold as bright, iCE colours, and box drawing and block
-  characters drawn to fill their cells so ANSI art has no gaps. Colour
+  characters drawn to fill their cells so ANSI art has no gaps. A
+  terminal type (Settings, and each directory entry's own) picks what it
+  is: xterm, ANSI-BBS (a PC's, in CP437), DEC VT100, VT102 or VT220. Each
+  answers the device attribute requests as that terminal did, knows only
+  its own sequences (a VT100 has no colours, a VT220 no xterm titles or
+  mouse), and gives SSH its `TERM` and Telnet its TERMINAL-TYPE. Colour
   themes (VGA, xterm, Solarized, Dracula, Monokai, Gruvbox, Nord, green
   and amber phosphor), fonts (Cascadia Code, Sauce Code Pro Nerd Font,
   Source Code Pro, Roboto Mono, JetBrains Mono, Fira Code, OpenDyslexic
@@ -51,7 +56,7 @@
   as if typed (to an editor, a BBS, `cat > file`), and what comes saved
   as it is until the line is quiet for 10 s.
 - **Dial**: the dialing directory: each system's number (or SIP user), the
-  AT commands it needs before ATD, its character set and backspace; one
+  AT commands it needs before ATD, its terminal type, character set and backspace; one
   tap starts the modem if it is off and dials.
 - **Log**: the modem's and SIP's log (Copy for all of it).
 - **AT commands** (Settings, AT commands, and the terminal's menu): the
