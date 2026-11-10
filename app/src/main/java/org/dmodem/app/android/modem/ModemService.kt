@@ -54,6 +54,9 @@ class ModemService : Service() {
 
     companion object {
         private const val TAG = "ModemService"
+
+        /** the test switches the last start put into the environment */
+        private var testEnvSet: Set<String> = emptySet()
         private const val NO_LOCAL_NETWORK = "Android hasn't allowed D-Modem on the local network, so a SIP server " +
             "there can't be reached (\"Operation not permitted\"): allow it in Android's settings, " +
             "Apps > D-Modem > Permissions, then start the modem again"
@@ -296,6 +299,14 @@ class ModemService : Service() {
             } else {
                 android.system.Os.unsetenv("DMODEM_USB_TX_GAIN")
             }
+        }
+        // the settings' test switches into the environment, the last start's gone
+        runCatching {
+            val env = settings.testEnv
+            for (name in testEnvSet - env.keys) android.system.Os.unsetenv(name)
+            for ((name, value) in env) android.system.Os.setenv(name, value, true)
+            testEnvSet = env.keys
+            if (env.isNotEmpty()) log("test switches: " + env.entries.joinToString(" ") { "${it.key}=${it.value}" })
         }
         val pfd = NativeModem.start(config)
         if (pfd == null) {

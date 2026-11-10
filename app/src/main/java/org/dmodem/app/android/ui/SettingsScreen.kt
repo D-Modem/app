@@ -176,6 +176,12 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
                                     "the log screen shares the latest. The last ${org.dmodem.app.android.modem.LineRecordings.KEEP} are kept.",
                                 style = MaterialTheme.typography.bodySmall,
                             )
+                            Field("Test switches (optional)", s.testSwitches) { s = s.copy(testSwitches = it) }
+                            Text(
+                                "Only for a bug hunt, when asked for: NAME=VALUE settings of the modem itself " +
+                                    "(DSP_... or DMODEM_..., separated by spaces), used from the modem's next start.",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         } else if (s.btModem) {
                             BluetoothModemFields(s) { s = it }
                         } else if (s.serialModem) {
