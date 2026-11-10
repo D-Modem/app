@@ -38,6 +38,7 @@ Every setting the apps keep, from their code. [The app, screen by screen](featur
 | `recordLine` | `record_line` | on/off | `false` | Each call on a USB modem's line recorded (LineRecordings), for a bug report. |
 | `usbTxGain` | `usb_tx_gain` | number | `0` | A USB modem's line: the modem's sound to it louder or softer, dB (-20 to 20; D-Modem's DMODEM_USB_TX_GAIN). |
 | `usbTxAuto` | `usb_tx_auto` | on/off | `true` | A USB modem's line: its transmit level set for each call from the remote's answer tone (DMODEM_USB_TX_GAIN=auto), not [usbTxGain]. |
+| `testSwitches` | `test_switches` | text | (empty) | The modem's test switches, NAME=VALUE (D-Modem's DSP_* and DMODEM_* settings), for a bug hunt. |
 
 `line` is one of: `bluetooth`, `bt_modem`, `cell`, `none`, `serial_modem`, `sip`, `usb`, `wifi`.
 
