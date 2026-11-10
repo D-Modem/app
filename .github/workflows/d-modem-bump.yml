@@ -1,5 +1,6 @@
 # D-Modem bump: moves the external/d-modem-re submodule to D-Modem's
-# latest main and opens (or updates) a pull request for it, set to merge
+# latest main, with the AT command reference that comes with it (the
+# app's assets' copy, tools/at_reference.py), and opens (or updates) a pull request for it, set to merge
 # by itself once its checks pass. Daily, by hand (Actions > D-Modem bump >
 # Run workflow), or from D-Modem (a repository_dispatch of type
 # "d-modem-main", for when its main changes).
@@ -70,6 +71,7 @@ jobs:
             exit 0
           fi
           git -C external/d-modem-re checkout --quiet "$new"
+          python3 tools/at_reference.py
           echo "changed=true" >> "$GITHUB_OUTPUT"
           {
             echo 'log<<EOF'
@@ -86,9 +88,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -B "$BRANCH"
-          git add external/d-modem-re
+          git add external/d-modem-re app/src/main/assets/docs
           git commit -m "Bump D-Modem to ${NEW:0:7}" \
-            -m "external/d-modem-re: ${OLD:0:7} -> ${NEW:0:7} (D-Modem's main)." \
+            -m "external/d-modem-re: ${OLD:0:7} -> ${NEW:0:7} (D-Modem's main), and its AT command reference." \
             -m "Signed-off-by: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
           git push --force origin "$BRANCH"
 

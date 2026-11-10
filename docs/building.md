@@ -61,7 +61,8 @@ CI (`.github/workflows/android.yml`) runs all three, and that check; it needs a
 `DMODEM_TOKEN` secret that can read the private D-Modem submodule.
 
 `.github/workflows/d-modem-bump.yml` keeps the submodule on D-Modem's
-main: daily (or by hand) it opens a pull request that moves it, set to
+main: daily (or by hand) it opens a pull request that moves it, with the
+AT command reference in the app's assets (`tools/at_reference.py`), set to
 merge once CI passes. It needs a `DMODEM_BUMP_TOKEN` secret (its header
 says which permissions).
 
