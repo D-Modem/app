@@ -42,10 +42,15 @@ class PppTakeoverTest {
         ModemState.setStatus(NativeModem.Status(NativeModem.Link.ONLINE, true, 33600, 33600))
     }
 
-    /** disconnected, the DTE detached, the modem stopped */
+    /**
+     * disconnected (and its hang-up done, so a link left by a failed test
+     * can't reach the next one's DTE), the DTE detached, the modem stopped
+     */
     @After
     fun tearDown() {
         Internet.disconnect()
+        val end = System.currentTimeMillis() + 15_000
+        while (Internet.running && System.currentTimeMillis() < end) Thread.sleep(100)
         ModemState.dte.detach()
         ModemState.setStatus(ModemState.IDLE)
         ModemState.setRun(ModemState.Run.STOPPED)
@@ -94,6 +99,11 @@ class PppTakeoverTest {
         assertEquals("192.168.7.42", cfg.address.hostAddress)
         // (PPP's frames from the first octet: no AT commands before them)
         assertEquals('\u007e', synchronized(sent) { sent[0] })
+        // (the link's tunnel in place: the address comes to openTunnel before Internet keeps the tunnel
+        // it returns, and an answer before that would be dropped)
+        val until = System.currentTimeMillis() + 10_000
+        while (Internet.state.value?.connected != true && System.currentTimeMillis() < until) Thread.sleep(20)
+        assertTrue(Internet.state.value?.connected == true)
 
         assertTrue(Internet.sendIp(Ip.udp(cfg.address.address, byteArrayOf(192.toByte(), 168.toByte(), 7, 1), 5353, 7, "hi".toByteArray())))
         val back = fromLink.poll(20, TimeUnit.SECONDS) ?: throw AssertionError("no answer")
