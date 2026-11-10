@@ -15,6 +15,8 @@ final class TerminalModel: ObservableObject {
     @Published private(set) var revision: Int64 = 0
     /// the next key with Ctrl (the extra keys' sticky Ctrl)
     @Published var ctrl = false
+    /// the next key with Alt (the key bar's sticky Alt)
+    @Published var alt = false
 
     /// to the modem
     var send: ((Data) -> Void)?
@@ -53,6 +55,13 @@ final class TerminalModel: ObservableObject {
     func key(_ name: String) {
         out(bridge.key(name: name, shift: false, alt: false, ctrl: ctrl))
         ctrl = false
+    }
+
+    /// the key bar's key at ([row], [col]) of [page] pressed, Ctrl and Alt if the sticky ones are down
+    func barKey(page: Int, row: Int, col: Int) {
+        out(bridge.keyBarPress(page: Int32(page), row: Int32(row), col: Int32(col), ctrl: ctrl, alt: alt))
+        ctrl = false
+        alt = false
     }
 
     /// the screen to [cols] by [rows] (the view's size)

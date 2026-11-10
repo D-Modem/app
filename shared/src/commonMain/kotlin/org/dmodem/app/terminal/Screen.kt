@@ -81,6 +81,14 @@ class CellExtra(
     val isEmpty get() = combining == null && image == null && link == null
 }
 
+/** A line's size (DECSWL, DECDWL, DECDHL): its characters twice as wide, and for double height the top or bottom half of them */
+enum class LineSize {
+    SINGLE, DOUBLE_WIDTH, DOUBLE_TOP, DOUBLE_BOTTOM;
+
+    /** its characters twice as wide (all but [SINGLE]) */
+    val doubleWidth: Boolean get() = this != SINGLE
+}
+
 /**
  * a line of cells: code points (0: never written, shown as a space;
  * [WIDE_TAIL]: the right half of the wide character before it), their
@@ -94,6 +102,8 @@ class Line(cols: Int, style: Long = Style.NORMAL) {
         private set
     /** it goes on in the next line (the text wrapped at the right margin) */
     var wrapped = false
+    /** double width or height (ESC # 3/4/6), or single */
+    var size = LineSize.SINGLE
 
     val cols: Int get() = chars.size
 
@@ -122,6 +132,13 @@ class Line(cols: Int, style: Long = Style.NORMAL) {
             styles[i] = style
         }
         extras?.let { e -> for (i in f until t) e[i] = null }
+    }
+
+    /** all of it blanked in [style], as a new line: not wrapped, single size */
+    fun blank(style: Long) {
+        clear(0, cols, style)
+        wrapped = false
+        size = LineSize.SINGLE
     }
 
     /** [n] blank cells at [at], those at the end pushed off */
@@ -172,6 +189,7 @@ class Line(cols: Int, style: Long = Style.NORMAL) {
             extras = e
         }
         wrapped = o.wrapped
+        size = o.size
     }
 
     /** the text, without the blank cells at the end (combining marks with their characters) */

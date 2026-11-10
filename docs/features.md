@@ -30,10 +30,17 @@
   clear-home, bold as bright, iCE colours, and box drawing and block
   characters drawn to fill their cells so ANSI art has no gaps. A
   terminal type (Settings, and each directory entry's own) picks what it
-  is: xterm, ANSI-BBS (a PC's, in CP437), DEC VT100, VT102 or VT220. Each
+  is: xterm, ANSI-BBS (a PC's, in CP437), DEC VT52, VT100, VT102 or VT220. Each
   answers the device attribute requests as that terminal did, knows only
   its own sequences (a VT100 has no colours, a VT220 no xterm titles or
-  mouse), and gives SSH its `TERM` and Telnet its TERMINAL-TYPE. Colour
+  mouse), and gives SSH its `TERM` and Telnet its TERMINAL-TYPE. The DEC
+  terminals have their double-width and double-height lines, 80/132
+  column switching (the screen refits to the width), the VT52's own
+  sequences and graphics (and a VT100's VT52 mode), the UK character set,
+  the keyboard LEDs and parameter reports, and a printer port (from the
+  VT102 on) whose output is saved to a text file. The key bar gains the
+  DEC keypad (PF1-PF4, digits, minus, comma, period, Enter, in numeric or
+  application mode), and a hardware numpad sends those keys. Colour
   themes (VGA, xterm, Solarized, Dracula, Monokai, Gruvbox, Nord, green
   and amber phosphor), fonts (Cascadia Code, Sauce Code Pro Nerd Font,
   Source Code Pro, Roboto Mono, JetBrains Mono, Fira Code, OpenDyslexic

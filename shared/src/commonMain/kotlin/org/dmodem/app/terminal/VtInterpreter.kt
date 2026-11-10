@@ -12,13 +12,22 @@ import org.dmodem.app.terminal.TerminalEmulator.MouseMode
  * the levels that read more extend this class.
  */
 open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : TerminalInterpreter(t) {
-    // G0, G1 and which of them is in use: DEC special graphics or not
-    private var g0Graphics = false
-    private var g1Graphics = false
+    // G0, G1 and which of them is in use
+    private var g0 = GSet.ASCII
+    private var g1 = GSet.ASCII
     private var shiftOut = false
 
     /** G0, G1 and the shift, as DECSC saves them */
-    private class Charsets(val g0: Boolean, val g1: Boolean, val so: Boolean)
+    private class Charsets(val g0: GSet, val g1: GSet, val so: Boolean)
+
+    /** VT52 mode (DECANM reset): its interpreter, until ESC < */
+    private var vt52: Vt52Interpreter? = null
+
+    /** the printer port (a VT102's and later), ended by MC 4 */
+    private val printer = PrinterPort(t, listOf("\u001b[4i", "\u009b4i"))
+
+    /** DECSET 40: xterm lets the remote change the columns (DECCOLM); a DEC terminal always does */
+    private var allowColumns = false
 
     // the parser
     private enum class State { GROUND, ESC, ESC_INTER, CSI, OSC, OSC_ESC, STRING, STRING_ESC, DCS, DCS_PASS, DCS_ESC }
@@ -43,6 +52,11 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
 
     /** one code point through the parser, by the state it is in (text, ESC, CSI, OSC, a string, a DCS) */
     override fun process(cp: Int) {
+        vt52?.let { it.process(cp); return }
+        if (printer.controller) {
+            printer.feed(cp)
+            return
+        }
         when (state) {
             State.GROUND -> ground(cp)
             State.ESC -> esc(cp)
@@ -109,7 +123,7 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
             }
             return
         }
-        t.print(if (if (shiftOut) g1Graphics else g0Graphics) TerminalEmulator.decGraphics(cp) else cp)
+        t.print((if (shiftOut) g1 else g0).map(cp))
     }
 
     /** a C0 control: ENQ's answerback, the bell, BS, HT, LF/VT/FF, CR, SO/SI, CAN/SUB, ESC */
@@ -119,7 +133,11 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
             0x07 -> t.listener?.onBell()
             0x08 -> t.backspace()
             0x09 -> t.tab(1)
-            0x0a, 0x0b, 0x0c -> { t.index(); if (t.newlineMode) t.carriageReturn() }
+            0x0a, 0x0b, 0x0c -> {
+                if (printer.auto) printer.printLine(t.cursorY)
+                t.index()
+                if (t.newlineMode) t.carriageReturn()
+            }
             0x0d -> t.carriageReturn()
             0x0e -> shiftOut = true
             0x0f -> shiftOut = false
@@ -144,6 +162,8 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
             'M' -> t.reverseIndex()
             'H' -> t.setTab()
             'c' -> t.reset()
+            // DECID: as DA1
+            'Z' -> t.reply(profile.primaryDa)
             '=' -> t.appKeypad = true
             '>' -> t.appKeypad = false
             '\\' -> {}
@@ -151,14 +171,19 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
         }
     }
 
-    /** the character after ESC and an intermediate: G0/G1's DEC graphics on or off, DECALN */
+    /** the character after ESC and an intermediate: G0's or G1's set designated, a line's size, DECALN */
     private fun escInter(cp: Int) {
         state = State.GROUND
-        val graphics = cp == '0'.code
         when (intermediate.toChar()) {
-            '(' -> g0Graphics = graphics
-            ')' -> g1Graphics = graphics
-            '#' -> if (cp == '8'.code) t.alignmentTest()
+            '(' -> GSet.byFinal(cp)?.let { g0 = it }
+            ')' -> GSet.byFinal(cp)?.let { g1 = it }
+            '#' -> when (cp.toChar()) {
+                '3' -> t.setLineSize(LineSize.DOUBLE_TOP)
+                '4' -> t.setLineSize(LineSize.DOUBLE_BOTTOM)
+                '5' -> t.setLineSize(LineSize.SINGLE)
+                '6' -> t.setLineSize(LineSize.DOUBLE_WIDTH)
+                '8' -> t.alignmentTest()
+            }
         }
     }
 
@@ -222,6 +247,11 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
                 'J' -> t.eraseDisplay(p(0, 0))
                 'K' -> t.eraseLine(p(0, 0))
                 'S' -> if (xterm) graphicsAttributes(p(0, 0), p(1, 0))
+                'i' -> if (profile.has(VtFeature.PRINTER)) when (p(0, 0)) {
+                    1 -> printer.printLine(t.cursorY)
+                    4 -> printer.auto = false
+                    5 -> printer.auto = true
+                }
             }
             return
         }
@@ -291,6 +321,18 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
             's' -> t.saveCursor()
             'u' -> t.restoreCursor()
             't' -> if (xterm) windowReport(p(0, 0))
+            // DECREQTPARM: no parity, 8 bits, 38400 baud each way (sent unasked: 2, asked: 3)
+            'x' -> if (p(0, 0) <= 1 && nParams <= 1) t.reply("\u001b[${(if (nParams == 0) 0 else params[0]) + 2};1;1;128;128;1;0x")
+            // DECLL: the keyboard's LEDs (0 all off, 1-4 on); DECTST (y): no tests to run
+            'q' -> for (i in 0 until maxOf(nParams, 1)) {
+                val n = params[i]
+                t.leds = if (n == 0) 0 else if (n in 1..4) t.leds or (1 shl (n - 1)) else t.leds
+            }
+            // MC: print the screen (0), printer controller mode on (5) and off (4)
+            'i' -> if (profile.has(VtFeature.PRINTER)) when (p(0, 0)) {
+                0 -> printer.printScreen()
+                5 -> printer.startController()
+            }
         }
     }
 
@@ -298,6 +340,10 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
     private fun decMode(m: Int, on: Boolean) {
         when (m) {
             1 -> t.appCursorKeys = on
+            // DECANM reset: VT52 mode, with this terminal's graphics, until ESC <
+            2 -> if (!on) enterVt52()
+            // DECCOLM: 132 columns or 80
+            3 -> if (!xterm || allowColumns) t.setColumnMode(on)
             5 -> t.reverseVideo = on
             6 -> { t.originMode = on; t.cursorPosition(0, 0) }
             7 -> t.autowrap = on
@@ -312,6 +358,7 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
                 if (on) { t.saveCursor(); t.setAltScreen(true, clear = true) } else { t.setAltScreen(false, clear = false); t.restoreCursor() }
             }
             2004 -> t.bracketedPaste = on
+            40 -> allowColumns = on
             9 -> t.mouseMode = if (on) MouseMode.X10 else MouseMode.NONE
             1000 -> t.mouseMode = if (on) MouseMode.NORMAL else MouseMode.NONE
             1002 -> t.mouseMode = if (on) MouseMode.BUTTON else MouseMode.NONE
@@ -330,6 +377,9 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
         fun b(v: Boolean) = if (v) 1 else 2
         val dec = when (m) {
             1 -> b(t.appCursorKeys)
+            // (asked in ANSI mode: it is in ANSI mode)
+            2 -> 1
+            3 -> b(t.requestedColumns == 132)
             5 -> b(t.reverseVideo)
             6 -> b(t.originMode)
             7 -> b(t.autowrap)
@@ -345,6 +395,7 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
             1000 -> b(t.mouseMode == MouseMode.NORMAL)
             1002 -> b(t.mouseMode == MouseMode.BUTTON)
             1003 -> b(t.mouseMode == MouseMode.ANY)
+            40 -> b(allowColumns)
             1004 -> b(t.focusEvents)
             1005 -> b(t.mouseUtf8)
             1006 -> b(t.mouseSgr)
@@ -659,14 +710,22 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
     // the interpreter's own state
 
     /** G0, G1 and the shift for DECSC */
-    override fun charsetState(): Any = Charsets(g0Graphics, g1Graphics, shiftOut)
+    override fun charsetState(): Any = Charsets(g0, g1, shiftOut)
 
     /** G0, G1 and the shift as DECSC saved them (none: ASCII in both) */
     override fun restoreCharsetState(s: Any?) {
         val c = s as? Charsets
-        g0Graphics = c?.g0 ?: false
-        g1Graphics = c?.g1 ?: false
+        g0 = c?.g0 ?: GSet.ASCII
+        g1 = c?.g1 ?: GSet.ASCII
         shiftOut = c?.so ?: false
+    }
+
+    /** VT52 mode: a [Vt52Interpreter] reads what comes, with DEC Special Graphics, until its ESC < */
+    private fun enterVt52() {
+        vt52 = Vt52Interpreter(t, GSet.DEC_GRAPHICS, "\u001b/Z") {
+            vt52 = null
+            t.vt52Keys = false
+        }
     }
 
     /** DECSTR: the character sets back to ASCII */
@@ -677,6 +736,10 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
     /** RIS: the parser in its ground state, no DCS under way */
     override fun reset() {
         softReset()
+        vt52 = null
+        t.vt52Keys = false
+        printer.reset()
+        allowColumns = false
         sixel = null
         dcsText = null
         state = State.GROUND

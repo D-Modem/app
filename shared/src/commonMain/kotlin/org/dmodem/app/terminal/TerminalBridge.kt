@@ -89,7 +89,7 @@ class TerminalBridge(cols: Int, rows: Int) {
             }
             i++
             if (cp == '\n'.code || cp == '\r'.code) {
-                out.append(keys.key(Key.ENTER, emulator.appCursorKeys, alt = alt))
+                out.append(keys.key(Key.ENTER, emulator, alt = alt))
                 continue
             }
             out.append(keys.char(cp, alt, ctrl))
@@ -101,8 +101,45 @@ class TerminalBridge(cols: Int, rows: Int) {
     fun key(name: String, shift: Boolean = false, alt: Boolean = false, ctrl: Boolean = false): String {
         val k = Key.entries.firstOrNull { it.name == name } ?: return ""
         if (k == Key.BACKSPACE) return keys.backspace.code.toChar().toString()
-        return octets(keys.key(k, emulator.appCursorKeys, shift, alt, ctrl))
+        return octets(keys.key(k, emulator, shift, alt, ctrl))
     }
+
+    /** row [row]'s size: 0 single, 1 double width, 2 double height's top half, 3 its bottom half */
+    fun lineSize(row: Int): Int = emulator.line(row).size.ordinal
+
+    /** the columns the remote asked for (DECCOLM: 80 or 132) for the view to fit, 0 for none */
+    val requestedColumns: Int get() = emulator.requestedColumns
+
+    /** the key bar's pages for the profile */
+    private val bar: List<KeyBarPage> get() = emulator.profile.keyBar
+
+    /** the key bar's pages */
+    val keyBarPages: Int get() = bar.size
+
+    /** page [page]'s rows of key labels (the next-page key's: the page it brings) */
+    fun keyBarRows(page: Int): List<List<String>> {
+        val p = bar.getOrNull(page) ?: return emptyList()
+        return p.rows.map { r -> r.map { k -> if (k is BarKey.NextPage) KeyBars.nextLabel(bar, page) else k.label } }
+    }
+
+    /** what the key at ([row], [col]) of page [page] is: "ctrl", "alt", "next" (page), or "" for one that sends */
+    fun keyBarAction(page: Int, row: Int, col: Int): String = when (keyAt(page, row, col)) {
+        BarKey.Ctrl -> "ctrl"
+        BarKey.Alt -> "alt"
+        BarKey.NextPage -> "next"
+        else -> ""
+    }
+
+    /** what the key at ([row], [col]) of page [page] sends, as octets in Latin-1 ("" for one that doesn't) */
+    fun keyBarPress(page: Int, row: Int, col: Int, ctrl: Boolean = false, alt: Boolean = false): String =
+        when (val k = keyAt(page, row, col)) {
+            is BarKey.Send -> key(k.key.name, alt = alt, ctrl = ctrl)
+            is BarKey.Type -> typed(k.text, ctrl, alt)
+            else -> ""
+        }
+
+    /** the bar's key at ([row], [col]) of page [page], or null */
+    private fun keyAt(page: Int, row: Int, col: Int): BarKey? = bar.getOrNull(page)?.rows?.getOrNull(row)?.getOrNull(col)
 
     /** the screen's text from (row, col) to (row2, col2), for copying */
     fun text(row: Int, col: Int, row2: Int, col2: Int): String = emulator.text(row, col, row2, col2)

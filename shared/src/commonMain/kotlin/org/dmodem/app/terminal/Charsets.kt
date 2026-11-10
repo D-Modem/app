@@ -103,3 +103,46 @@ class TermDecoder(var charset: TermCharset) {
         }
     }
 }
+
+/**
+ * A 94-character set a G0-G3 slot can hold: what its 0x21..0x7e stand for.
+ * [final] is the character that designates it (ESC ( B for ASCII); a set
+ * with none is chosen another way (a VT52's ESC F).
+ */
+enum class GSet(val final: Char?) {
+    ASCII('B'),
+    /** DEC Special Graphics: line drawing in 0x5f..0x7e */
+    DEC_GRAPHICS('0'),
+    /** the United Kingdom set: ASCII with £ for # */
+    UK('A'),
+    /** the VT52's graphics: fractions, scan lines, subscripts in 0x5e..0x7e (its ESC F) */
+    VT52_GRAPHICS(null);
+
+    /** [cp] as this set has it */
+    fun map(cp: Int): Int = when (this) {
+        ASCII -> cp
+        DEC_GRAPHICS -> TerminalEmulator.decGraphics(cp)
+        UK -> if (cp == '#'.code) '£'.code else cp
+        VT52_GRAPHICS -> if (cp in 0x5e..0x7e) VT52[cp - 0x5e] else cp
+    }
+
+    companion object {
+        /** the set [final] designates (ESC ( [final]), or null for one not known */
+        fun byFinal(final: Int): GSet? = entries.firstOrNull { it.final?.code == final }
+
+        /**
+         * The VT52's graphics, 0x5e..0x7e (DECscope User's Manual EK-VT5X-OP-001,
+         * appendix B): 3 blank, a solid rectangle, the fraction numerators 1/ 3/
+         * 5/ 7/ (shown as ⅟ ³ ⁵ ⁷), degree, plus-minus, right arrow, ellipsis,
+         * divide, down arrow, bars at scan lines 0 (top) to 7, subscripts 0-9,
+         * the paragraph sign.
+         */
+        private val VT52 = intArrayOf(
+            0x20, 0x20, 0x20, 0x2588, 0x215f, 0xb3, 0x2075, 0x2077,
+            0xb0, 0xb1, 0x2192, 0x2026, 0xf7, 0x2193,
+            0x2594, 0x1fb76, 0x1fb77, 0x1fb78, 0x1fb79, 0x1fb7a, 0x1fb7b, 0x2581,
+            0x2080, 0x2081, 0x2082, 0x2083, 0x2084, 0x2085, 0x2086, 0x2087, 0x2088, 0x2089,
+            0xb6,
+        )
+    }
+}
