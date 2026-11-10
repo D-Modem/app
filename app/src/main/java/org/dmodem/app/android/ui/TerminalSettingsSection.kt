@@ -32,6 +32,7 @@ import org.dmodem.app.android.settings.VolumeKeys
 import org.dmodem.app.terminal.BackspaceMode
 import org.dmodem.app.terminal.EnterMode
 import org.dmodem.app.terminal.TermCharset
+import org.dmodem.app.terminal.TerminalProfiles
 import org.dmodem.app.terminal.TermTheme
 import org.dmodem.app.android.terminal.FontCache
 import org.dmodem.app.android.terminal.TerminalFont
@@ -81,6 +82,7 @@ fun TerminalSettingsSection() {
             Text("Font size: ${"%.1f".format(s.fontSize)} sp (or pinch the screen)", style = MaterialTheme.typography.bodyMedium)
             Slider(value = s.fontSize, onValueChange = { set { t -> t.copy(fontSize = it) } }, valueRange = 6f..28f)
         }
+        Choice("Terminal type", s.profile.label, TerminalProfiles.all.map { it.label to it.id }) { set { t -> t.copy(terminalType = it) } }
         Choice("Character set", s.charset.label, TermCharset.entries.map { it.label to it }) { set { t -> t.copy(charset = it) } }
         Choice("Backspace sends", s.backspace.label, BackspaceMode.entries.map { it.label to it }) { set { t -> t.copy(backspace = it) } }
         Choice("Enter sends", s.enter.label, EnterMode.entries.map { it.label to it }) { set { t -> t.copy(enter = it) } }

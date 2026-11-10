@@ -15,6 +15,8 @@ import androidx.datastore.preferences.preferencesDataStore
 import org.dmodem.app.terminal.BackspaceMode
 import org.dmodem.app.terminal.EnterMode
 import org.dmodem.app.terminal.TermCharset
+import org.dmodem.app.terminal.TerminalProfile
+import org.dmodem.app.terminal.TerminalProfiles
 import org.dmodem.app.android.terminal.TerminalFont
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -40,6 +42,8 @@ data class TerminalSettings(
     val fontSize: Float = 12f,
     /** the columns the screen is fitted to (the text sized for them): 0 to size by fontSize */
     val fixedColumns: Int = 80,
+    /** the kind of terminal the modem's session (and a Telnet entry without its own) is: a profile's id */
+    val terminalType: String = TerminalProfiles.DEFAULT.id,
     val charset: TermCharset = TermCharset.CP437,
     val backspace: BackspaceMode = BackspaceMode.BS,
     val enter: EnterMode = EnterMode.CR,
@@ -60,7 +64,10 @@ data class TerminalSettings(
     val answerback: String = "",
     /** box drawing and block characters drawn to fill their cells (no gaps in ANSI art) */
     val drawBoxes: Boolean = true,
-)
+) {
+    /** [terminalType]'s profile (the default for one not known) */
+    val profile: TerminalProfile get() = TerminalProfiles.byId(terminalType) ?: TerminalProfiles.DEFAULT
+}
 
 private val Context.terminalStore: DataStore<Preferences> by preferencesDataStore("terminal")
 
@@ -72,6 +79,7 @@ class TerminalSettingsStore(private val context: Context) {
         val ligatures = booleanPreferencesKey("ligatures")
         val fontSize = floatPreferencesKey("font_size")
         val fixedColumns = intPreferencesKey("fixed_columns")
+        val terminalType = stringPreferencesKey("terminal_type")
         val charset = stringPreferencesKey("charset")
         val backspace = stringPreferencesKey("backspace")
         val enter = stringPreferencesKey("enter")
@@ -104,6 +112,7 @@ class TerminalSettingsStore(private val context: Context) {
             ligatures = p[K.ligatures] ?: d.ligatures,
             fontSize = p[K.fontSize] ?: d.fontSize,
             fixedColumns = p[K.fixedColumns] ?: d.fixedColumns,
+            terminalType = p[K.terminalType] ?: d.terminalType,
             charset = enumOf(p[K.charset], d.charset),
             backspace = enumOf(p[K.backspace], d.backspace),
             enter = enumOf(p[K.enter], d.enter),
@@ -142,6 +151,7 @@ class TerminalSettingsStore(private val context: Context) {
         p[K.ligatures] = s.ligatures
         p[K.fontSize] = s.fontSize
         p[K.fixedColumns] = s.fixedColumns
+        p[K.terminalType] = s.terminalType
         p[K.charset] = s.charset.name
         p[K.backspace] = s.backspace.name
         p[K.enter] = s.enter.name

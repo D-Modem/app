@@ -41,6 +41,7 @@ struct SettingsView: View {
                 }
                 Toggle("Speaker (the dialling and the handshake)", isOn: $model.settings.speaker)
             }
+            TerminalSection()
             modemSections
         }
         .navigationTitle("Settings")
@@ -91,6 +92,23 @@ struct SettingsView: View {
         if model.run == .running {
             Section {
                 Text("Changes apply when the modem starts again.").foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// the terminal: the kind of terminal it is (its sequences and what it answers)
+private struct TerminalSection: View {
+    @AppStorage("terminalProfile") private var profile = "xterm"
+    /// (only for the profiles' ids and names)
+    private let bridge = TerminalBridge(cols: 1, rows: 1)
+
+    var body: some View {
+        Section("Terminal") {
+            Picker("Terminal type", selection: $profile) {
+                ForEach(bridge.profileIds, id: \.self) { id in
+                    Text(bridge.profileLabel(id: id)).tag(id)
+                }
             }
         }
     }
