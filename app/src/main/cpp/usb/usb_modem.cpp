@@ -50,6 +50,41 @@ UsbModem::UsbModem(dmd::Dte &dte, const dcore::Options &opt, int fd)
 	usb_use_fd(-1);
 }
 
+/* see usb_modem.h: the line's frames (20 ms, so its rate is 50 times
+   their length) to 8000 Hz by linear interpolation, then on */
+void UsbModem::on_speaker(dmd::SipModem::Speaker s)
+{
+	spk_audio_ = std::move(s.audio);
+	line_->on_speaker(std::move(s.volume),
+		[this](const s16 *in, const s16 *out, s16 n) {
+			if (!spk_audio_ || n <= 0)
+				return;
+			if (n == 160) {
+				spk_audio_(in, out, n);
+				return;
+			}
+			/* (each 8000 Hz sample step / 160 of the frame) */
+			const float step = n / 160.0f;
+			s16 rin[400], rout[400];
+			s16 k = 0;
+			float pos = spk_pos_;
+			while (pos < n && k < 400) {
+				s16 i = static_cast<s16>(pos);
+				float f = pos - i;
+				float a0 = i == 0 ? spk_last_in_ : in[i - 1];
+				float b0 = i == 0 ? spk_last_out_ : out[i - 1];
+				rin[k] = static_cast<s16>(a0 + f * (in[i] - a0));
+				rout[k] = static_cast<s16>(b0 + f * (out[i] - b0));
+				k++;
+				pos += step;
+			}
+			spk_pos_ = pos - n;
+			spk_last_in_ = in[n - 1];
+			spk_last_out_ = out[n - 1];
+			spk_audio_(rin, rout, k);
+		});
+}
+
 /* the core first: it may still hang up on the line */
 UsbModem::~UsbModem()
 {

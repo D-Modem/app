@@ -45,6 +45,11 @@ public:
 		status_fn_ = std::move(fn);
 	}
 
+	/* before run(): the modem's speaker (ATM, ATL) on the host's, as
+	   SipModem's (its audio at 8000 Hz, mixed as the app mixes it,
+	   whatever the line's rate) */
+	void on_speaker(dmd::SipModem::Speaker s);
+
 	/* until stop() (0), the DTE gone (0) or an error, the device
 	   unplugged among them (-1) */
 	int run();
@@ -61,6 +66,11 @@ private:
 	int ev_[2] = { -1, -1 };
 	std::atomic<bool> stopped_{ false };
 	std::function<void(const Status &)> status_fn_;
+	/* on_speaker()'s audio, and its resampler's state: the position
+	   between the last frame's last pair of samples and the next */
+	std::function<void(const s16 *, const s16 *, s16)> spk_audio_;
+	float spk_pos_ = 0;
+	s16 spk_last_in_ = 0, spk_last_out_ = 0;
 	Status status_;
 };
 
