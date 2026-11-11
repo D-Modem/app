@@ -180,11 +180,11 @@ class PetsciiTest {
             for (cp in set) if (cp != 0) assertTrue(g.has(cp), "U+" + cp.toString(16))
         }
         // (the left half block: its left four pixels; a space: none)
-        val half = g.glyph(0x258c)
-        assertEquals(0xf0, BitmapFont.row(half, 0))
-        assertTrue(BitmapFont.pixel(half, 7, 0))
-        assertFalse(BitmapFont.pixel(half, 7, 7))
-        assertEquals(0L, g.glyph(' '.code))
+        assertEquals(8, g.height)
+        assertEquals(0xf0, g.row(0x258c, 0))
+        assertTrue(g.pixel(0x258c, 7, 0))
+        assertFalse(g.pixel(0x258c, 7, 7))
+        assertEquals(0, (0 until 8).sumOf { g.row(' '.code, it) })
         assertFalse(g.has(0x4e00))
     }
 

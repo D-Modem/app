@@ -154,8 +154,36 @@ class TerminalSession(
                 null -> {}
             }
         }
-        synchronized(emulator) { emulator.append(data, length) }
-        onChange?.invoke()
+        show(data, 0, length)
+    }
+
+    /** ANSI music's notes, played as they come */
+    private val music = MusicPlayer()
+
+    /**
+     * the remote's octets onto the screen: at once, or at the line speed
+     * the remote asked to be shown at (CTerm's CSI * r, for ANSI
+     * animations), a few at a time with a pause between (the link's
+     * thread held meanwhile, so what comes next waits its turn)
+     */
+    private fun show(data: ByteArray, from: Int, length: Int) {
+        var off = from
+        val end = from + length
+        while (off < end) {
+            val bps = synchronized(emulator) { emulator.emulatedBps }
+            val n = if (bps <= 0) end - off else minOf(end - off, maxOf(1, bps / 10 / (1000 / PACE_MS).toInt()))
+            synchronized(emulator) { emulator.append(if (off == 0 && n == data.size) data else data.copyOfRange(off, off + n), n) }
+            onChange?.invoke()
+            off += n
+            if (bps > 0) {
+                try {
+                    Thread.sleep(PACE_MS)
+                } catch (_: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    break
+                }
+            }
+        }
     }
 
     /** a transfer made the running one, over the link: null if one already is */
@@ -233,6 +261,11 @@ class TerminalSession(
             /** what the remote printed, to the session's printer file */
             override fun onPrint(text: String) {
                 print(text)
+            }
+
+            /** ANSI music to the player */
+            override fun onMusic(notes: List<org.dmodem.app.terminal.MusicNote>) {
+                music.play(notes)
             }
         }
         link.addListener(listener)
@@ -337,6 +370,7 @@ class TerminalSession(
 
     /** the session over: its listener off the link, the link closed, the capture ended */
     fun close() {
+        music.stop()
         cancelTransfer()
         link.removeListener(listener)
         stopCapture()
@@ -412,5 +446,7 @@ class TerminalSession(
     companion object {
         /** a little over the default guard time (S12 = 50: 1 s) */
         const val GUARD_MS = 1200L
+        /** how often the screen gets the next few octets at an emulated line speed */
+        private const val PACE_MS = 20L
     }
 }

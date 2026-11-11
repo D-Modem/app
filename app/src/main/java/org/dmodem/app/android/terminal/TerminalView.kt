@@ -204,9 +204,9 @@ class TerminalView @JvmOverloads constructor(
         val down = max(fm.descent, ink.bottom.toFloat())
         cellH = floor(up + down + 0.5f).coerceAtLeast(1f)
         ascent = up
-        // (a machine's 8x8 glyphs in square cells, as its screen had them; the font's text centred in them)
-        if (fittedGlyphs) {
-            cellH = floor(cellW + 0.5f).coerceAtLeast(1f)
+        // (a machine's bitmap glyphs in cells of their shape, square for 8x8, twice as tall for a VGA's 8x16; the font's text centred in them)
+        if (fittedGlyphs > 0) {
+            cellH = floor(cellW * fittedGlyphs / 8 + 0.5f).coerceAtLeast(1f)
             ascent = (cellH - (up + down)) / 2 + up
         }
     }
@@ -251,15 +251,15 @@ class TerminalView @JvmOverloads constructor(
     /** the columns the remote asked for (DECCOLM) that the font is fitted to, 0 for none */
     private var fittedColumns = 0
 
-    /** whether the cells are fitted to bitmap glyphs (square) */
-    private var fittedGlyphs = false
+    /** the bitmap glyphs' height the cells are fitted to (8 wide), 0 for none */
+    private var fittedGlyphs = 0
     /** the rows the screen was fitted to at most, 0 for none */
     private var fittedRows = 0
 
     /** the font fitted again if the remote asked for other columns (DECCOLM), or the profile for its own size and glyphs */
     private fun fitRequestedColumns() {
         val e = session?.emulator ?: return
-        val (asked, glyphs, rows) = synchronized(e) { Triple(e.requestedColumns, e.glyphs != null, e.requestedRows) }
+        val (asked, glyphs, rows) = synchronized(e) { Triple(e.requestedColumns, e.glyphs?.height ?: 0, e.requestedRows) }
         if (asked == fittedColumns && glyphs == fittedGlyphs && rows == fittedRows) return
         fittedColumns = asked
         fittedGlyphs = glyphs
@@ -388,6 +388,9 @@ class TerminalView @JvmOverloads constructor(
             android.graphics.Bitmap.createBitmap(img.pixels, img.width, img.height, android.graphics.Bitmap.Config.ARGB_8888)
         }.getOrNull()?.also { bitmaps[img] = it }
 
+    /** iCE colours: the user's setting, or the remote's request (SyncTERM's CSI ? 33 h) */
+    private fun ice(): Boolean = settings.iceColors || drawing?.iceColors == true
+
     private var resolvedFg = 0
     private var resolvedBg = 0
 
@@ -397,7 +400,7 @@ class TerminalView @JvmOverloads constructor(
         var fg = Style.fg(st)
         var bg = Style.bg(st)
         if (a and Style.BOLD != 0 && settings.boldBright && fg in 0..7) fg += 8
-        if (settings.iceColors && a and Style.BLINK != 0 && bg in 0..7) bg += 8
+        if (ice() && a and Style.BLINK != 0 && bg in 0..7) bg += 8
         var f = color(fg, true)
         var b = color(bg, false)
         if ((a and Style.INVERSE != 0) != invert) {
@@ -412,7 +415,7 @@ class TerminalView @JvmOverloads constructor(
     private fun drawText(c: Canvas, line: Line, from: Int, to: Int, y: Float, st: Long, fg: Int) {
         val a = Style.attrs(st)
         if (a and Style.INVISIBLE != 0) return
-        if (a and Style.BLINK != 0 && !settings.iceColors && !blinkOn) return
+        if (a and Style.BLINK != 0 && !ice() && !blinkOn) return
         textPaint.color = fg
         fillPaint.color = fg
         // bold glyphs (not only bright colours): the font's bold face, or the paint's
@@ -440,7 +443,7 @@ class TerminalView @JvmOverloads constructor(
             val g = drawing?.glyphs
             if (g != null && g.has(cp)) {
                 flush(x + 1)
-                drawGlyph(c, g.glyph(cp), px(x), y, px(x + 1) - px(x))
+                drawGlyph(c, g, cp, px(x), y, px(x + 1) - px(x))
                 continue
             }
             if (settings.drawBoxes && BoxDrawing.handles(cp)) {
@@ -483,13 +486,14 @@ class TerminalView @JvmOverloads constructor(
         }
     }
 
-    /** an 8x8 glyph filling the cell at ([left], [y]), [w] wide, in fillPaint's colour: each row's runs of pixels as one rectangle */
-    private fun drawGlyph(c: Canvas, g: Long, left: Float, y: Float, w: Float) {
-        for (r in 0 until 8) {
-            val bits = org.dmodem.app.terminal.BitmapFont.row(g, r)
+    /** [cp]'s bitmap glyph in [g] filling the cell at ([left], [y]), [w] wide, in fillPaint's colour: each row's runs of pixels as one rectangle */
+    private fun drawGlyph(c: Canvas, g: org.dmodem.app.terminal.BitmapFont, cp: Int, left: Float, y: Float, w: Float) {
+        val h = g.height
+        for (r in 0 until h) {
+            val bits = g.row(cp, r)
             if (bits == 0) continue
-            val top = y + floor(r * cellH / 8)
-            val bottom = y + floor((r + 1) * cellH / 8)
+            val top = y + floor(r * cellH / h)
+            val bottom = y + floor((r + 1) * cellH / h)
             var col = 0
             while (col < 8) {
                 if (bits and (0x80 ushr col) == 0) { col++; continue }
@@ -607,7 +611,7 @@ class TerminalView @JvmOverloads constructor(
                         val g = e.glyphs
                         if (g != null && g.has(cp)) {
                             fillPaint.color = theme.bgArgb
-                            drawGlyph(c, g.glyph(cp), x, y, cw)
+                            drawGlyph(c, g, cp, x, y, cw)
                         } else if (settings.drawBoxes && BoxDrawing.handles(cp)) {
                             fillPaint.color = theme.bgArgb
                             BoxDrawing.draw(c, cp, x, y, cw, cellH, fillPaint)

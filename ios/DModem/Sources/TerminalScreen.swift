@@ -25,7 +25,7 @@ struct TerminalScreen: View {
                     .onChange(of: model.bridge.requestedColumns) { _ in fit(geo.size, metrics(geo.size)) }
                     // (a machine's own screen: its rows at most, square cells for its glyphs)
                     .onChange(of: model.bridge.requestedRows) { _ in fit(geo.size, metrics(geo.size)) }
-                    .onChange(of: model.bridge.bitmapGlyphs) { _ in fit(geo.size, metrics(geo.size)) }
+                    .onChange(of: model.bridge.glyphHeight) { _ in fit(geo.size, metrics(geo.size)) }
                     .overlay(KeyInput(model: model, focused: $focused).frame(width: 1, height: 1).opacity(0.01), alignment: .topLeading)
                     .contentShape(Rectangle())
                     .onTapGesture { focused = true }
@@ -43,7 +43,7 @@ struct TerminalScreen: View {
     private func metrics(_ size: CGSize) -> CellMetrics {
         let asked = Int(model.bridge.requestedColumns)
         let m = asked > 0 && size.width > 0 ? CellMetrics(columns: asked, across: size.width) : CellMetrics(fontSize: fontSize)
-        return model.bridge.bitmapGlyphs ? m.squared() : m
+        return model.bridge.bitmapGlyphs ? m.shaped(rows: Int(model.bridge.glyphHeight)) : m
     }
 
     /// as many cells as fit (no more rows than the machine's screen had)
@@ -76,8 +76,8 @@ struct CellMetrics {
         self.height = height
     }
 
-    /// these cells made square (as tall as wide), for 8x8 glyphs
-    func squared() -> CellMetrics { CellMetrics(font: font, width: width, height: width) }
+    /// these cells in an 8-wide glyph's shape [rows] high: square for 8x8, twice as tall as wide for 8x16
+    func shaped(rows: Int) -> CellMetrics { CellMetrics(font: font, width: width, height: width * CGFloat(rows) / 8) }
 
     /// the font size whose cells put [columns] across [width]
     init(columns: Int, across width: CGFloat) {
@@ -138,7 +138,7 @@ private struct ScreenCanvas: View {
 }
 
 extension ScreenCanvas {
-    /// a run's characters one cell each from the profile's 8x8 glyphs (a pixel row's runs as one rectangle), the font's for one it hasn't
+    /// a run's characters one cell each from the profile's bitmap glyphs (a pixel row's runs as one rectangle), the font's for one it hasn't
     func drawGlyphs(_ ctx: GraphicsContext, _ run: StyledRun, y: CGFloat) {
         let color = GraphicsContext.Shading.color(Color(argb: run.fg))
         for (i, ch) in run.text.unicodeScalars.enumerated() {
@@ -154,8 +154,9 @@ extension ScreenCanvas {
                     if bits & (0x80 >> c) == 0 { c += 1; continue }
                     let start = c
                     while c < 8 && bits & (0x80 >> c) != 0 { c += 1 }
-                    path.addRect(CGRect(x: x + CGFloat(start) * cell.width / 8, y: y + CGFloat(r) * cell.height / 8,
-                                        width: CGFloat(c - start) * cell.width / 8, height: cell.height / 8))
+                    let h = CGFloat(rows.count)
+                    path.addRect(CGRect(x: x + CGFloat(start) * cell.width / 8, y: y + CGFloat(r) * cell.height / h,
+                                        width: CGFloat(c - start) * cell.width / 8, height: cell.height / h))
                 }
             }
             ctx.fill(path, with: color)

@@ -53,6 +53,7 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
     /** one code point through the parser, by the state it is in (text, ESC, CSI, OSC, a string, a DCS) */
     override fun process(cp: Int) {
         vt52?.let { it.process(cp); return }
+        if (intercept(cp)) return
         if (printer.controller) {
             printer.feed(cp)
             return
@@ -228,12 +229,29 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
         }
     }
 
+    /** a code point a subclass takes before the parser does (ANSI music's notes): true if it took it */
+    protected open fun intercept(cp: Int): Boolean = false
+
+    /**
+     * A CSI a subclass carries out instead of (or as well as) this one:
+     * its [final], private [marker] and [inter]mediate (0 for none), the
+     * parameters through [p] and [paramCount]. True if it was done.
+     */
+    protected open fun extraCsi(final: Int, marker: Int, inter: Int): Boolean = false
+
+    /** how many parameters the CSI has */
+    protected val paramCount: Int get() = nParams
+
+    /** parameter [i] as it came (0 when missing) */
+    protected fun param(i: Int): Int = if (i < nParams) params[i] else 0
+
     /** parameter [i], or [default] when it is missing or 0 */
     protected fun p(i: Int, default: Int): Int =
         if (i < nParams && params[i] != 0) params[i] else default
 
     /** a CSI ended by [final] carried out: DEC private modes and questions, DA2/DA3, DECSTR, DECSCUSR, then the ANSI ones */
     private fun dispatchCsi(final: Int) {
+        if (extraCsi(final, privateMarker, intermediate)) return
         val c = final.toChar()
         if (privateMarker == '?'.code) {
             if (intermediate == '$'.code && c == 'p') {

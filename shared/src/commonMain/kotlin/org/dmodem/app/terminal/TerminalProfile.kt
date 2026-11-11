@@ -146,6 +146,11 @@ open class AnsiBbsProfile : XtermProfile() {
     override val term get() = "ansi"
     override val telnetType get() = "ANSI"
     override val charset: TermCharset? get() = TermCharset.CP437
+    /** a VGA's 8x16 code page 437 */
+    override val glyphs: BitmapFont? get() = LegacyCharsets.VGA
+
+    /** an [AnsiBbsInterpreter]: CTerm's additions */
+    override fun interpreter(t: TerminalEmulator): TerminalInterpreter = AnsiBbsInterpreter(t, this)
 }
 
 /** The profiles there are, by id. */

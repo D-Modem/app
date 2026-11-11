@@ -35,6 +35,8 @@ class TerminalEmulator(
         fun onClipboard(text: String) {}
         /** what the remote sent to the printer (printer controller mode, auto print, print screen) */
         fun onPrint(text: String) {}
+        /** ANSI music: notes to play, after any still playing */
+        fun onMusic(notes: List<MusicNote>) {}
     }
 
     /** which mouse events are reported (DECSET 9, 1000, 1002, 1003) */
@@ -137,6 +139,14 @@ class TerminalEmulator(
 
     /** the rows the screen should have at most (a Commodore's 25); 0: as many as fit */
     var requestedRows = 0
+        internal set
+
+    /** the remote turned on iCE colours (blink as a bright background: SyncTERM's CSI ? 33 h), over the user's setting */
+    var iceColors = false
+        internal set
+
+    /** the line speed to show the remote's text at (CTerm's CSI * r, for ANSI animations), bits a second; 0: as it comes */
+    var emulatedBps = 0
         internal set
 
     /** the keyboard's four LEDs (DECLL), L1 the lowest bit */
@@ -692,6 +702,8 @@ class TerminalEmulator(
         cursorStyle = 0
         requestedColumns = 0
         requestedRows = 0
+        iceColors = false
+        emulatedBps = 0
         leds = 0
         vt52Keys = false
         sixelScrolling = true

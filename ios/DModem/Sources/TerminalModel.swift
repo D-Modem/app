@@ -37,11 +37,12 @@ final class TerminalModel: ObservableObject {
     /// the profile's glyphs, as they're asked for
     private var glyphCache: [UInt32: [Int]?] = [:]
 
-    /// the profile's 8x8 glyph for [cp]: its rows, top first, bit 7 the leftmost pixel; nil: drawn with the font
+    /// the profile's bitmap glyph for [cp] (8 wide, 8 or 16 high): its rows, top first, bit 7 the leftmost pixel; nil: drawn with the font
     func glyph(_ cp: UInt32) -> [Int]? {
         if let g = glyphCache[cp] { return g }
         let first = Int(bridge.glyphRow(cp: Int32(bitPattern: cp), row: 0))
-        let g: [Int]? = first < 0 ? nil : [first] + (1..<8).map { Int(bridge.glyphRow(cp: Int32(bitPattern: cp), row: Int32($0))) }
+        let h = Int(bridge.glyphHeight)
+        let g: [Int]? = first < 0 ? nil : [first] + (1..<max(h, 1)).map { Int(bridge.glyphRow(cp: Int32(bitPattern: cp), row: Int32($0))) }
         glyphCache[cp] = g
         return g
     }
@@ -49,12 +50,43 @@ final class TerminalModel: ObservableObject {
     var cols: Int { Int(bridge.cols) }
     var rows: Int { Int(bridge.rows) }
 
-    /// what the modem said, onto the screen; the terminal's answers back
+    /// ANSI music's notes, played as they come
+    private let music = MusicPlayer()
+    /// what the modem said that's still to be shown, at an emulated line speed
+    private var paced = Data()
+    /// the pacing under way
+    private var pacing: Task<Void, Never>?
+
+    /// what the modem said, onto the screen (at the line speed the remote asked for, CTerm's CSI * r, if it did); the terminal's answers back
     func feed(_ data: Data) {
+        if pacing != nil || bridge.emulatedBps > 0 {
+            paced.append(data)
+            if pacing == nil { pacing = Task { await pace() } }
+            return
+        }
+        show(data)
+    }
+
+    /// the paced octets onto the screen a few at a time, every 20 ms
+    private func pace() async {
+        while !paced.isEmpty {
+            let bps = Int(bridge.emulatedBps)
+            let n = bps > 0 ? min(paced.count, max(1, bps / 10 / 50)) : paced.count
+            show(paced.prefix(n))
+            paced.removeFirst(n)
+            if bps > 0 { try? await Task.sleep(nanoseconds: 20_000_000) }
+        }
+        pacing = nil
+    }
+
+    /// octets onto the screen now, the answers and music they bring dealt with
+    private func show(_ data: Data) {
         guard let s = String(data: data, encoding: .isoLatin1) else { return }
         bridge.feed(latin1: s)
         let replies = bridge.takeReplies()
         if !replies.isEmpty { out(replies) }
+        let notes = bridge.takeMusic()
+        if !notes.isEmpty { music.play(notes) }
         revision = bridge.revision
     }
 

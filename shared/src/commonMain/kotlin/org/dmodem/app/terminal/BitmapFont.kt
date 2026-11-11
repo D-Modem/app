@@ -3,23 +3,30 @@
 package org.dmodem.app.terminal
 
 /**
- * Glyphs drawn from bitmaps rather than a font: 8x8 cells, a code point's
- * eight rows packed in a Long (the top row in the high byte, its leftmost
- * pixel the byte's high bit). What a profile whose terminal had its own
- * character ROM (Commodore's, Atari's) draws its cells with.
+ * Glyphs drawn from bitmaps rather than a font: 8 pixels wide and
+ * [height] high (8 for the home computers' character ROMs, 16 for a VGA's),
+ * a row a byte, its leftmost pixel the high bit. What a profile whose
+ * terminal had its own character ROM (Commodore's, Atari's, a PC's) draws
+ * its cells with.
  */
-class BitmapFont(private val codes: IntArray, private val bits: LongArray) {
+class BitmapFont(val height: Int, private val codes: IntArray, private val rows: ByteArray) {
+    /** the glyphs' width in pixels */
+    val width: Int get() = 8
+
     /** the glyphs it has */
     val size: Int get() = codes.size
 
     /** whether it has [cp]'s glyph */
     fun has(cp: Int): Boolean = index(cp) >= 0
 
-    /** [cp]'s glyph (0 if it has none: a blank) */
-    fun glyph(cp: Int): Long {
+    /** row [row] (0 top) of [cp]'s glyph, its leftmost pixel bit 7 (0 if it has none: a blank) */
+    fun row(cp: Int, row: Int): Int {
         val i = index(cp)
-        return if (i >= 0) bits[i] else 0L
+        return if (i < 0 || row !in 0 until height) 0 else rows[i * height + row].toInt() and 0xff
     }
+
+    /** whether [cp]'s glyph has pixel [col] (0 left) of row [row] (0 top) set */
+    fun pixel(cp: Int, row: Int, col: Int): Boolean = (row(cp, row) shr (7 - col)) and 1 != 0
 
     /** [cp]'s place in [codes] (they're in order), -1 if it isn't there */
     private fun index(cp: Int): Int {
@@ -38,23 +45,19 @@ class BitmapFont(private val codes: IntArray, private val bits: LongArray) {
     }
 
     companion object {
-        /** whether row [row] (0 top) of glyph [g] has pixel [col] (0 left) set */
-        fun pixel(g: Long, row: Int, col: Int): Boolean = (g ushr ((7 - row) * 8 + (7 - col))) and 1L != 0L
-
-        /** row [row] (0 top) of glyph [g], its leftmost pixel the high bit */
-        fun row(g: Long, row: Int): Int = ((g ushr ((7 - row) * 8)) and 0xff).toInt()
-
-        /** "CP:ROWS;" entries (hex: the code point, then the 16 digits of its rows), in code point order */
-        fun parse(s: String): BitmapFont {
+        /** "CP:ROWS;" entries (hex: the code point, then two digits a row, [height] rows), in code point order */
+        fun parse(height: Int, s: String): BitmapFont {
             val entries = s.split(';').filter { it.isNotEmpty() }
             val codes = IntArray(entries.size)
-            val bits = LongArray(entries.size)
+            val rows = ByteArray(entries.size * height)
             for ((i, e) in entries.withIndex()) {
                 val colon = e.indexOf(':')
                 codes[i] = e.substring(0, colon).toInt(16)
-                bits[i] = e.substring(colon + 1).toULong(16).toLong()
+                for (r in 0 until height) {
+                    rows[i * height + r] = e.substring(colon + 1 + 2 * r, colon + 3 + 2 * r).toInt(16).toByte()
+                }
             }
-            return BitmapFont(codes, bits)
+            return BitmapFont(height, codes, rows)
         }
     }
 }
