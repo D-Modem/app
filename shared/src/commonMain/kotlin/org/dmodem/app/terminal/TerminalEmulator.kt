@@ -68,7 +68,7 @@ class TerminalEmulator(
         private set
     var cursorY = 0
         private set
-    private var pendingWrap = false
+    internal var pendingWrap = false
     /** the rendition the next characters are written in */
     internal var style = Style.NORMAL
 
@@ -131,9 +131,13 @@ class TerminalEmulator(
         for (i in range) if (i in colorOverrides.indices) colorOverrides[i] = -1
     }
 
-    /** the columns the remote asked for (DECCOLM: 80 or 132), for the view to fit; 0: none asked */
+    /** the columns the view should fit across its width (DECCOLM's 80 or 132, a Commodore's 40); 0: as many as the font gives */
     var requestedColumns = 0
-        private set
+        internal set
+
+    /** the rows the screen should have at most (a Commodore's 25); 0: as many as fit */
+    var requestedRows = 0
+        internal set
 
     /** the keyboard's four LEDs (DECLL), L1 the lowest bit */
     var leds = 0
@@ -179,6 +183,7 @@ class TerminalEmulator(
         set(v) {
             if (v === field) return
             field = v
+            interpreter.detach()
             interpreter = v.interpreter(this)
             homeOnClear = v.homeOnClear
             softReset()
@@ -190,11 +195,30 @@ class TerminalEmulator(
 
     private val sink = TermDecoder.Sink { cp -> interpreter.process(cp) }
 
-    /** the remote's octets, decoded in [decoder]'s set */
+    /** the remote's octets, decoded in [decoder]'s set (or as they are, to an interpreter that reads octets) */
     fun append(data: ByteArray, length: Int = data.size) {
-        decoder.decode(data, length, sink)
+        if (interpreter.readsOctets) {
+            for (i in 0 until length) interpreter.process(data[i].toInt() and 0xff)
+        } else {
+            decoder.decode(data, length, sink)
+        }
         revision++
     }
+
+    /** what key [k] sends, as octets: the interpreter's own, else [keys]' sequence in the character set */
+    fun keyOctets(keys: KeyEncoder, k: Key, shift: Boolean = false, alt: Boolean = false, ctrl: Boolean = false): ByteArray =
+        interpreter.keyOctets(k, shift, alt, ctrl)
+            ?: decoder.charset.encode(keys.key(k, this, shift, alt, ctrl))
+
+    /** what a character typed (or pasted) sends, as octets: the interpreter's own, else [keys]' in the character set */
+    fun charOctets(keys: KeyEncoder, cp: Int, alt: Boolean = false, ctrl: Boolean = false): ByteArray =
+        interpreter.charOctets(cp, alt, ctrl) ?: decoder.charset.encode(keys.char(cp, alt, ctrl))
+
+    /** whether the remote's octets are read as they come, in the terminal's own set (a Commodore's), not the user's */
+    val readsOctets: Boolean get() = interpreter.readsOctets
+
+    /** the glyphs its cells are drawn with, a bitmap font the profile's machine had (null: the view's font) */
+    val glyphs: BitmapFont? get() = profile.glyphs
 
     /** text, as code points (the tests, local echo) */
     fun appendText(s: String) {
@@ -667,6 +691,7 @@ class TerminalEmulator(
         focusEvents = false
         cursorStyle = 0
         requestedColumns = 0
+        requestedRows = 0
         leds = 0
         vt52Keys = false
         sixelScrolling = true

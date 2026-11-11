@@ -12,4 +12,13 @@
 | Inconsolata.ttf | Inconsolata (variable, wght 200-900, wdth 50-200) | OFL 1.1 | google/fonts `ofl/inconsolata` |
 | DroidSansMono.ttf | Droid Sans Mono | Apache 2.0 | AOSP `platform/frameworks/base/data/fonts` |
 
+The Commodore and Atari terminal types draw their characters from 8x8 bitmaps in the
+shared code (`shared/.../terminal/LegacyCharsets.kt`, written by
+`tools/gen_legacy_charsets.py`), not from a font file here: the glyphs are
+Unscii 2.1's `unscii-8` (public domain, http://viznut.fi/unscii/), and
+which character each code is comes from Rebecca Bettencourt's Legacy
+Computing mappings (`mappings/legacy` in kreativekorp/charset). The
+Atari's ESC and CLEAR symbols, which Unscii hasn't got, are drawn in the
+generator. No Commodore or Atari ROM font is shipped.
+
 The licence texts are in `licenses/`; the app shows them (Settings, Font licences).

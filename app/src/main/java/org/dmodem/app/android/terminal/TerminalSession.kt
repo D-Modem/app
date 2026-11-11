@@ -260,7 +260,21 @@ class TerminalSession(
         val a = alt || this.alt.value
         val c = ctrl || this.ctrl.value
         releaseLatches()
-        send(synchronized(emulator) { keys.key(k, emulator, shift, a, c) })
+        sendTerminal(synchronized(emulator) { emulator.keyOctets(keys, k, shift, a, c) })
+    }
+
+    /** a key's or a character's octets (the terminal's own, [TerminalEmulator.keyOctets]) to the modem, and on the screen with local echo */
+    fun sendTerminal(b: ByteArray): Boolean {
+        if (b.isEmpty()) return true
+        if (transfer != null) return false
+        if (localEcho) {
+            synchronized(emulator) {
+                // (a VT's Enter echoed as CR LF; a machine's own codes as they are)
+                emulator.append(if (emulator.readsOctets) b else String(b, Charsets.ISO_8859_1).replace("\r", "\r\n").toByteArray(Charsets.ISO_8859_1))
+            }
+            onChange?.invoke()
+        }
+        return link.write(b)
     }
 
     /** a character typed, with the latched modifiers and those held */
@@ -268,7 +282,7 @@ class TerminalSession(
         val a = alt || this.alt.value
         val c = ctrl || this.ctrl.value
         releaseLatches()
-        send(keys.char(cp, a, c))
+        sendTerminal(synchronized(emulator) { emulator.charOctets(keys, cp, a, c) })
     }
 
     /** text typed (the soft keyboard's): its first character takes the latched modifiers */
@@ -350,7 +364,7 @@ class TerminalSession(
             val dir = captureDir() ?: return null
             dir.mkdirs()
             val name = "dmodem-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) +
-                if (charset == TermCharset.CP437) ".ans" else ".log"
+                (emulator.profile.captureExtension ?: if (charset == TermCharset.CP437) ".ans" else ".log")
             val f = File(dir, name)
             return try {
                 captureOut = FileOutputStream(f)

@@ -45,6 +45,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -554,8 +555,11 @@ private fun ExtraKeys(
                         when (k) {
                             is BarKey.Send -> KeyButton(k.label, repeat = k.repeat) { onKey(k.key) }
                             is BarKey.Type -> KeyButton(k.label) { onText(k.text) }
+                            is BarKey.Octets -> KeyButton(k.label, swatch = k.color) {
+                                session.sendTerminal(k.octets.toByteArray(Charsets.ISO_8859_1))
+                            }
                             BarKey.Ctrl -> KeyButton(k.label, latched = ctrl) { session.ctrl.value = !ctrl }
-                            BarKey.Alt -> KeyButton(k.label, latched = alt) { session.alt.value = !alt }
+                            is BarKey.Alt -> KeyButton(k.label, latched = alt) { session.alt.value = !alt }
                             // (full screen: the first page's goes back out of it)
                             BarKey.NextPage -> if (fullscreen && page == 0) {
                                 KeyButton("EXIT") { onExitFullscreen() }
@@ -582,10 +586,20 @@ private fun androidx.compose.foundation.layout.RowScope.KeyButton(
     label: String,
     latched: Boolean = false,
     repeat: Boolean = false,
+    swatch: Int? = null,
     onPress: () -> Unit,
 ) {
-    val bg = if (latched) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
-    val fg = if (latched) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+    // (a colour key in its colour, its label in black or white, whichever shows)
+    val bg = when {
+        swatch != null -> androidx.compose.ui.graphics.Color(swatch)
+        latched -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    val fg = when {
+        swatch != null -> if (androidx.compose.ui.graphics.Color(swatch).luminance() > 0.4f) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
+        latched -> MaterialTheme.colorScheme.onPrimary
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
     val scope = rememberCoroutineScope()
     Box(
         Modifier

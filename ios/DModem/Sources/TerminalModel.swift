@@ -30,7 +30,20 @@ final class TerminalModel: ObservableObject {
     /// the kind of terminal (a profile's id, as Settings keeps it under "terminalProfile")
     func setProfile(_ id: String) {
         bridge.profile = id
+        glyphCache.removeAll()
         revision = bridge.revision
+    }
+
+    /// the profile's glyphs, as they're asked for
+    private var glyphCache: [UInt32: [Int]?] = [:]
+
+    /// the profile's 8x8 glyph for [cp]: its rows, top first, bit 7 the leftmost pixel; nil: drawn with the font
+    func glyph(_ cp: UInt32) -> [Int]? {
+        if let g = glyphCache[cp] { return g }
+        let first = Int(bridge.glyphRow(cp: Int32(bitPattern: cp), row: 0))
+        let g: [Int]? = first < 0 ? nil : [first] + (1..<8).map { Int(bridge.glyphRow(cp: Int32(bitPattern: cp), row: Int32($0))) }
+        glyphCache[cp] = g
+        return g
     }
 
     var cols: Int { Int(bridge.cols) }
@@ -45,10 +58,11 @@ final class TerminalModel: ObservableObject {
         revision = bridge.revision
     }
 
-    /// text typed (the keyboard's), Ctrl if the sticky one is down
+    /// text typed (the keyboard's), Ctrl and Alt (a Commodore's C=) if the sticky ones are down
     func typed(_ text: String) {
-        out(bridge.typed(text: text, ctrl: ctrl, alt: false))
+        out(bridge.typed(text: text, ctrl: ctrl, alt: alt))
         ctrl = false
+        alt = false
     }
 
     /// a key that isn't a character: UP, DOWN, LEFT, RIGHT, ESCAPE, TAB, BACKSPACE, ENTER, F1 ...

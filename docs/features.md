@@ -40,7 +40,23 @@
   the keyboard LEDs and parameter reports, and a printer port (from the
   VT102 on) whose output is saved to a text file. The key bar gains the
   DEC keypad (PF1-PF4, digits, minus, comma, period, Enter, in numeric or
-  application mode), and a hardware numpad sends those keys. Colour
+  application mode), and a hardware numpad sends those keys. The
+  Commodore types (C64, C128 in 40 or 80 columns, Plus/4, VIC-20, PET in
+  40 or 80 columns) speak PETSCII as CCGMS and Novaterm do: the screen
+  becomes the machine's (40x25, the VIC-20's 22x23) in its palette, drawn
+  in square cells from 8x8 glyphs (Unscii's, public domain, not
+  Commodore's ROMs), with both character sets, the colour and cursor
+  codes, reverse, and the C128's ESC sequences, line feed, underline and
+  flash. Typing and pasting are turned into PETSCII (CTRL and C= with a
+  digit set colours, C= with a letter types its graphic), and the key bar
+  has RUN/STOP, CLR/HOME, INST/DEL, RVS, F1-F8 and a page of colour keys.
+  A capture is saved as a `.seq` file, and "Plain text" sends one back
+  as it is. The Atari 8-bit types (ATASCII, with the graphics set or the
+  XL's international one) give the screen editor's 40x24 in its blues,
+  inverse video, its cursor keys wrapping round the screen, CLEAR, EOL,
+  insert and delete of characters and lines, tabs, the buzzer and ESC to
+  show a control's character; CTRL with a letter types its graphic and
+  the key bar's INV key types the next character inverse. Colour
   themes (VGA, xterm, Solarized, Dracula, Monokai, Gruvbox, Nord, green
   and amber phosphor), fonts (Cascadia Code, Sauce Code Pro Nerd Font,
   Source Code Pro, Roboto Mono, JetBrains Mono, Fira Code, OpenDyslexic
