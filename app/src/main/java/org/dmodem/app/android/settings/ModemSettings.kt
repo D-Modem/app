@@ -74,7 +74,17 @@ data class ModemSettings(
     val usbTxGain: Int = 0,
     /** a USB modem's line: its transmit level set for each call from the remote's answer tone (DMODEM_USB_TX_GAIN=auto), not [usbTxGain] */
     val usbTxAuto: Boolean = true,
+    /** the modem's test switches, NAME=VALUE (D-Modem's DSP_* and DMODEM_* settings), for a bug hunt */
+    val testSwitches: String = "",
 ) {
+    /** [testSwitches] as the environment's names and values: DSP_* and DMODEM_* only, the rest left out */
+    val testEnv: Map<String, String>
+        get() = testSwitches.split(Regex("[\\s;,]+")).mapNotNull { w ->
+            val i = w.indexOf('=')
+            val name = if (i > 0) w.substring(0, i) else return@mapNotNull null
+            if (TEST_NAME.matches(name)) name to w.substring(i + 1) else null
+        }.toMap()
+
     /** D-Modem's DMODEM_USB_TX_GAIN for this line: "auto", the dB, or null (none: 0 dB, or not a USB line) */
     val usbTxGainEnv: String?
         get() = when {
@@ -119,6 +129,9 @@ data class ModemSettings(
     }
 
     companion object {
+        /** a test switch's name: D-Modem's own settings, nothing else of the environment */
+        val TEST_NAME = Regex("(DSP|DMODEM)_[A-Z0-9_]+")
+
         const val LINE_SIP = "sip"
         const val LINE_WIFI = "wifi"
         const val LINE_BLUETOOTH = "bluetooth"
@@ -182,6 +195,7 @@ class SettingsStore(private val context: Context) {
         val recordLine = booleanPreferencesKey("record_line")
         val usbTxGain = intPreferencesKey("usb_tx_gain")
         val usbTxAuto = booleanPreferencesKey("usb_tx_auto")
+        val testSwitches = stringPreferencesKey("test_switches")
     }
 
     val settings: Flow<ModemSettings> = context.dataStore.data.map { p ->
@@ -216,6 +230,7 @@ class SettingsStore(private val context: Context) {
             recordLine = p[Keys.recordLine] ?: d.recordLine,
             usbTxGain = p[Keys.usbTxGain] ?: d.usbTxGain,
             usbTxAuto = p[Keys.usbTxAuto] ?: d.usbTxAuto,
+            testSwitches = p[Keys.testSwitches] ?: d.testSwitches,
         )
     }
 
@@ -253,6 +268,7 @@ class SettingsStore(private val context: Context) {
             p[Keys.recordLine] = s.recordLine
             p[Keys.usbTxGain] = s.usbTxGain.coerceIn(-20, 20)
             p[Keys.usbTxAuto] = s.usbTxAuto
+            p[Keys.testSwitches] = s.testSwitches.trim()
         }
     }
 }

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -144,8 +145,9 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
                 AtReferenceViewer(Modifier.weight(1f))
                 return@Column
             }
+            // (imePadding: the page ends above the keyboard, so a field being typed in scrolls into view)
             Column(
-                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 16.dp),
+                Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 when (p) {
@@ -174,6 +176,12 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
                             Text(
                                 "Each call's sound, off hook to on hook, as a stereo WAV file (the line's, the modem's); " +
                                     "the log screen shares the latest. The last ${org.dmodem.app.android.modem.LineRecordings.KEEP} are kept.",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            Field("Test switches (optional)", s.testSwitches) { s = s.copy(testSwitches = it) }
+                            Text(
+                                "Only for a bug hunt, when asked for: NAME=VALUE settings of the modem itself " +
+                                    "(DSP_... or DMODEM_..., separated by spaces), used from the modem's next start.",
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         } else if (s.btModem) {

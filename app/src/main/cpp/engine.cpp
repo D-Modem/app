@@ -236,6 +236,7 @@ void Engine::run(Config cfg, int dte_fd, StatusFn status, ExitFn done,
 #ifdef DMODEM_ENGINE_USB
 			mo.rate = cfg.usb_rate;
 			UsbModem um(dte, mo, cfg.usb_fd);
+			um.on_speaker(spk);
 			if (um.ok()) {
 				if (status)
 					um.on_status(report);

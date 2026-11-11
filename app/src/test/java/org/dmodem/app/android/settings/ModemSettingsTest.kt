@@ -56,4 +56,12 @@ class ModemSettingsTest {
         assertNull(usb.copy(usbTxAuto = false).usbTxGainEnv)
         assertNull(ModemSettings().usbTxGainEnv)
     }
+
+    /** the test switches: D-Modem's DSP_* and DMODEM_* names only, by spaces, semicolons or new lines */
+    @Test
+    fun testSwitchesAreTheModemsOwnSettingsOnly() {
+        val s = ModemSettings(testSwitches = "DSP_V34_TX_PRECODE=0 PATH=/x;DMODEM_USB_REC=\nDSP_DEBUG=5 junk =1")
+        assertEquals(mapOf("DSP_V34_TX_PRECODE" to "0", "DMODEM_USB_REC" to "", "DSP_DEBUG" to "5"), s.testEnv)
+        assertEquals(emptyMap<String, String>(), ModemSettings().testEnv)
+    }
 }
