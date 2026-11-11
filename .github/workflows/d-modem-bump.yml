@@ -12,9 +12,10 @@
 # token opens starts no other workflow, so Android's checks would never
 # run on it. Without the secret the run says so and stops.
 #
-# Merging by itself takes the repository's "Allow auto-merge" setting and
-# a rule on main that requires the Android checks; without those the pull
-# request stays open for a person to merge.
+# It merges the pull request itself once every check on it has passed
+# (it waits for them: GitHub's auto-merge, with no checks required on
+# main, would merge at once, before any ran); a failed check leaves it
+# open for a person.
 name: D-Modem bump
 
 on:
@@ -39,7 +40,8 @@ jobs:
   bump:
     runs-on: ubuntu-24.04
     # (a hung step ends here, not at GitHub's 6 hours)
-    timeout-minutes: 10
+    # (the Android checks take about 15 minutes)
+    timeout-minutes: 60
     steps:
       - name: Token present
         env:
@@ -80,6 +82,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Commit and push
+        id: commit
         if: steps.bump.outputs.changed == 'true'
         env:
           OLD: ${{ steps.bump.outputs.old }}
@@ -93,8 +96,10 @@ jobs:
             -m "external/d-modem-re: ${OLD:0:7} -> ${NEW:0:7} (D-Modem's main), and its AT command reference." \
             -m "Signed-off-by: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
           git push --force origin "$BRANCH"
+          echo "head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Pull request, merging by itself
+      - name: Pull request
+        id: pr
         if: steps.bump.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.DMODEM_BUMP_TOKEN }}
@@ -112,6 +117,24 @@ jobs:
             gh pr create --base main --head "$BRANCH" --title "$title" --body "$body"
             pr=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')
           fi
-          if ! gh pr merge "$pr" --auto --merge; then
-            echo "::warning::Couldn't set pull request #$pr to merge by itself (Allow auto-merge off, or no required checks on main): it waits for a person"
+          echo "number=$pr" >> "$GITHUB_OUTPUT"
+
+      # (the checks a moment to start; then all of them waited for)
+      - name: Merged once its checks pass
+        if: steps.bump.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.DMODEM_BUMP_TOKEN }}
+          PR: ${{ steps.pr.outputs.number }}
+          HEAD: ${{ steps.commit.outputs.head }}
+        run: |
+          for i in $(seq 1 20); do
+            n=$(gh pr checks "$PR" --json name --jq length 2>/dev/null || true)
+            [ "${n:-0}" -gt 0 ] && break
+            sleep 15
+          done
+          sleep 30
+          if ! gh pr checks "$PR" --watch --interval 30; then
+            echo "::warning::A check failed on pull request #$PR: it waits for a person"
+            exit 1
           fi
+          gh pr merge "$PR" --merge --match-head-commit "$HEAD"
