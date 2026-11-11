@@ -61,7 +61,11 @@ object Style {
 }
 
 /** a picture (a sixel image): its pixels, and the cell size it was placed at (its tiles are cells of that size) */
-class TermImage(val width: Int, val height: Int, val pixels: IntArray, val cellWidth: Int, val cellHeight: Int) {
+class TermImage(
+    val width: Int, val height: Int, val pixels: IntArray, val cellWidth: Int, val cellHeight: Int,
+    /** a graphics terminal's picture over the screen ([TerminalEmulator.showPicture]'s), not an image in the text */
+    val picture: Boolean = false,
+) {
     val id = nextId++
 
     private companion object {

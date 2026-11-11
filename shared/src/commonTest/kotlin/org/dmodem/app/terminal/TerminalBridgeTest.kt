@@ -53,4 +53,27 @@ class TerminalBridgeTest {
         assertEquals("█", t.runs(0)[0].text.take(1))
         assertEquals("Û", t.typed("█"))
     }
+
+    /** a picture's cells as runs of one image's tiles, its pixels as Latin-1 RGBA (premultiplied) */
+    @Test
+    fun imageRuns() {
+        val b = TerminalBridge(80, 24)
+        b.profile = "vt340"
+        // a red line across the top row's first ten cells
+        b.feed("\u001bPpS(M2(H120L50S100))W(I2)P[0,5]V[99,5]\u001b\\")
+        val runs = b.imageRuns(0)
+        assertEquals(1, runs.size)
+        val r = runs[0]
+        assertEquals(0, r.col)
+        assertEquals(10, r.cells)
+        assertEquals(0, r.tx)
+        assertEquals(0, r.ty)
+        assertEquals(800, r.width)
+        val px = b.imagePixels(r.imageId)
+        assertEquals(800 * 480 * 4, px.length)
+        val i = (5 * 800 + 50) * 4
+        assertEquals(listOf(255, 0, 0, 255), (0 until 4).map { px[i + it].code })
+        assertEquals(0, px[3].code)
+        assertTrue(b.imageRuns(1).isEmpty())
+    }
 }

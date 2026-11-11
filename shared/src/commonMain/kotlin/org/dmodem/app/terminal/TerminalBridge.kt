@@ -65,6 +65,53 @@ class TerminalBridge(cols: Int, rows: Int) {
     /** a row (0: the screen's top) as runs */
     fun runs(row: Int): List<StyledRun> = emulator.runs(row, look)
 
+    /** the images seen in the rows asked for lately ([imageRuns]), by id, for [imagePixels] */
+    private val images = HashMap<Long, TermImage>()
+
+    /** a row's cells that show images (sixels, a picture), each run one image's tiles side by side */
+    fun imageRuns(row: Int): List<ImageRun> {
+        if (row == 0) images.clear()
+        val line = emulator.line(row)
+        if (line.extras == null) return emptyList()
+        val out = ArrayList<ImageRun>()
+        var x = 0
+        while (x < emulator.cols) {
+            val tile = line.extra(x)?.image
+            if (tile == null) { x++; continue }
+            val img = tile.image
+            images[img.id] = img
+            var end = x + 1
+            while (end < emulator.cols) {
+                val next = line.extra(end)?.image ?: break
+                if (next.image !== img || next.ty != tile.ty || next.tx != tile.tx + (end - x)) break
+                end++
+            }
+            out.add(ImageRun(x, end - x, img.id, tile.tx, tile.ty, img.width, img.height, img.cellWidth, img.cellHeight))
+            x = end
+        }
+        return out
+    }
+
+    /**
+     * image [imageId]'s pixels (one [imageRuns] gave) as Latin-1: four characters
+     * a pixel, red, green, blue and alpha, the colour premultiplied; "" if
+     * it's gone
+     */
+    fun imagePixels(imageId: Long): String {
+        val img = images[imageId] ?: return ""
+        val b = StringBuilder(img.pixels.size * 4)
+        for (p in img.pixels) {
+            val a = (p ushr 24) and 0xff
+            /** a channel premultiplied by the alpha */
+            fun pm(c: Int) = (c * a + 127) / 255
+            b.append(pm((p shr 16) and 0xff).toChar())
+            b.append(pm((p shr 8) and 0xff).toChar())
+            b.append(pm(p and 0xff).toChar())
+            b.append(a.toChar())
+        }
+        return b.toString()
+    }
+
     /** the screen's background, the theme's (ARGB) */
     val background: Int get() = look.theme.bgArgb
     val cursorColor: Int get() = look.theme.cursorArgb

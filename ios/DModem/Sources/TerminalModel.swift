@@ -133,6 +133,30 @@ final class TerminalModel: ObservableObject {
     /// a row's runs
     func runs(_ row: Int) -> [StyledRun] { bridge.runs(row: Int32(row)) }
 
+    /// a row's cells that show images (sixels, a graphics terminal's picture), asked for from row 0 down each time the screen's drawn
+    func imageRuns(_ row: Int) -> [ImageRun] { bridge.imageRuns(row: Int32(row)) }
+
+    /// the images as CGImages, made once each (by the image's id)
+    private var imageCache: [Int64: CGImage] = [:]
+
+    /// [r]'s image as a CGImage, made the first time it's asked for; nil if it can't be
+    func cgImage(_ r: ImageRun) -> CGImage? {
+        if let c = imageCache[r.imageId] { return c }
+        let s = bridge.imagePixels(imageId: r.imageId)
+        guard !s.isEmpty, let d = s.data(using: .isoLatin1), let provider = CGDataProvider(data: d as CFData) else { return nil }
+        let w = Int(r.width)
+        let h = Int(r.height)
+        guard let img = CGImage(width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: w * 4,
+                                space: CGColorSpaceCreateDeviceRGB(),
+                                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                                provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
+        else { return nil }
+        // (a picture's redrawn as a new image each time: the old ones let go)
+        if imageCache.count >= 32 { imageCache.removeAll() }
+        imageCache[r.imageId] = img
+        return img
+    }
+
     /// the emulator's Latin-1 output as octets to the modem (nothing if there's none)
     private func out(_ latin1: String) {
         guard !latin1.isEmpty, let d = latin1.data(using: .isoLatin1) else { return }

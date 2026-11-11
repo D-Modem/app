@@ -50,6 +50,10 @@ enum class VtFeature {
     PRINTER,
     /** xterm's own: mouse and focus reports, bracketed paste, the alternate screen, OSC titles, colours, clipboard and links, XTVERSION, window reports */
     XTERM,
+    /** Tek mode (DECSET 38): a Tektronix 4014 in the terminal */
+    TEK,
+    /** ReGIS graphics (DCS p) */
+    REGIS,
 }
 
 /**
@@ -139,6 +143,19 @@ open class Vt320Profile : Vt220Profile() {
     override val secondaryDa: String? get() = "\u001b[>24;10;0c"
 }
 
+/** DEC VT340: a VT320 with graphics, sixel and ReGIS in 16 colour registers they share, and Tek mode */
+open class Vt340Profile : Vt320Profile() {
+    override val id get() = "vt340"
+    override val label get() = "DEC VT340"
+    override val term get() = "vt340"
+    override val telnetType get() = "DEC-VT340"
+    // 132 columns, printer, ReGIS, sixel, selective erase, user-defined keys, NRCS, technical set
+    override val primaryDa get() = "\u001b[?63;1;2;3;4;6;7;8;9c"
+    // a VT340, firmware 1.0
+    override val secondaryDa: String? get() = "\u001b[>19;10;0c"
+    override val features: Set<VtFeature> get() = super.features + VtFeature.SIXEL + VtFeature.REGIS + VtFeature.TEK
+}
+
 /** DEC VT420: level 4, left and right margins, rectangular areas, six pages */
 open class Vt420Profile : Vt320Profile() {
     override val id get() = "vt420"
@@ -199,7 +216,7 @@ open class XtermProfile : Vt220Profile() {
     override val primaryDa get() = "\u001b[?62;4;22c"
     // xterm, patch 390
     override val secondaryDa: String? get() = "\u001b[>41;390;0c"
-    override val features: Set<VtFeature> get() = super.features + VtFeature.COLOR + VtFeature.SIXEL + VtFeature.XTERM
+    override val features: Set<VtFeature> get() = super.features + VtFeature.COLOR + VtFeature.SIXEL + VtFeature.XTERM + VtFeature.TEK
     // (as before profiles: BBSes reached as xterm count on ANSI.SYS's clear)
     override val homeOnClear get() = true
 }
@@ -225,6 +242,7 @@ object TerminalProfiles {
     val VT102: TerminalProfile = Vt102Profile()
     val VT220: TerminalProfile = Vt220Profile()
     val VT320: TerminalProfile = Vt320Profile()
+    val VT340: TerminalProfile = Vt340Profile()
     val VT420: TerminalProfile = Vt420Profile()
     val VIEWDATA: TerminalProfile = ViewdataProfile()
     val MINITEL: TerminalProfile = MinitelProfile()
@@ -242,12 +260,13 @@ object TerminalProfiles {
     val PET80: TerminalProfile = Pet80Profile()
     val ATARI: TerminalProfile = AtariProfile()
     val ATARI_INTL: TerminalProfile = AtariInternationalProfile()
+    val TEK4014: TerminalProfile = Tek4014Profile()
 
     /** the default: what the app was before profiles */
     val DEFAULT: TerminalProfile get() = XTERM
 
     /** in the pickers' order */
-    val all: List<TerminalProfile> = listOf(XTERM, ANSI_BBS, VT52, VT100, VT102, VT220, VT320, VT420, VT510, VT520, VT525, C64, C128, C128_80, PLUS4, VIC20, PET, PET80, ATARI, ATARI_INTL, VIEWDATA, MINITEL)
+    val all: List<TerminalProfile> = listOf(XTERM, ANSI_BBS, VT52, VT100, VT102, VT220, VT320, VT340, VT420, VT510, VT520, VT525, C64, C128, C128_80, PLUS4, VIC20, PET, PET80, ATARI, ATARI_INTL, VIEWDATA, MINITEL, TEK4014)
 
     /** the profile [id] names, or null for none or one not known */
     fun byId(id: String?): TerminalProfile? = all.firstOrNull { it.id == id }

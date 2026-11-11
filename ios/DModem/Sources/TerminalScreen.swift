@@ -134,6 +134,7 @@ private struct ScreenCanvas: View {
                     if run.strike { t = t.strikethrough() }
                     ctx.draw(t, at: CGPoint(x: x, y: y), anchor: .topLeading)
                 }
+                drawImages(ctx, row: row, y: y)
             }
             if model.bridge.cursorVisible {
                 // (twice as wide on a line of double width)
@@ -147,6 +148,21 @@ private struct ScreenCanvas: View {
 }
 
 extension ScreenCanvas {
+    /// a row's image tiles over its text, each run of them the image drawn clipped to its cells, scaled from the cell size it was made at
+    func drawImages(_ ctx: GraphicsContext, row: Int, y: CGFloat) {
+        for r in model.imageRuns(row) {
+            guard let cg = model.cgImage(r) else { continue }
+            let sx = cell.width / CGFloat(r.cellWidth)
+            let sy = cell.height / CGFloat(r.cellHeight)
+            let x = CGFloat(r.col) * cell.width
+            var c = ctx
+            c.clip(to: Path(CGRect(x: x, y: y, width: CGFloat(r.cells) * cell.width, height: cell.height)))
+            let origin = CGPoint(x: x - CGFloat(r.tx * r.cellWidth) * sx, y: y - CGFloat(r.ty * r.cellHeight) * sy)
+            let size = CGSize(width: CGFloat(r.width) * sx, height: CGFloat(r.height) * sy)
+            c.draw(Image(decorative: cg, scale: 1).interpolation(.none), in: CGRect(origin: origin, size: size))
+        }
+    }
+
     /// a run's characters one cell each from the profile's bitmap glyphs (a pixel row's runs as one rectangle), the font's for one it hasn't
     func drawGlyphs(_ ctx: GraphicsContext, _ run: StyledRun, y: CGFloat) {
         let color = GraphicsContext.Shading.color(Color(argb: run.fg))
