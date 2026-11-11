@@ -251,6 +251,7 @@ class TerminalEmulator(
         } else {
             decoder.decode(data, length, sink)
         }
+        interpreter.flush()
         revision++
     }
 
@@ -357,6 +358,36 @@ class TerminalEmulator(
 
     // ------------------------------------------------------------------
     // images
+
+    /**
+     * A graphics terminal's picture over the whole screen (ReGIS's, a
+     * Tektronix's: [img] the screen's size in pixels): the cells it draws
+     * in made its tiles, the cells an earlier picture drew in that this one
+     * doesn't given back their blank; the text elsewhere left, the cursor
+     * where it was.
+     */
+    internal fun showPicture(img: TermImage) {
+        val cw = img.cellWidth
+        val ch = img.cellHeight
+        for (ty in 0 until rows) {
+            val line = screen[ty]
+            for (tx in 0 until cols) {
+                var drawn = false
+                scan@ for (y in ty * ch until minOf((ty + 1) * ch, img.height)) {
+                    val row = y * img.width
+                    for (x in tx * cw until minOf((tx + 1) * cw, img.width)) {
+                        if (img.pixels[row + x] != 0) { drawn = true; break@scan }
+                    }
+                }
+                if (drawn) {
+                    line.set(tx, 0, Style.erased(style))
+                    line.extraFor(tx).image = ImageTile(img, tx, ty)
+                } else if (line.extra(tx)?.image?.image?.picture == true) {
+                    line.extra(tx)?.image = null
+                }
+            }
+        }
+    }
 
     /**
      * A sixel image put on the screen as tiles of cells (so that it scrolls

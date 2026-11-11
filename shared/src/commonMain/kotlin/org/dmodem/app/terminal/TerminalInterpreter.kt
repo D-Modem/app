@@ -35,6 +35,9 @@ abstract class TerminalInterpreter(protected val t: TerminalEmulator) {
     /** what character [cp] typed or pasted sends on this terminal, as octets; null: [KeyEncoder]'s, in the character set */
     open fun charOctets(cp: Int, alt: Boolean, ctrl: Boolean): ByteArray? = null
 
+    /** what came in a read has all been processed: a picture drawn meanwhile put on the screen */
+    open fun flush() {}
+
     /** another profile's interpreter taking over: what this one set on the screen (its size, its colours) undone */
     open fun detach() {}
 }

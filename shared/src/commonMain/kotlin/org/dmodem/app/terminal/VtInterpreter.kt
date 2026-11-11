@@ -28,8 +28,8 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
     /** what's written goes to the host-writable status line (DECSASD 1), not the screen */
     private var statusActive = false
 
-    /** VT52 mode (DECANM reset): its interpreter, until ESC < */
-    private var vt52: Vt52Interpreter? = null
+    /** another terminal's interpreter reading what comes for now (VT52 mode, Tek mode), until it hands back */
+    private var sub: TerminalInterpreter? = null
 
     /** the printer port (a VT102's and later), ended by MC 4 */
     private val printer = PrinterPort(t, listOf("\u001b[4i", "\u009b4i"))
@@ -52,6 +52,12 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
 
     // a DCS's handler: a sixel image, or a request's text
     private var sixel: Sixel? = null
+    /** a VT340's colour registers, shared by its sixels and ReGIS */
+    private val registers: IntArray? = if (profile.has(VtFeature.REGIS)) Sixel.defaultPalette() else null
+    /** ReGIS (a VT340's), made when its first DCS p comes */
+    private var regis: Regis? = null
+    /** a DCS p under way: its text is ReGIS's */
+    private var inRegis = false
     private var dcsText: StringBuilder? = null
     /** what the DCS's text is for: its intermediate and final, as "$q" (DECRQSS), "|" (DECUDK) */
     private var dcsKind = ""
@@ -65,7 +71,7 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
 
     /** one code point through the parser, by the state it is in (text, ESC, CSI, OSC, a string, a DCS) */
     override fun process(cp: Int) {
-        vt52?.let { it.process(cp); return }
+        sub?.let { it.process(cp); return }
         if (intercept(cp)) return
         if (printer.controller) {
             printer.feed(cp)
@@ -461,6 +467,8 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
             1 -> t.appCursorKeys = on
             // DECANM reset: VT52 mode, with this terminal's graphics, until ESC <
             2 -> if (!on) enterVt52()
+            // DECTEK: a Tektronix 4014 on the alternate screen
+            38 -> if (on && profile.has(VtFeature.TEK)) enterTek()
             // DECCOLM: 132 columns or 80
             3 -> if (!xterm || allowColumns) t.setColumnMode(on)
             5 -> t.reverseVideo = on
@@ -743,6 +751,7 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
     private fun dcsStart(final: Int) {
         sixel = null
         dcsText = null
+        inRegis = false
         dcsKind = ""
         dcsP0 = param(0)
         dcsP1 = param(1)
@@ -753,7 +762,11 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
                 // P2 = 1: the pixels not drawn left transparent
                 val maxW = minOf(max, t.cols * t.cellPixelWidth * 2)
                 val maxH = minOf(max, t.rows * t.cellPixelHeight * 4)
-                sixel = Sixel(transparent = p(1, 0) == 1, maxWidth = maxW, maxHeight = maxH)
+                sixel = Sixel(transparent = p(1, 0) == 1, sharedPalette = registers, maxWidth = maxW, maxHeight = maxH)
+            }
+            final == 'p'.code && intermediate == 0 && privateMarker == 0 && registers != null -> {
+                inRegis = true
+                (regis ?: Regis(t, registers).also { regis = it }).begin(p(0, 0))
             }
             // DECRQSS (VT320 and later, xterm), XTGETTCAP: their text collected
             final == 'q'.code && intermediate == '$'.code && (operatingLevel >= 3 || xterm) ||
@@ -772,18 +785,25 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
     /** a DCS's data character: to the sixel image, or to the request's text */
     private fun dcsPut(cp: Int) {
         sixel?.let { it.feed(cp); return }
+        if (inRegis) { regis?.feed(cp); return }
         // (a soft font's glyphs: up to 96 of them)
         dcsText?.let { if (it.length < (if (dcsKind == "{") 65536 else 1024)) it.appendCp(cp) }
     }
 
     /** the DCS cancelled: its image or text dropped */
     private fun dcsAbort() {
+        if (inRegis) regis?.abort()
+        inRegis = false
         sixel = null
         dcsText = null
     }
 
     /** the DCS ended: its sixel image placed, or its request answered */
     private fun dcsEnd() {
+        if (inRegis) {
+            inRegis = false
+            regis?.end()
+        }
         sixel?.let { sx ->
             sixel = null
             sx.finish(t.cellPixelWidth, t.cellPixelHeight)?.let { t.placeImage(it) }
@@ -948,10 +968,25 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
 
     /** VT52 mode: a [Vt52Interpreter] reads what comes, with DEC Special Graphics, until its ESC < */
     private fun enterVt52() {
-        vt52 = Vt52Interpreter(t, GSet.DEC_GRAPHICS, "\u001b/Z") {
-            vt52 = null
+        sub = Vt52Interpreter(t, GSet.DEC_GRAPHICS, "\u001b/Z") {
+            sub = null
             t.vt52Keys = false
         }
+    }
+
+    /** Tek mode (DECSET 38): a [TektronixInterpreter] draws on the alternate screen until its ESC ETX brings the text back */
+    private fun enterTek() {
+        t.setAltScreen(true, clear = true)
+        sub = TektronixInterpreter(t) {
+            sub = null
+            t.setAltScreen(false, clear = false)
+        }
+    }
+
+    /** what a sub-terminal drew put on the screen */
+    override fun flush() {
+        sub?.flush()
+        regis?.flush()
     }
 
     /** DECSTR: the character sets back to ASCII */
@@ -968,12 +1003,15 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
         sets.soft.reset()
         statusActive = false
         softReset()
-        vt52 = null
+        if (sub is TektronixInterpreter) t.setAltScreen(false, clear = false)
+        sub = null
         t.vt52Keys = false
         printer.reset()
         allowColumns = false
         sixel = null
         dcsText = null
+        regis?.reset()
+        inRegis = false
         state = State.GROUND
     }
 }
