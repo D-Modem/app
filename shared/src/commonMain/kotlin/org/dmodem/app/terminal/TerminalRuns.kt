@@ -96,3 +96,20 @@ fun TerminalEmulator.runs(row: Int, look: RunLook = RunLook()): List<StyledRun> 
     }
     return out
 }
+
+/**
+ * Cells of a row showing one image (the bridge's, for Swift): [cells]
+ * columns from [col], tile ([tx], [ty]) of image [imageId] the first, the image
+ * [width] x [height] pixels in tiles of [cellWidth] x [cellHeight]
+ */
+class ImageRun(
+    val col: Int,
+    val cells: Int,
+    val imageId: Long,
+    val tx: Int,
+    val ty: Int,
+    val width: Int,
+    val height: Int,
+    val cellWidth: Int,
+    val cellHeight: Int,
+)
