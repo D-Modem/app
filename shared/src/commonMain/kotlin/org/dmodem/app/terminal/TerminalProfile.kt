@@ -230,9 +230,40 @@ open class AnsiBbsProfile : XtermProfile() {
     override val charset: TermCharset? get() = TermCharset.CP437
     /** a VGA's 8x16 code page 437 */
     override val glyphs: BitmapFont? get() = LegacyCharsets.VGA
+    /** its machine's sixteen colours (ARGB, ANSI's order), over the theme's; null: the theme's */
+    open val colors: IntArray? get() = null
 
     /** an [AnsiBbsInterpreter]: CTerm's additions */
     override fun interpreter(t: TerminalEmulator): TerminalInterpreter = AnsiBbsInterpreter(t, this)
+}
+
+/**
+ * An Amiga's BBS terminal (as NComm and Term are): ANSI in Latin-1, the
+ * Amiga's own set, drawn 8x8 as Topaz is (Unscii's glyphs), in colours
+ * from the Amiga's 12-bit palette
+ */
+open class AmigaAnsiProfile : AnsiBbsProfile() {
+    override val id get() = "amiga"
+    override val label get() = "Amiga ANSI"
+    override val term get() = "amiga"
+    // (BBSes find ANSI by it)
+    override val telnetType get() = "ANSI"
+    override val charset: TermCharset? get() = TermCharset.LATIN1
+    /** 8x8, Topaz's size */
+    override val glyphs: BitmapFont? get() = LegacyCharsets.GLYPHS
+    override val colors: IntArray? get() = AMIGA
+
+    companion object {
+        /** ANSI's eight and their bright eight, as an Amiga's 4-bit levels */
+        private val AMIGA = intArrayOf(
+            0x000, 0xC22, 0x2C2, 0xCC2, 0x22C, 0xC2C, 0x2CC, 0xCCC,
+            0x666, 0xF55, 0x5F5, 0xFF5, 0x55F, 0xF5F, 0x5FF, 0xFFF,
+        ).map { c ->
+            /** a 4-bit level as 0-255 */
+            fun level(v: Int) = v * 17
+            (0xff shl 24) or (level(c shr 8 and 15) shl 16) or (level(c shr 4 and 15) shl 8) or level(c and 15)
+        }.toIntArray()
+    }
 }
 
 /** The profiles there are, by id. */
@@ -251,6 +282,9 @@ object TerminalProfiles {
     val VT525: TerminalProfile = Vt525Profile()
     val XTERM: TerminalProfile = XtermProfile()
     val ANSI_BBS: TerminalProfile = AnsiBbsProfile()
+    val AVATAR: TerminalProfile = AvatarProfile()
+    val AMIGA: TerminalProfile = AmigaAnsiProfile()
+    val RIP: TerminalProfile = RipProfile()
     val C64: TerminalProfile = C64Profile()
     val C128: TerminalProfile = C128Profile()
     val C128_80: TerminalProfile = C128VdcProfile()
@@ -261,12 +295,14 @@ object TerminalProfiles {
     val ATARI: TerminalProfile = AtariProfile()
     val ATARI_INTL: TerminalProfile = AtariInternationalProfile()
     val TEK4014: TerminalProfile = Tek4014Profile()
+    val ATARI_ST: TerminalProfile = AtariStProfile()
+    val ATARI_ST_LOW: TerminalProfile = AtariStLowProfile()
 
     /** the default: what the app was before profiles */
     val DEFAULT: TerminalProfile get() = XTERM
 
     /** in the pickers' order */
-    val all: List<TerminalProfile> = listOf(XTERM, ANSI_BBS, VT52, VT100, VT102, VT220, VT320, VT340, VT420, VT510, VT520, VT525, C64, C128, C128_80, PLUS4, VIC20, PET, PET80, ATARI, ATARI_INTL, VIEWDATA, MINITEL, TEK4014)
+    val all: List<TerminalProfile> = listOf(XTERM, ANSI_BBS, RIP, AVATAR, AMIGA, VT52, VT100, VT102, VT220, VT320, VT340, VT420, VT510, VT520, VT525, C64, C128, C128_80, PLUS4, VIC20, PET, PET80, ATARI, ATARI_INTL, ATARI_ST, ATARI_ST_LOW, VIEWDATA, MINITEL, TEK4014)
 
     /** the profile [id] names, or null for none or one not known */
     fun byId(id: String?): TerminalProfile? = all.firstOrNull { it.id == id }

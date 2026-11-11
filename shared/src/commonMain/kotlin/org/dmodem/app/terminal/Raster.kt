@@ -29,6 +29,12 @@ class Raster(val width: Int, val height: Int, private val logicalWidth: Int, pri
     var background = 0
     /** the line pattern: 8 bits, the first pixel the high one (0xff solid) */
     var pattern = 0xff
+    /** [fill]'s pattern: 8 rows of 8 bits (high bit left), the colour where set and [fillBackground] where not; null solid */
+    var fillPattern: IntArray? = null
+    /** what a [fillPattern]'s clear bits are filled with (0: left as they are) */
+    var fillBackground = 0
+    /** the pixels drawing may touch (left, top, right, bottom, inclusive); null all */
+    var clip: IntArray? = null
     private var patternStep = 0
     /** changed since [take] */
     var dirty = false
@@ -49,6 +55,7 @@ class Raster(val width: Int, val height: Int, private val logicalWidth: Int, pri
     /** pixel ([x], [y]) written as the mode says ([on]: the pattern's bit there) */
     private fun put(x: Int, y: Int, on: Boolean = true) {
         if (x !in 0 until width || y !in 0 until height) return
+        clip?.let { c -> if (x < c[0] || y < c[1] || x > c[2] || y > c[3]) return }
         val i = y * width + x
         when (mode) {
             Mode.OVERLAY -> if (on) pixels[i] = color
@@ -95,14 +102,33 @@ class Raster(val width: Int, val height: Int, private val logicalWidth: Int, pri
 
     /** an arc round logical ([cx], [cy]), radius [r], from [start] degrees (0 east, counterclockwise) through [sweep] */
     fun arc(cx: Int, cy: Int, r: Int, start: Double, sweep: Double) {
-        val steps = maxOf(16, (abs(sweep) / 360 * maxOf(8, px(abs(r)) * 2) * PI).toInt())
+        // (the same radius in pixels both ways: round on any screen)
+        pixelArc(px(cx), py(cy), px(r).toDouble(), px(r).toDouble(), start, sweep)
+    }
+
+    /** an elliptical arc round logical ([cx], [cy]), radii [rx] and [ry] (each in its own axis' units), as [arc] */
+    fun ellipse(cx: Int, cy: Int, rx: Int, ry: Int, start: Double, sweep: Double) {
+        pixelArc(px(cx), py(cy), rx.toDouble() * width / logicalWidth, ry.toDouble() * height / logicalHeight, start, sweep)
+    }
+
+    /** an elliptical arc's points (logical), [start] degrees through [sweep], for a polygon (a pie's or a filled ellipse's) */
+    fun ellipsePoints(cx: Int, cy: Int, rx: Int, ry: Int, start: Double, sweep: Double): List<Pair<Int, Int>> {
+        val n = maxOf(16, (abs(sweep) / 360 * 64).toInt())
+        return (0..n).map { i ->
+            val a = (start + sweep * i / n) * PI / 180
+            (cx + (rx * cos(a)).roundToInt()) to (cy - (ry * sin(a)).roundToInt())
+        }
+    }
+
+    /** an arc of pixels round ([cx], [cy]), radii [rx] and [ry] in pixels, by short lines */
+    private fun pixelArc(cx: Int, cy: Int, rx: Double, ry: Double, start: Double, sweep: Double) {
+        val steps = maxOf(16, (abs(sweep) / 360 * maxOf(8.0, maxOf(rx, ry) * 2) * PI).toInt())
         var lx = 0
         var ly = 0
         for (i in 0..steps) {
             val a = (start + sweep * i / steps) * PI / 180
-            val x = px(cx) + (px(r) * cos(a)).roundToInt()
-            // (the same radius in pixels both ways: round on any screen)
-            val y = py(cy) - (px(r) * sin(a)).roundToInt()
+            val x = cx + (rx * cos(a)).roundToInt()
+            val y = cy - (ry * sin(a)).roundToInt()
             if (i > 0) pixelLine(lx, ly, x, y)
             lx = x
             ly = y
@@ -125,8 +151,95 @@ class Raster(val width: Int, val height: Int, private val logicalWidth: Int, pri
                 if (y >= minOf(y0, y1) && y < maxOf(y0, y1)) xs.add(x0 + (y - y0) * (x1 - x0) / (y1 - y0))
             }
             xs.sort()
-            for (k in 0 until xs.size - 1 step 2) for (x in xs[k]..xs[k + 1]) put(x, y)
+            for (k in 0 until xs.size - 1 step 2) for (x in xs[k]..xs[k + 1]) fillPixel(x, y)
         }
+    }
+
+    /** a filled area's pixel: the colour, or where [fillPattern]'s bit is clear [fillBackground] (if any) */
+    private fun fillPixel(x: Int, y: Int) {
+        val p = fillPattern ?: return put(x, y)
+        if ((p[y and 7] shr (7 - (x and 7))) and 1 != 0) {
+            put(x, y)
+        } else if (fillBackground != 0) {
+            val c = color
+            color = fillBackground
+            put(x, y)
+            color = c
+        }
+    }
+
+    /** the area round logical ([x], [y]) up to pixels of colour [border] filled (as [fill] fills), a scan line at a time */
+    fun floodFill(x: Int, y: Int, border: Int) {
+        val sx = px(x)
+        val sy = py(y)
+        if (sx !in 0 until width || sy !in 0 until height || pixels[sy * width + sx] == border) return
+        val seen = BooleanArray(width * height)
+        val stack = ArrayDeque<Int>()
+        stack.addLast(sy * width + sx)
+        /** whether the pixel at [i] is inside: not the border, not filled yet, in the clip */
+        fun inside(i: Int): Boolean {
+            if (seen[i] || pixels[i] == border) return false
+            val c = clip ?: return true
+            val xx = i % width
+            val yy = i / width
+            return xx >= c[0] && yy >= c[1] && xx <= c[2] && yy <= c[3]
+        }
+        while (stack.isNotEmpty()) {
+            val i = stack.removeLast()
+            if (!inside(i)) continue
+            val row = i / width
+            var l = i % width
+            var r = l
+            while (l > 0 && inside(row * width + l - 1)) l--
+            while (r < width - 1 && inside(row * width + r + 1)) r++
+            for (xx in l..r) seen[row * width + xx] = true
+            for (xx in l..r) fillPixel(xx, row)
+            for (ny in intArrayOf(row - 1, row + 1)) {
+                if (ny !in 0 until height) continue
+                for (xx in l..r) if (inside(ny * width + xx)) stack.addLast(ny * width + xx)
+            }
+        }
+        dirty = true
+    }
+
+    /** a copy of the pixels in logical ([x0], [y0])-([x1], [y1]) */
+    fun grab(x0: Int, y0: Int, x1: Int, y1: Int): Grab {
+        val l = px(minOf(x0, x1)).coerceIn(0, width - 1)
+        val t = py(minOf(y0, y1)).coerceIn(0, height - 1)
+        val r = px(maxOf(x0, x1) + 1).coerceIn(l + 1, width)
+        val b = py(maxOf(y0, y1) + 1).coerceIn(t + 1, height)
+        val w = r - l
+        val h = b - t
+        val out = IntArray(w * h)
+        for (yy in 0 until h) pixels.copyInto(out, yy * w, (t + yy) * width + l, (t + yy) * width + l + w)
+        return Grab(w, h, out)
+    }
+
+    /** a [grab]'s pixels put with their top left at logical ([x], [y]): copied, or [xor]ed over what's there */
+    fun put(g: Grab, x: Int, y: Int, xor: Boolean = false) {
+        val l = px(x)
+        val t = py(y)
+        for (yy in 0 until g.height) for (xx in 0 until g.width) {
+            val dx = l + xx
+            val dy = t + yy
+            if (dx !in 0 until width || dy !in 0 until height) continue
+            clip?.let { c -> if (dx < c[0] || dy < c[1] || dx > c[2] || dy > c[3]) continue }
+            val v = g.pixels[yy * g.width + xx]
+            val i = dy * width + dx
+            pixels[i] = if (xor) (pixels[i] xor v) or (if (pixels[i] or v != 0) 0xff shl 24 else 0) else v
+        }
+        dirty = true
+    }
+
+    /** logical ([x0], [y0])-([x1], [y1]) as pixels (left, top, right, bottom, inclusive), for [clip] */
+    fun pixelRect(x0: Int, y0: Int, x1: Int, y1: Int): IntArray =
+        intArrayOf(px(minOf(x0, x1)), py(minOf(y0, y1)), px(maxOf(x0, x1) + 1) - 1, py(maxOf(y0, y1) + 1) - 1)
+
+    /** the pixels in logical ([x0], [y0])-([x1], [y1]) made [c] (0: transparent) */
+    fun clearRect(x0: Int, y0: Int, x1: Int, y1: Int, c: Int = 0) {
+        val r = pixelRect(x0, y0, x1, y1)
+        for (yy in maxOf(0, r[1])..minOf(height - 1, r[3])) for (xx in maxOf(0, r[0])..minOf(width - 1, r[2])) pixels[yy * width + xx] = c
+        dirty = true
     }
 
     /**
@@ -154,14 +267,24 @@ class Raster(val width: Int, val height: Int, private val logicalWidth: Int, pri
         val w = maxOf(1, px(x + cw) - left)
         val h = maxOf(1, py(y + ch) - top)
         for (yy in 0 until h) {
-            val row = font.row(cp, yy * font.height / h)
+            // (shrunk: the glyph's rows this one covers merged, so a thin stroke isn't lost)
+            val r0 = yy * font.height / h
+            val r1 = maxOf(r0 + 1, (yy + 1) * font.height / h)
+            var row = 0
+            for (r in r0 until r1) row = row or font.row(cp, r)
             if (row == 0) continue
             for (xx in 0 until w) {
-                val col = xx * font.width / w
-                if ((row shr (font.width - 1 - col)) and 1 != 0) put(left + xx, top + yy)
+                val c0 = xx * font.width / w
+                val c1 = maxOf(c0 + 1, (xx + 1) * font.width / w)
+                var on = false
+                for (col in c0 until c1) if ((row shr (font.width - 1 - col)) and 1 != 0) on = true
+                if (on) put(left + xx, top + yy)
             }
         }
     }
+
+    /** pixels [grab]bed from a raster: [width] x [height] of them, row by row */
+    class Grab(val width: Int, val height: Int, val pixels: IntArray)
 
     /** the picture as an image whose tiles are [cellWidth] x [cellHeight] (the screen's cells), not dirty after */
     fun take(cellWidth: Int, cellHeight: Int): TermImage {

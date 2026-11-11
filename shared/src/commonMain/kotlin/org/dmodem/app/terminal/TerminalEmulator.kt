@@ -117,20 +117,20 @@ class TerminalEmulator(
     /** the colours as the view shows them (for OSC 4, 10, 11 and 12's questions): 0-255, 256 fg, 257 bg, 258 cursor */
     var defaultColor: (Int) -> Int = { xtermColor(it) }
 
-    /** the remote's own colours (OSC 4, 10, 11, 12): ARGB, or -1 for the view's */
-    private val colorOverrides = IntArray(259) { -1 }
+    /** the remote's own colours (OSC 4, 10, 11, 12) and the machines' palettes: opaque ARGB, or [NO_COLOR] for the view's */
+    private val colorOverrides = IntArray(259) { NO_COLOR }
 
-    /** a colour the remote set (0-255, 256 fg, 257 bg, 258 cursor), or -1 */
-    fun colorOverride(i: Int): Int = colorOverrides.getOrElse(i) { -1 }
+    /** a colour the remote set (0-255, 256 fg, 257 bg, 258 cursor), or [NO_COLOR] */
+    fun colorOverride(i: Int): Int = colorOverrides.getOrElse(i) { NO_COLOR }
 
-    /** colour [i] (as [colorOverride] numbers them) set by the remote to [argb] */
+    /** colour [i] (as [colorOverride] numbers them) set by the remote to [argb] (made opaque: [NO_COLOR] stays the only transparent one) */
     internal fun setColorOverride(i: Int, argb: Int) {
-        if (i in colorOverrides.indices) colorOverrides[i] = argb
+        if (i in colorOverrides.indices) colorOverrides[i] = argb or (0xff shl 24)
     }
 
     /** the remote's colours in [range] back to the view's */
     internal fun resetColors(range: IntRange) {
-        for (i in range) if (i in colorOverrides.indices) colorOverrides[i] = -1
+        for (i in range) if (i in colorOverrides.indices) colorOverrides[i] = NO_COLOR
     }
 
     /** the columns the view should fit across its width (DECCOLM's 80 or 132, a Commodore's 40); 0: as many as the font gives */
@@ -243,6 +243,9 @@ class TerminalEmulator(
     private var interpreter: TerminalInterpreter = profile.interpreter(this)
 
     private val sink = TermDecoder.Sink { cp -> interpreter.process(cp) }
+
+    /** a tap at ([fx], [fy]) (fractions of the screen from its top left) as the terminal takes it: what to send (a RIP button's text), or null if it takes none */
+    fun tap(fx: Double, fy: Double): ByteArray? = interpreter.tap(fx, fy)
 
     /** the remote's octets, decoded in [decoder]'s set (or as they are, to an interpreter that reads octets) */
     fun append(data: ByteArray, length: Int = data.size) {
@@ -861,7 +864,7 @@ class TerminalEmulator(
         vt52Keys = false
         sixelScrolling = true
         sixelCursorRight = false
-        colorOverrides.fill(-1)
+        colorOverrides.fill(NO_COLOR)
         link = null
         joinNext = false
         tabs = BooleanArray(cols) { it % 8 == 0 && it > 0 }
@@ -957,6 +960,11 @@ class TerminalEmulator(
     }
 
     companion object {
+        /**
+         * [colorOverride]'s "none": transparent black, which no override is
+         * (not -1, which is opaque white)
+         */
+        const val NO_COLOR = 0
         /** the largest sixel image (pixels a side) */
         const val MAX_IMAGE = 2048
 

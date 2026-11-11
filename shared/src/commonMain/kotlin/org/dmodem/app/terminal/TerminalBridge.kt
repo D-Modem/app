@@ -65,6 +65,9 @@ class TerminalBridge(cols: Int, rows: Int) {
     /** a row (0: the screen's top) as runs */
     fun runs(row: Int): List<StyledRun> = emulator.runs(row, look)
 
+    /** a tap at ([fx], [fy]) (fractions of the screen from its top left) as the terminal takes it: the octets to send in Latin-1 (a RIP button's), "" for none */
+    fun tap(fx: Double, fy: Double): String = emulator.tap(fx, fy)?.let(::latin1) ?: ""
+
     /** the images seen in the rows asked for lately ([imageRuns]), by id, for [imagePixels] */
     private val images = HashMap<Long, TermImage>()
 

@@ -28,7 +28,11 @@ struct TerminalScreen: View {
                     .onChange(of: model.bridge.glyphHeight) { _ in fit(geo.size, metrics(geo.size)) }
                     .overlay(KeyInput(model: model, focused: $focused).frame(width: 1, height: 1).opacity(0.01), alignment: .topLeading)
                     .contentShape(Rectangle())
-                    .onTapGesture { focused = true }
+                    .onTapGesture { p in
+                        focused = true
+                        // (a terminal that takes taps itself: a RIP button's text to the modem)
+                        model.tap(fx: p.x / (cell.width * CGFloat(model.cols)), fy: p.y / (cell.height * CGFloat(model.rows)))
+                    }
                     .gesture(MagnificationGesture().onEnded { s in fontSize = min(24, max(7, fontSize * Double(s))) })
             }
             // a VT320's status line, below the screen (the screen a line shorter)

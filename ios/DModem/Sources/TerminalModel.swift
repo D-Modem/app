@@ -103,6 +103,11 @@ final class TerminalModel: ObservableObject {
         revision = bridge.revision
     }
 
+    /// a tap at ([fx], [fy]), fractions of the screen from its top left: what the terminal sends for it (a RIP button's text), if anything
+    func tap(fx: CGFloat, fy: CGFloat) {
+        out(bridge.tap(fx: Double(fx), fy: Double(fy)))
+    }
+
     /// text typed (the keyboard's), Ctrl and Alt (a Commodore's C=) if the sticky ones are down
     func typed(_ text: String) {
         out(bridge.typed(text: text, ctrl: ctrl, alt: alt))

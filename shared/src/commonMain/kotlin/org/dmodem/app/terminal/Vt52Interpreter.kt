@@ -18,8 +18,10 @@ open class Vt52Interpreter(
     /** ESC <: back to ANSI mode (null: a real VT52, which has none) */
     private val onAnsi: (() -> Unit)? = null,
 ) : TerminalInterpreter(t) {
-    private enum class State { GROUND, ESC, ROW, COL }
+    private enum class State { GROUND, ESC, ROW, COL, ARG }
     private var state = State.GROUND
+    /** an ESC command's argument character to come, for [escArgument] (an Atari ST's colours) */
+    private var argFor = 0
     private var graphics = false
     private var row = 0
     private val printer = PrinterPort(t, listOf("\u001bX"))
@@ -39,7 +41,7 @@ open class Vt52Interpreter(
                 cp == 0x1b -> state = State.ESC
                 cp < 0x20 -> control(cp)
                 cp == 0x7f -> {}
-                else -> t.print(if (graphics) graphicsSet.map(cp) else cp)
+                else -> t.print(if (graphics) graphicsSet.map(cp) else charOf(cp))
             }
             State.ESC -> {
                 state = State.GROUND
@@ -49,6 +51,10 @@ open class Vt52Interpreter(
                 row = cp - 0x20
                 state = State.COL
             }
+            State.ARG -> {
+                state = State.GROUND
+                escArgument(argFor, cp)
+            }
             State.COL -> {
                 state = State.GROUND
                 // (a row off the screen leaves the cursor's; a column past the end is the last)
@@ -57,6 +63,9 @@ open class Vt52Interpreter(
             }
         }
     }
+
+    /** what character [cp] prints as (an Atari ST's own set maps its octets) */
+    protected open fun charOf(cp: Int): Int = cp
 
     /** a control: the bell, BS, HT, LF (auto printing), CR */
     private fun control(cp: Int) {
@@ -100,6 +109,15 @@ open class Vt52Interpreter(
             else -> if (cp == 0x1b) state = State.ESC else if (cp < 0x20) control(cp)
         }
     }
+
+    /** ESC [command]'s argument to come: the next character goes to [escArgument] */
+    protected fun takeArgument(command: Int) {
+        argFor = command
+        state = State.ARG
+    }
+
+    /** the argument character [arg] of ESC [command] (one [takeArgument] asked for) */
+    protected open fun escArgument(command: Int, arg: Int) {}
 
     /** RIS: graphics off, no sequence under way, the printer port as at power-up */
     override fun reset() {

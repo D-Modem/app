@@ -18,6 +18,9 @@ graphics terminals draw through `Raster.kt`.
 |---|---|---|---|---|
 | xterm | `xterm` | `xterm-256color` / `XTERM-256COLOR` | any | The default: a VT220 with 256 and 24-bit colour, sixel, the mouse, titles, and Tek mode |
 | ANSI-BBS (PC) | `ansi-bbs` | `ansi` / `ANSI` | 80x25 | A PC's BBS terminal, as SyncTERM is: CP437 in a VGA font, iCE colours, ANSI music, doorway mode |
+| RIPscrip | `rip` | `rip` / `ANSI` | 80x43 text over 640x350 graphics | RIPscrip 1.54 over ANSI-BBS: `!|` lines draw (lines, shapes, fills, text, the clipboard), mouse regions and buttons send their text when tapped, `ESC [ !` answers RIP's version |
+| Avatar (AVT/0+) | `avatar` | `avatar` / `ANSI` | 80x25 | ANSI-BBS with FidoNet's Avatar codes: ^L, ^Y repeat, ^V's attributes, moves and AVT/0+'s area scrolls, clears, fills and pattern repeat |
+| Amiga ANSI | `amiga` | `amiga` / `ANSI` | 80x25 | ANSI-BBS in Latin-1 with 8x8 glyphs (Topaz's size, Unscii's drawing) and colours from the Amiga's 12-bit palette |
 | DEC VT52 | `vt52` | `vt52` / `DEC-VT52` | 80x24 | The VT52's own escape codes and graphics |
 | DEC VT100 | `vt100` | `vt100` / `DEC-VT100` | 80/132x24 | ANSI codes at level 1: no colour; double-size lines; VT52 mode |
 | DEC VT102 | `vt102` | `vt102` / `DEC-VT102` | 80/132x24 | Adds character and line insert and delete, and a printer port |
@@ -29,6 +32,7 @@ graphics terminals draw through `Raster.kt`.
 | DEC VT525 | `vt525` | `vt525` / `DEC-VT525` | 80/132x24+ | A VT520 in colour, with its colour table |
 | Commodore 64, 128 (40 and 80), Plus/4, VIC-20, PET (40 and 80) | `c64`, `c128`, `c128-80`, `plus4`, `vic20`, `pet`, `pet80` | `petscii` / `PETSCII` | 40x25 (VIC-20: 22x23; 80 for the C128's VDC and the 8032) | PETSCII as CCGMS and Novaterm do it, each in its machine's palette |
 | Atari 8-bit | `atari`, `atari-intl` | `atascii` / `ATASCII` | 40x24 | ATASCII and the screen editor's controls; the XL's international set as a second type |
+| Atari ST | `atari-st`, `atari-st-low` | `st52` / `VT52` | 80x25 in 4 colours, or 40x25 in 16 | TOS's VT52 with its colours (ESC b, ESC c), reverse, wrap, cursor save and on/off, more erases, line insert and delete, in the ST's character set |
 | Viewdata (Prestel) | `viewdata` | `viewdata` / `VIEWDATA` | 40x24 | Teletext Level 1 attributes and mosaics; # sends |
 | Minitel | `minitel` | `minitel` / `MINITEL` | 40x25 | Teletel videotex with the status row, the protocol commands, Mixte (80 columns) and Téléinformatique (a VT100) |
 | Tektronix 4014 | `tek4014` | `tek4014` / `TEK4014` | 4096x3120 tube | Vectors, points, incremental plots and alpha text on a storage tube |
@@ -103,6 +107,12 @@ table when they are.
 - R(M) (macrograph storage) isn't answered.
 - A colour register changed after drawing doesn't recolour what's
   already drawn.
+
+**RIPscrip**
+- Icons (1I, 1W) and scenes (1R) from the host's files aren't loaded.
+- Text variables ($…$) aren't expanded.
+- The stroke fonts are drawn with the PC's bitmap font at their size.
+- Vertical text runs down, but its glyphs don't turn.
 
 **Tektronix**
 - No graphic input (GIN) cross-hair.

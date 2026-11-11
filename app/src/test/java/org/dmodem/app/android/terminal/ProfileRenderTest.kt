@@ -40,6 +40,8 @@ class ProfileRenderTest {
         v.session = session
         v.applySettings(TerminalSettings(cursorBlink = false))
         session.profile = profile
+        // (as connecting does: the profile's character set, unless the entry has its own)
+        profile.charset?.let { session.charset = it }
         v.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY))
         v.layout(0, 0, w, h)
         val b = ByteArray(octets.length) { octets[it].code.toByte() }
@@ -66,6 +68,10 @@ class ProfileRenderTest {
             "tek4014" -> "\u001d${tek(100, 100)}${tek(900, 100)}${tek(500, 700)}${tek(100, 100)}\u001fTEKTRONIX"
             "vt340" -> "Hello VT340 $e[7mInverse$e[0m\r\n" +
                 "${e}PpS(M2(H120L50S100))W(I2)P[400,240]C[+100]P[100,300]F(V[+100][+0,+100][-100])$e\\"
+            "atari-st", "atari-st-low" -> "${e}EHello ST ${e}b1Red${e}b\u000f ${e}pInverse${e}q \u009e\u00e0"
+            "avatar" -> "\u000c\u0016\u0001\u001eAvatar \u0019*\u0008\u0016\u0001\u0004 red \u0016\u0001\u0007 $e[1;32mANSI too$e[0m"
+            "amiga" -> "$e[2J$e[HAmiga $e[1;31mANSI$e[0m in Latin-1: \u00e9\u00e8\u00fc\u00df\u00a9 $e[44;33m Topaz $e[0m"
+            "rip" -> "!|*|S0101|B0000HR0K|c0F|@0806RIPscrip on D-Modem|c0E|C8W4628|S0904|o46461O14|c0A|L0078HR78|1UC83CFK4G0000<>Enter<>^M\r\nANSI text in the window"
             "vt52" -> "${e}H${e}JHello VT52 ${e}F" + "abcdefg" + "${e}G"
             else -> "$e[2J$e[HHello ${p.label} $e[1mBold$e[0m $e[7mInverse$e[0m $e[4mUnder$e[0m\r\n" +
                 "$e(0lqqqqk$e(B $e[31mRed$e[0m"

@@ -30,9 +30,9 @@
   clear-home, bold as bright, iCE colours, and box drawing and block
   characters drawn to fill their cells so ANSI art has no gaps. A
   terminal type (Settings, and each directory entry's own) picks what it
-  is: xterm, ANSI-BBS (a PC's, in CP437, as SyncTERM is), DEC VT52, VT100,
+  is: xterm, ANSI-BBS (a PC's, in CP437, as SyncTERM is), RIPscrip, Avatar, Amiga ANSI, DEC VT52, VT100,
   VT102, VT220, VT320, VT340, VT420, VT510, VT520 or VT525, a Commodore, an
-  Atari, Viewdata (Prestel), a Minitel or a Tektronix 4014. Each
+  Atari 8-bit or ST, Viewdata (Prestel), a Minitel or a Tektronix 4014. Each
   answers the device attribute requests as that terminal did, knows only
   its own sequences (a VT100 has no colours, a VT220 no xterm titles or
   mouse), and gives SSH its `TERM` and Telnet its TERMINAL-TYPE. The DEC
@@ -79,7 +79,19 @@
   `ESC [ M` when a PLAY string follows it) played as a PC speaker would,
   iCE colours when the BBS asks (`ESC [ ? 33 h`), the line speed it asks
   to be shown at for ANSI animations (`ESC [ 0 ; n * r`), and doorway
-  mode for DOS doors (`ESC [ = 255 h`: the keys as a PC's scan codes). The
+  mode for DOS doors (`ESC [ = 255 h`: the keys as a PC's scan codes).
+  Avatar is ANSI-BBS with FidoNet's compact codes as well (AVT/0 and
+  AVT/0+: ^L, ^Y's repeat, ^V's PC attributes, cursor moves, insert mode,
+  area scrolls, clears and fills, and pattern repeats). RIPscrip (1.54)
+  is ANSI-BBS whose lines starting `!|` draw on a 640x350 EGA screen over
+  an 80x43 text window: lines in their styles and thicknesses,
+  rectangles, bars, circles, ellipses, arcs, pie slices, Béziers,
+  polygons, flood fills in BGI's patterns or the host's, text, the
+  palette, viewport and text window, the clipboard, and mouse regions
+  and buttons that send their text when tapped; it answers `ESC [ !`
+  with its version. Amiga ANSI is
+  ANSI-BBS in Latin-1, the Amiga's set, drawn 8x8 as Topaz is (Unscii's
+  glyphs) in colours from the Amiga's palette. The
   Commodore types (C64, C128 in 40 or 80 columns, Plus/4, VIC-20, PET in
   40 or 80 columns) speak PETSCII as CCGMS and Novaterm do: the screen
   becomes the machine's (40x25, the VIC-20's 22x23) in its palette, drawn
@@ -95,7 +107,12 @@
   inverse video, its cursor keys wrapping round the screen, CLEAR, EOL,
   insert and delete of characters and lines, tabs, the buzzer and ESC to
   show a control's character; CTRL with a letter types its graphic and
-  the key bar's INV key types the next character inverse. Viewdata is
+  the key bar's INV key types the next character inverse. The Atari ST
+  types (80 columns in medium resolution's four colours, or 40 in low
+  resolution's sixteen) are TOS's VT52 with its additions: the pens (ESC
+  b, ESC c), reverse, wrap, the cursor saved and hidden, erases to the
+  screen's and line's start, line insert and delete, and the ST's own
+  character set. Viewdata is
   Prestel's 40x24 of teletext: its attributes take a cell and change the
   rest of the row (alpha and mosaic colours, flash, conceal, contiguous
   or separated mosaics, hold, new and black background; double height is

@@ -132,6 +132,8 @@ def main():
         t = [m.get(c, 0) for c in range(256)]
         tables.append((name, f, what, t))
         used.update(cp for cp in t if cp)
+    # (Latin-1's letters and signs: an Amiga's set, drawn as Topaz is, 8x8)
+    used.update(range(0xA1, 0x100))
     missing = sorted(cp for cp in used if cp not in font)
     if missing:
         print("no glyph for: " + " ".join("U+%04X" % cp for cp in missing), file=sys.stderr)
@@ -146,7 +148,7 @@ def main():
     w(" * The 8-bit home computers' character sets, each code (0x00..0xff) as its")
     w(" * Unicode code point (0: not a character), from Rebecca Bettencourt's")
     w(" * Legacy Computing mappings; and [GLYPHS], an 8x8 glyph for every one of")
-    w(" * them, and [VGA], code page 437 in 8x16 as a PC's VGA showed it; both")
+    w(" * them (and Latin-1's, an Amiga's), and [VGA], code page 437 in 8x16 as a PC's VGA showed it; both")
     w(" * from Unscii (public domain; the few it hasn't drawn in the generator).")
     w(" */")
     w("internal object LegacyCharsets {")

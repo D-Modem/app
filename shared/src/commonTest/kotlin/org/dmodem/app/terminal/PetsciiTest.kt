@@ -39,7 +39,7 @@ class PetsciiTest {
         t.profile = TerminalProfiles.XTERM
         assertEquals(0, t.requestedColumns)
         assertEquals(0, t.requestedRows)
-        assertEquals(-1, t.colorOverride(2))
+        assertEquals(TerminalEmulator.NO_COLOR, t.colorOverride(2))
         assertNull(t.glyphs)
         assertEquals(22, term(TerminalProfiles.VIC20).requestedColumns)
         assertEquals(80, term(TerminalProfiles.C128_80).requestedColumns)
