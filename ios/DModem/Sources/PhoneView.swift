@@ -234,7 +234,7 @@ final class GreetingRecorder: ObservableObject {
     @Published private(set) var seconds = 0
     private let sound = VoiceSound()
     private var samples: [Float] = []
-    private var timer: Timer?
+    private var timer: Foundation.Timer?
 
     /// the greeting's length read (0: none)
     func reload() {
@@ -246,7 +246,7 @@ final class GreetingRecorder: ObservableObject {
         guard !recording, sound.start(record: true, loud: true) else { return }
         samples = []
         recording = true
-        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+        timer = Foundation.Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in self?.take() }
         }
     }
