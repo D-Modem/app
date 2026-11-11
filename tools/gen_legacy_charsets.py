@@ -24,7 +24,28 @@ SETS = [
     ("VIC_LOWER", "cvicialt", "VIC-20, lower and upper case"),
     ("PET_UPPER", "cpetipri", "PET, upper case and graphics"),
     ("PET_LOWER", "cpetialt", "PET, lower and upper case"),
+    ("ATARI_GRAPHICS", "atari8ig", "Atari 8-bit ATASCII, the graphics set (0x80-0xff: 0x00-0x7f reversed)"),
+    ("ATARI_INTERNATIONAL", "atari8ii", "Atari 8-bit ATASCII, the international set (0x80-0xff: 0x00-0x7f reversed)"),
 ]
+
+# (a CHR$() mapping without its control codes' glyphs, and the screen-code one they come from)
+VIDEO = {"atari8ig": "atari8vg", "atari8ii": "atari8vi"}
+
+
+# glyphs Unscii hasn't got, drawn here (the Atari's ESC and CLEAR symbols: arrows to the upper left)
+EXTRA = {
+    0x241B: ["........", ".######.", ".##.....", ".#.#....", ".#..#...", ".#...#..", ".#....#.", "........"],
+    0x1F8B0: ["........", ".####...", ".##.....", ".#.#....", ".#..#...", ".....#..", "......#.", "........"],
+}
+
+
+def atari_screen_code(a):
+    """an ATASCII code (0x00..0x7f) as its screen code"""
+    if a < 0x20:
+        return a + 0x40
+    if a < 0x60:
+        return a - 0x20
+    return a
 
 OUT = "shared/src/commonMain/kotlin/org/dmodem/app/terminal/LegacyCharsets.kt"
 
@@ -36,6 +57,9 @@ def mapping(path):
         if not line.startswith("0x"):
             continue
         f = line.split("\t")
+        # (a reversed character's: drawn as its plain one, reversed)
+        if f[1].startswith("<"):
+            continue
         cp = f[1].split("+")[0].strip()
         m[int(f[0], 16)] = int(cp, 16)
     return m
@@ -52,12 +76,21 @@ def glyphs(path):
 
 
 def main():
+    """the tables and glyphs read, LegacyCharsets.kt written"""
     hexfile, mapdir = sys.argv[1], sys.argv[2]
     font = glyphs(hexfile)
+    for cp, rows in EXTRA.items():
+        font.setdefault(cp, "".join("%02X" % int(r.replace(".", "0").replace("#", "1"), 2) for r in rows))
     tables = []
     used = set(range(0x20, 0x7F))
     for name, f, what in SETS:
         m = mapping(os.path.join(mapdir, f + ".txt"))
+        if f in VIDEO:
+            v = mapping(os.path.join(mapdir, VIDEO[f] + ".txt"))
+            for a in range(0x80):
+                if a not in m:
+                    m[a] = v[atari_screen_code(a)]
+            m = {a: m[a & 0x7F] for a in range(256)}
         t = [m.get(c, 0) for c in range(256)]
         tables.append((name, f, what, t))
         used.update(cp for cp in t if cp)
@@ -75,7 +108,8 @@ def main():
     w(" * The 8-bit home computers' character sets, each code (0x00..0xff) as its")
     w(" * Unicode code point (0: not a character), from Rebecca Bettencourt's")
     w(" * Legacy Computing mappings; and [GLYPHS], an 8x8 glyph for every one of")
-    w(" * them, from Unscii (public domain).")
+    w(" * them, from Unscii (public domain; the two it hasn't, the Atari's ESC")
+    w(" * and CLEAR symbols, drawn in the generator).")
     w(" */")
     w("internal object LegacyCharsets {")
     for name, f, what, t in tables:

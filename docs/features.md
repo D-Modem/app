@@ -51,7 +51,12 @@
   digit set colours, C= with a letter types its graphic), and the key bar
   has RUN/STOP, CLR/HOME, INST/DEL, RVS, F1-F8 and a page of colour keys.
   A capture is saved as a `.seq` file, and "Plain text" sends one back
-  as it is. Colour
+  as it is. The Atari 8-bit types (ATASCII, with the graphics set or the
+  XL's international one) give the screen editor's 40x24 in its blues,
+  inverse video, its cursor keys wrapping round the screen, CLEAR, EOL,
+  insert and delete of characters and lines, tabs, the buzzer and ESC to
+  show a control's character; CTRL with a letter types its graphic and
+  the key bar's INV key types the next character inverse. Colour
   themes (VGA, xterm, Solarized, Dracula, Monokai, Gruvbox, Nord, green
   and amber phosphor), fonts (Cascadia Code, Sauce Code Pro Nerd Font,
   Source Code Pro, Roboto Mono, JetBrains Mono, Fira Code, OpenDyslexic

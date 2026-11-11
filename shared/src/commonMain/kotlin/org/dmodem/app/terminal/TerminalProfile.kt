@@ -27,6 +27,9 @@ abstract class TerminalProfile {
     /** the bitmap glyphs its cells are drawn with (its machine's character ROM, as Unscii draws it); null: the view's font */
     open val glyphs: BitmapFont? get() = null
 
+    /** a capture's file extension, where its machine's files had their own (a Commodore's .seq); null: the app's */
+    open val captureExtension: String? get() = null
+
     /** the keys the apps' bar offers, page by page */
     open val keyBar: List<KeyBarPage> get() = KeyBars.STANDARD
 
@@ -160,12 +163,14 @@ object TerminalProfiles {
     val VIC20: TerminalProfile = Vic20Profile()
     val PET: TerminalProfile = PetProfile()
     val PET80: TerminalProfile = Pet80Profile()
+    val ATARI: TerminalProfile = AtariProfile()
+    val ATARI_INTL: TerminalProfile = AtariInternationalProfile()
 
     /** the default: what the app was before profiles */
     val DEFAULT: TerminalProfile get() = XTERM
 
     /** in the pickers' order */
-    val all: List<TerminalProfile> = listOf(XTERM, ANSI_BBS, VT52, VT100, VT102, VT220, C64, C128, C128_80, PLUS4, VIC20, PET, PET80)
+    val all: List<TerminalProfile> = listOf(XTERM, ANSI_BBS, VT52, VT100, VT102, VT220, C64, C128, C128_80, PLUS4, VIC20, PET, PET80, ATARI, ATARI_INTL)
 
     /** the profile [id] names, or null for none or one not known */
     fun byId(id: String?): TerminalProfile? = all.firstOrNull { it.id == id }

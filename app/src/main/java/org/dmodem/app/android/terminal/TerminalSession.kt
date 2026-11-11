@@ -3,7 +3,6 @@
 package org.dmodem.app.android.terminal
 
 import org.dmodem.app.terminal.Key
-import org.dmodem.app.terminal.CommodoreProfile
 import org.dmodem.app.terminal.KeyEncoder
 import org.dmodem.app.terminal.TermCharset
 import org.dmodem.app.terminal.TerminalEmulator
@@ -365,11 +364,7 @@ class TerminalSession(
             val dir = captureDir() ?: return null
             dir.mkdirs()
             val name = "dmodem-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) +
-                when {
-                    emulator.profile is CommodoreProfile -> ".seq"
-                    charset == TermCharset.CP437 -> ".ans"
-                    else -> ".log"
-                }
+                (emulator.profile.captureExtension ?: if (charset == TermCharset.CP437) ".ans" else ".log")
             val f = File(dir, name)
             return try {
                 captureOut = FileOutputStream(f)

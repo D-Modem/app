@@ -39,6 +39,7 @@ abstract class ByteControlInterpreter(t: TerminalEmulator, private val machine: 
         t.style = look()
     }
 
+    /** the view's size and the theme's colours back, for the profile taking over */
     override fun detach() {
         t.requestedColumns = 0
         t.requestedRows = 0
@@ -46,19 +47,23 @@ abstract class ByteControlInterpreter(t: TerminalEmulator, private val machine: 
         t.style = Style.NORMAL
     }
 
+    /** the machine as it starts: its colour, no reverse, the tab stops, its screen and palette */
     override fun reset() {
         color = machine.defaultColor
         reverse = false
         extraAttrs = 0
+        resetTabs()
         attach()
     }
 
+    /** reverse and the machine's attributes off */
     override fun softReset() {
         reverse = false
         extraAttrs = 0
         t.style = look()
     }
 
+    /** an octet: one of the machine's control codes, else a character of its set */
     override fun process(cp: Int) {
         if (control(cp)) return
         val c = charOf(cp)
@@ -159,6 +164,26 @@ abstract class ByteControlInterpreter(t: TerminalEmulator, private val machine: 
         t.style = Style.erased(look())
         t.insertChars(1)
         t.style = look()
+    }
+
+    /** the tab stops (every eighth column to begin with) */
+    protected val tabs = BooleanArray(256) { it % 8 == 0 && it > 0 }
+
+    /** the cursor to the next tab stop (the line's last column if none) */
+    protected fun tab() {
+        var x = t.cursorX + 1
+        while (x < t.cols - 1 && !tabs[x]) x++
+        t.moveCursor(x.coerceAtMost(t.cols - 1), t.cursorY)
+    }
+
+    /** a tab stop at the cursor's column set or cleared */
+    protected fun tabStop(on: Boolean) {
+        if (t.cursorX in tabs.indices) tabs[t.cursorX] = on
+    }
+
+    /** the tab stops back to every eighth column ([every]: true), or all cleared */
+    protected fun resetTabs(every: Boolean = true) {
+        for (i in tabs.indices) tabs[i] = every && i % 8 == 0 && i > 0
     }
 
     /** the bell */

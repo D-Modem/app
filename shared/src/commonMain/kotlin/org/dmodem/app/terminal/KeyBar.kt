@@ -127,6 +127,23 @@ object KeyBars {
         "ORN", "BRN", "LRD", "DGY", "GRY", "LGN", "LBL", "LGY",
     )
 
+    /** an Atari's: ESC, CLEAR, INSERT and DELETE (character, and with SHIFT the line), BACK S, TAB, the inverse key, CTRL for the graphics */
+    val ATARI = KeyBarPage(
+        "ATR",
+        listOf(
+            listOf(
+                BarKey.Send(Key.ESCAPE, "ESC"), BarKey.Octets("\u007d", "CLR"), BarKey.Send(Key.INSERT, "INS"),
+                BarKey.Send(Key.UP, "↑", repeat = true), BarKey.Send(Key.DELETE, "DEL", repeat = true),
+                BarKey.Octets("\u009d", "INS LN"), BarKey.Octets("\u009c", "DEL LN"),
+            ),
+            listOf(
+                BarKey.Send(Key.TAB, "TAB"), BarKey.Ctrl, BarKey.Alt("INV"), BarKey.Send(Key.LEFT, "←", repeat = true),
+                BarKey.Send(Key.DOWN, "↓", repeat = true), BarKey.Send(Key.RIGHT, "→", repeat = true),
+                BarKey.Send(Key.BACKSPACE, "BK S", repeat = true),
+            ),
+        ),
+    )
+
     /** the bar most terminals have: the main keys and the function keys */
     val STANDARD = listOf(MAIN, FUNCTION)
 

@@ -13,6 +13,7 @@ abstract class CommodoreProfile : TerminalProfile(), ByteMachine {
     override val term get() = "petscii"
     override val telnetType get() = "PETSCII"
     override val glyphs: BitmapFont? get() = LegacyCharsets.GLYPHS
+    override val captureExtension: String? get() = ".seq"
 
     override val columns get() = 40
     override val rows get() = 25
@@ -178,19 +179,20 @@ open class PetsciiInterpreter(t: TerminalEmulator, private val m: CommodoreProfi
         private set
     /** the octet after an ESC, on a machine with the sequences */
     private var esc = false
-    /** the C128's tab stops */
-    private val tabs = BooleanArray(256) { it % 8 == 0 && it > 0 }
 
     private val set: IntArray get() = if (lowerCase) m.lowerSet else m.upperSet
 
+    /** as at the start: the upper case and graphics set, no ESC pending */
     override fun reset() {
         super.reset()
         lowerCase = false
         esc = false
     }
 
+    /** octet [b] in the set in use */
     override fun charOf(b: Int): Int = set[b]
 
+    /** the colour, attribute, cursor, editing and set codes, and ESC sequences on the machines with them */
     override fun control(b: Int): Boolean {
         if (esc) {
             esc = false
@@ -226,13 +228,6 @@ open class PetsciiInterpreter(t: TerminalEmulator, private val m: CommodoreProfi
         return true
     }
 
-    /** the cursor to the next tab stop (the line's last column if none) */
-    private fun tab() {
-        var x = t.cursorX + 1
-        while (x < t.cols - 1 && !tabs[x]) x++
-        t.moveCursor(x.coerceAtMost(t.cols - 1), t.cursorY)
-    }
-
     /** ESC [c]: the C128 editor's (and the Plus/4's) */
     private fun escape(c: Int) {
         when (c.toChar()) {
@@ -255,8 +250,8 @@ open class PetsciiInterpreter(t: TerminalEmulator, private val m: CommodoreProfi
             'W' -> t.scrollDown(t.top, t.bottom)
             'N' -> t.reverseVideo = false
             'R' -> t.reverseVideo = true
-            'Y' -> for (i in tabs.indices) tabs[i] = i % 8 == 0 && i > 0
-            'Z' -> tabs.fill(false)
+            'Y' -> resetTabs()
+            'Z' -> resetTabs(every = false)
         }
     }
 
@@ -268,6 +263,7 @@ open class PetsciiInterpreter(t: TerminalEmulator, private val m: CommodoreProfi
         return (x + 1).coerceAtMost(t.cols - 1)
     }
 
+    /** a Commodore's keys: the cursor keys, HOME and CLR, INST and DEL, RETURN, RUN/STOP, F1-F8 (none for the others) */
     override fun keyOctets(k: Key, shift: Boolean, alt: Boolean, ctrl: Boolean): ByteArray? {
         val b = when (k) {
             Key.UP -> 0x91
@@ -297,6 +293,7 @@ open class PetsciiInterpreter(t: TerminalEmulator, private val m: CommodoreProfi
         return byteArrayOf(b.toByte())
     }
 
+    /** a character typed or pasted as its PETSCII code (nothing for none) */
     override fun charOctets(cp: Int, alt: Boolean, ctrl: Boolean): ByteArray? {
         val b = code(cp, alt, ctrl) ?: return ByteArray(0)
         return byteArrayOf(b.toByte())
