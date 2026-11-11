@@ -210,10 +210,56 @@ enum VoiceFiles {
         return d
     }
 
-    /// a WAV file's samples at 8000 Hz (nil: not one this reads)
+    /// a sound file's samples at 8000 Hz, one channel: WAV, AIFF and .au
+    /// read by the shared code, the rest (MP3, AAC/M4A, FLAC, ALAC, CAF)
+    /// by the phone's decoders (nil: not one either reads)
     static func decode(_ url: URL) -> KotlinShortArray? {
         guard let d = try? Data(contentsOf: url) else { return nil }
-        return Wav.shared.decode(data: bytes(d))
+        if let pcm = Wav.shared.decode(data: bytes(d)) { return pcm }
+        guard let s = bySystem(url) else { return nil }
+        let pcm = KotlinShortArray(size: Int32(s.count))
+        for (i, v) in s.enumerated() { pcm.set(index: Int32(i), value: v) }
+        return pcm
+    }
+
+    /// a sound file the phone decodes, at 8000 Hz, one channel (five
+    /// minutes at most); nil if it can't
+    static func bySystem(_ url: URL, maxSeconds: Int = 300) -> [Int16]? {
+        guard let f = try? AVAudioFile(forReading: url) else { return nil }
+        let src = f.processingFormat
+        guard src.sampleRate > 0, src.channelCount > 0,
+              let dst = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 8000, channels: 1, interleaved: false),
+              let conv = AVAudioConverter(from: src, to: dst),
+              let inBuf = AVAudioPCMBuffer(pcmFormat: src, frameCapacity: 4096),
+              let outBuf = AVAudioPCMBuffer(pcmFormat: dst, frameCapacity: AVAudioFrameCount(4096 * 8000 / src.sampleRate) + 64)
+        else { return nil }
+        // (the channels mixed, not the first alone)
+        conv.downmix = true
+        var out: [Int16] = []
+        var ended = false
+        while out.count < maxSeconds * 8000 {
+            outBuf.frameLength = 0
+            var err: NSError?
+            let st = conv.convert(to: outBuf, error: &err) { _, status in
+                if !ended {
+                    do { try f.read(into: inBuf) } catch { inBuf.frameLength = 0 }
+                    ended = inBuf.frameLength == 0
+                }
+                if ended {
+                    status.pointee = .endOfStream
+                    return nil
+                }
+                status.pointee = .haveData
+                return inBuf
+            }
+            if let x = outBuf.floatChannelData?[0] {
+                for i in 0..<Int(outBuf.frameLength) {
+                    out.append(Int16(max(-32768, min(32767, x[i] * 32767))))
+                }
+            }
+            if st == .error || st == .endOfStream { break }
+        }
+        return out.isEmpty ? nil : out
     }
 
     /// [samples] (floats at 8000 Hz) written to [url] as a WAV

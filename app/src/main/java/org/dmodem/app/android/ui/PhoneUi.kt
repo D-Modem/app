@@ -37,6 +37,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,8 +47,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.dmodem.app.android.modem.ModemState
 import org.dmodem.app.android.ppp.DialIn
 import org.dmodem.app.android.settings.FaxSettingsStore
@@ -275,8 +278,14 @@ fun VoiceSettingsSection() {
     val recording by Voice.recording.collectAsStateWithLifecycle()
     val messages by Voice.messages.collectAsStateWithLifecycle()
     val mic = rememberMicrophone()
+    val scope = rememberCoroutineScope()
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) Voice.chooseGreeting(context, uri)?.let { Toast.makeText(context, "That greeting: $it", Toast.LENGTH_LONG).show() }
+        if (uri != null) {
+            scope.launch {
+                withContext(Dispatchers.IO) { Voice.chooseGreeting(context, uri) }
+                    ?.let { Toast.makeText(context, "That greeting: $it", Toast.LENGTH_LONG).show() }
+            }
+        }
     }
     LaunchedEffect(Unit) { Voice.reload(context) }
     val s = current ?: return
@@ -323,7 +332,7 @@ fun VoiceSettingsSection() {
             } else {
                 OutlinedButton(onClick = { mic { Voice.recordGreeting(context) } }) { Text("Record") }
                 OutlinedButton(onClick = { Voice.playGreeting(context) }, enabled = greeting > 0) { Text("Play") }
-                OutlinedButton(onClick = { pick.launch(arrayOf("audio/wav", "audio/x-wav", "audio/*")) }) { Text("File…") }
+                OutlinedButton(onClick = { pick.launch(arrayOf("audio/*")) }) { Text("File…") }
                 TextButton(onClick = { Voice.clearGreeting(context) }, enabled = greeting > 0) { Text("None") }
             }
         }

@@ -49,8 +49,18 @@ app shows it). Nothing leaves the phone.
 While a message is being left, **Listen** plays it on the loudspeaker
 and **Pick up** turns it into a call (the message isn't kept). The
 greeting is recorded with the microphone (a minute at most) or chosen
-from a WAV file (PCM, A-law or μ-law, any rate: mixed to one channel and
-resampled to 8000 Hz).
+from a sound file, at any rate: mixed to one channel and resampled to
+8000 Hz. The app reads these itself, the same on both phones:
+
+| File | Kinds |
+| --- | --- |
+| WAV | PCM of 8 to 32 bits, 32 and 64-bit floats, A-law, μ-law, IMA and Microsoft ADPCM |
+| AIFF, AIFF-C | PCM, floats, A-law, μ-law |
+| Sun/NeXT `.au` | PCM, floats, A-law, μ-law |
+
+The rest goes to the phone's own decoders: on Android MediaCodec (MP3,
+AAC/M4A, FLAC, Ogg Vorbis, Opus, AMR, and whatever else the phone has),
+on iOS AVAudioFile (MP3, AAC/M4A, FLAC, ALAC, CAF).
 
 Calls answered as faxes by the fax settings, or by dial-in, are answered
 on the first ring: with either on, the answering machine waits.

@@ -87,7 +87,7 @@ struct PhoneView: View {
         .navigationTitle("Phone")
         .onAppear { reload(); greeting.reload() }
         .onChange(of: jobs.voice?.running) { _ in reload() }
-        .fileImporter(isPresented: $choosing, allowedContentTypes: [UTType.wav]) { r in
+        .fileImporter(isPresented: $choosing, allowedContentTypes: [UTType.audio]) { r in
             if case .success(let u) = r { error = greeting.choose(u) }
         }
     }
@@ -227,7 +227,7 @@ final class VoicePlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
     }
 }
 
-/// The answering machine's greeting: recorded from the microphone (a minute at most), chosen from a WAV file, or none
+/// The answering machine's greeting: recorded from the microphone (a minute at most), chosen from a sound file, or none
 @MainActor
 final class GreetingRecorder: ObservableObject {
     @Published private(set) var recording = false
@@ -272,11 +272,11 @@ final class GreetingRecorder: ObservableObject {
         reload()
     }
 
-    /// the greeting from the WAV at [u]: nil, or why not
+    /// the greeting from the sound file at [u]: nil, or why not
     func choose(_ u: URL) -> String? {
         let scoped = u.startAccessingSecurityScopedResource()
         defer { if scoped { u.stopAccessingSecurityScopedResource() } }
-        guard let pcm = VoiceFiles.decode(u) else { return "That file isn't a WAV of PCM, A-law or μ-law" }
+        guard let pcm = VoiceFiles.decode(u) else { return "That file isn't a sound file this phone can play" }
         if pcm.size == 0 { return "That file has no sound" }
         let n = min(pcm.size, 60 * 8000)
         do {
