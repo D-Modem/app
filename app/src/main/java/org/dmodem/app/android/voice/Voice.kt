@@ -301,11 +301,15 @@ object Voice {
     /** the greeting's recording ended (it's kept) */
     fun stopRecording() = Sounds.stopRecording()
 
-    /** the greeting from a WAV file the user chose: null, or why not */
+    /**
+     * the greeting from a sound file the user chose (WAV, AIFF and .au read
+     * here, the rest by the phone's decoders): null, or why not. Slow for a
+     * long MP3: off the main thread
+     */
     fun chooseGreeting(context: Context, uri: Uri): String? {
         val c = context.applicationContext
         val data = runCatching { c.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull() ?: return "it can't be read"
-        val pcm = Wav.decode(data) ?: return "it isn't a WAV file of PCM, A-law or μ-law"
+        val pcm = Wav.decode(data) ?: SystemSound.decode(c, uri) ?: return "it isn't a sound file this phone can play"
         if (pcm.isEmpty()) return "it has no sound"
         val n = minOf(pcm.size, GREETING_MAX_S * VOICE_RATE)
         greetingFile(c).writeBytes(Wav.encode(pcm, n))
