@@ -31,7 +31,8 @@
   characters drawn to fill their cells so ANSI art has no gaps. A
   terminal type (Settings, and each directory entry's own) picks what it
   is: xterm, ANSI-BBS (a PC's, in CP437, as SyncTERM is), DEC VT52, VT100,
-  VT102, VT220 or VT320, a Commodore or an Atari. Each
+  VT102, VT220, VT320, VT420, VT510, VT520 or VT525, a Commodore or an
+  Atari. Each
   answers the device attribute requests as that terminal did, knows only
   its own sequences (a VT100 has no colours, a VT220 no xterm titles or
   mouse), and gives SSH its `TERM` and Telnet its TERMINAL-TYPE. The DEC
@@ -49,7 +50,15 @@
   preferred supplemental set, user-defined keys (DECUDK: Shift with
   F6-F20), and soft characters (DECDLD: the host's own glyphs, drawn from
   its bitmaps). A VT320 also has its status line below the screen: the
-  cursor's place, or a line the host writes (DECSSDT, DECSASD). The key bar gains the DEC keypad (PF1-PF4, digits, minus,
+  cursor's place, or a line the host writes (DECSSDT, DECSASD). The VT420
+  adds left and right margins (DECLRMM, DECSLRM), the rectangular area
+  operations (copy, erase, selective erase, fill, attribute change and
+  reverse, as a rectangle or a stream, and the checksum), column insert
+  and delete, back and forward index, six pages (NP, PP, PPA, PPR, PPB),
+  the lines and columns asked for (DECSNLS, DECSLPP, DECSCPP), and the
+  keypad and backarrow modes; the VT5xx add the display extent report,
+  and the VT525 colour, with its colour table (DECAC, DECRQTSR, DECRSTS,
+  in RGB or DEC's HLS). The key bar gains the DEC keypad (PF1-PF4, digits, minus,
   comma, period, Enter, in numeric or application mode), and on a VT220
   or VT320 the LK201's F6-F20, Find and Select and a page of the
   user-defined keys; a hardware numpad sends the keypad's keys. ANSI-BBS is

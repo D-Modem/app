@@ -171,6 +171,7 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
     /** the character after ESC: a sequence begun, or its one-character command done */
     private fun esc(cp: Int) {
         state = State.GROUND
+        if (extraEsc(cp)) return
         when (cp.toChar()) {
             '[' -> startCsi()
             ']' -> { osc.setLength(0); state = State.OSC }
@@ -303,6 +304,21 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
      * parameters through [p] and [paramCount]. True if it was done.
      */
     protected open fun extraCsi(final: Int, marker: Int, inter: Int): Boolean = false
+
+    /** an ESC and the character [cp] a subclass carries out (a VT420's DECBI, DECFI): true if it did */
+    protected open fun extraEsc(cp: Int): Boolean = false
+
+    /** DECRQSS's answer for [q] a subclass has (without the DCS around it), or null */
+    protected open fun extraStatus(q: String): String? = null
+
+    /** DECRQM's answer for DEC mode [m] a subclass has (1 set, 2 reset), or 0 */
+    protected open fun extraModeState(m: Int): Int = 0
+
+    /** whether a subclass takes the text of a DCS ended by [final] with [inter]mediate (0 none) */
+    protected open fun wantsDcs(final: Int, inter: Int): Boolean = false
+
+    /** a DCS [wantsDcs] took, ended: its intermediate and final as [kind] ("$p"), its parameters and its text */
+    protected open fun extraDcs(kind: String, params: IntArray, text: String) {}
 
     /** how many parameters the CSI has */
     protected val paramCount: Int get() = nParams
@@ -476,6 +492,7 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
 
     /** DECRQM's answer for a DEC mode: 1 set, 2 reset, 0 not one known */
     private fun decModeState(m: Int): Int {
+        extraModeState(m).takeIf { it != 0 }?.let { return it }
         /** DECRQM's 1 for set, 2 for reset */
         fun b(v: Boolean) = if (v) 1 else 2
         val dec = when (m) {
@@ -744,7 +761,8 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
                 // DECUDK (a VT220's), DECAUPSS (a VT320's)
                 final == '|'.code && intermediate == 0 && operatingLevel >= 2 ||
                 final == '{'.code && intermediate == 0 && operatingLevel >= 2 ||
-                final == 'u'.code && intermediate == '!'.code && (operatingLevel >= 3 || xterm) -> {
+                final == 'u'.code && intermediate == '!'.code && (operatingLevel >= 3 || xterm) ||
+                wantsDcs(final, intermediate) -> {
                 dcsText = StringBuilder()
                 dcsKind = (if (intermediate != 0) intermediate.toChar().toString() else "") + final.toChar()
             }
@@ -780,14 +798,15 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
                     t.softGlyphs = sets.soft.font
                 }
                 "!u" -> assignPreferred(dcsP0, q.toString())
-                else -> t.reply("\u001bP0+r\u001b\\")
+                "+q" -> t.reply("\u001bP0+r\u001b\\")
+                else -> extraDcs(dcsKind, dcsParams, q.toString())
             }
         }
     }
 
     /** DECRQSS: the graphic rendition, the scrolling region, the cursor's style */
     private fun statusString(q: String) {
-        val ok = when (q) {
+        val ok = extraStatus(q) ?: when (q) {
             "m" -> sgrString() + "m"
             "r" -> "${t.top + 1};${t.bottom + 1}r"
             " q" -> "${t.cursorStyle.coerceAtLeast(1)} q"
@@ -877,7 +896,7 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
     private fun decStatus(n: Int) {
         if (n == 6) {
             val y = if (t.originMode) t.cursorY - t.top else t.cursorY
-            t.reply("\u001b[?${y + 1};${minOf(t.cursorX, t.cols - 1) + 1};1R")
+            t.reply("\u001b[?${y + 1};${minOf(t.cursorX, t.cols - 1) + 1};${t.page + 1}R")
             return
         }
         if (operatingLevel < 2) return

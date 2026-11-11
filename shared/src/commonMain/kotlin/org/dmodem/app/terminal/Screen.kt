@@ -143,24 +143,26 @@ class Line(cols: Int, style: Long = Style.NORMAL) {
         size = LineSize.SINGLE
     }
 
-    /** [n] blank cells at [at], those at the end pushed off */
-    fun insertCells(at: Int, n: Int, style: Long) {
-        if (at >= cols || n <= 0) return
-        val k = minOf(n, cols - at)
-        chars.copyInto(chars, at + k, at, cols - k)
-        styles.copyInto(styles, at + k, at, cols - k)
-        extras?.let { it.copyInto(it, at + k, at, cols - k) }
+    /** [n] blank cells at [at], those at [end] (the line's end, or a right margin's) pushed off */
+    fun insertCells(at: Int, n: Int, style: Long, end: Int = cols) {
+        val e = end.coerceAtMost(cols)
+        if (at >= e || n <= 0) return
+        val k = minOf(n, e - at)
+        chars.copyInto(chars, at + k, at, e - k)
+        styles.copyInto(styles, at + k, at, e - k)
+        extras?.let { it.copyInto(it, at + k, at, e - k) }
         clear(at, at + k, style)
     }
 
-    /** [n] cells at [at] removed, blank ones in from the end */
-    fun deleteCells(at: Int, n: Int, style: Long) {
-        if (at >= cols || n <= 0) return
-        val k = minOf(n, cols - at)
-        chars.copyInto(chars, at, at + k, cols)
-        styles.copyInto(styles, at, at + k, cols)
-        extras?.let { it.copyInto(it, at, at + k, cols) }
-        clear(cols - k, cols, style)
+    /** [n] cells at [at] removed, blank ones in from [end] (the line's end, or a right margin's) */
+    fun deleteCells(at: Int, n: Int, style: Long, end: Int = cols) {
+        val e = end.coerceAtMost(cols)
+        if (at >= e || n <= 0) return
+        val k = minOf(n, e - at)
+        chars.copyInto(chars, at, at + k, e)
+        styles.copyInto(styles, at, at + k, e)
+        extras?.let { it.copyInto(it, at, at + k, e) }
+        clear(e - k, e, style)
     }
 
     /** [n] columns wide: cut or padded with blank cells (a wide character cut at the edge gone) */
