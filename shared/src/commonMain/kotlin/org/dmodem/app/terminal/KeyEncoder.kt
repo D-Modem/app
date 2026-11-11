@@ -7,6 +7,10 @@ enum class Key {
     UP, DOWN, RIGHT, LEFT, HOME, END, PAGE_UP, PAGE_DOWN, INSERT, DELETE,
     F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
     TAB, ENTER, BACKSPACE, ESCAPE,
+    /** the DEC keypad: PF1-PF4 above it, its digits, minus, comma, period and Enter */
+    PF1, PF2, PF3, PF4,
+    KP_0, KP_1, KP_2, KP_3, KP_4, KP_5, KP_6, KP_7, KP_8, KP_9,
+    KP_MINUS, KP_COMMA, KP_PERIOD, KP_ENTER,
 }
 
 /** What Enter sends. */
@@ -32,8 +36,21 @@ class KeyEncoder {
     private fun mod(shift: Boolean, alt: Boolean, ctrl: Boolean): Int =
         1 + (if (shift) 1 else 0) + (if (alt) 2 else 0) + (if (ctrl) 4 else 0)
 
-    /** what [k] sends, with its modifiers ([appCursor]: the cursor keys in application mode) */
-    fun key(k: Key, appCursor: Boolean, shift: Boolean = false, alt: Boolean = false, ctrl: Boolean = false): String {
+    /** what [k] sends on [t] as its modes are now (the cursor keys', the keypad's, a VT52's) */
+    fun key(k: Key, t: TerminalEmulator, shift: Boolean = false, alt: Boolean = false, ctrl: Boolean = false): String =
+        key(k, t.appCursorKeys, shift, alt, ctrl, appKeypad = t.appKeypad, vt52 = t.vt52Keys)
+
+    /**
+     * What [k] sends, with its modifiers: [appCursor], the cursor keys in
+     * application mode; [appKeypad], the keypad in application mode
+     * (DECKPAM); [vt52], as a VT52 (or a VT100 in its VT52 mode) sends them.
+     */
+    fun key(
+        k: Key, appCursor: Boolean, shift: Boolean = false, alt: Boolean = false, ctrl: Boolean = false,
+        appKeypad: Boolean = false, vt52: Boolean = false,
+    ): String {
+        keypad(k, appKeypad, vt52)?.let { return it }
+        if (vt52) vt52Key(k)?.let { return it }
         val m = mod(shift, alt, ctrl)
         /** a cursor key's: CSI with the modifiers, SS3 in application mode, else CSI */
         fun cursor(c: Char) = when {
@@ -73,6 +90,50 @@ class KeyEncoder {
             Key.ENTER -> prefix + enter.bytes
             Key.BACKSPACE -> prefix + (if (ctrl) "\u0008" else backspace.code.toChar().toString())
             Key.ESCAPE -> prefix + "\u001b"
+            // (the keypad's: [keypad]'s)
+            else -> ""
+        }
+    }
+
+    /** a VT52's own for the cursor keys and F1-F4 (as PF1-PF4), or null: as the ANSI ones */
+    private fun vt52Key(k: Key): String? = when (k) {
+        Key.UP -> "\u001bA"
+        Key.DOWN -> "\u001bB"
+        Key.RIGHT -> "\u001bC"
+        Key.LEFT -> "\u001bD"
+        Key.F1 -> "\u001bP"
+        Key.F2 -> "\u001bQ"
+        Key.F3 -> "\u001bR"
+        Key.F4 -> "\u001bS"
+        else -> null
+    }
+
+    /**
+     * A keypad key's: PF1-PF4 as SS3 P-S (a VT52's ESC P-S); the others
+     * their characters in numeric mode, SS3 and a letter in application
+     * mode (a VT52's ESC ? and the letter). Null for a key not on the keypad.
+     */
+    private fun keypad(k: Key, app: Boolean, vt52: Boolean): String? {
+        val pf = when (k) {
+            Key.PF1 -> 'P'
+            Key.PF2 -> 'Q'
+            Key.PF3 -> 'R'
+            Key.PF4 -> 'S'
+            else -> null
+        }
+        if (pf != null) return if (vt52) "\u001b$pf" else "\u001bO$pf"
+        val (numeric, letter) = when (k) {
+            Key.KP_MINUS -> "-" to 'm'
+            Key.KP_COMMA -> "," to 'l'
+            Key.KP_PERIOD -> "." to 'n'
+            Key.KP_ENTER -> enter.bytes to 'M'
+            in Key.KP_0..Key.KP_9 -> (k.ordinal - Key.KP_0.ordinal).toString() to ('p' + (k.ordinal - Key.KP_0.ordinal))
+            else -> return null
+        }
+        return when {
+            !app -> numeric
+            vt52 -> "\u001b?$letter"
+            else -> "\u001bO$letter"
         }
     }
 

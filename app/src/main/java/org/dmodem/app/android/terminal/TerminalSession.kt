@@ -86,8 +86,12 @@ class TerminalSession(
         get() = synchronized(emulator) { emulator.profile }
         set(v) {
             synchronized(emulator) { emulator.profile = v }
+            _profileState.value = v
             onChange?.invoke()
         }
+    private val _profileState = MutableStateFlow(emulator.profile)
+    /** [profile], to watch (the key bar follows it) */
+    val profileState: StateFlow<TerminalProfile> = _profileState.asStateFlow()
 
     var charset: TermCharset
         get() = emulator.decoder.charset
@@ -225,6 +229,11 @@ class TerminalSession(
             override fun onClipboard(text: String) {
                 onClipboard?.invoke(text)
             }
+
+            /** what the remote printed, to the session's printer file */
+            override fun onPrint(text: String) {
+                print(text)
+            }
         }
         link.addListener(listener)
     }
@@ -251,8 +260,7 @@ class TerminalSession(
         val a = alt || this.alt.value
         val c = ctrl || this.ctrl.value
         releaseLatches()
-        val app = synchronized(emulator) { emulator.appCursorKeys }
-        send(keys.key(k, app, shift, a, c))
+        send(synchronized(emulator) { keys.key(k, emulator, shift, a, c) })
     }
 
     /** a character typed, with the latched modifiers and those held */
@@ -351,6 +359,24 @@ class TerminalSession(
             } catch (_: IOException) {
                 null
             }
+        }
+    }
+
+    private val _printed = MutableStateFlow<File?>(null)
+    /** the file what the remote printed went to (its printer port), once it has printed */
+    val printed: StateFlow<File?> = _printed.asStateFlow()
+
+    /** [text] appended to the session's printer file (made beside the captures on the first print) */
+    private fun print(text: String) {
+        val f = _printed.value ?: run {
+            val dir = captureDir() ?: return
+            dir.mkdirs()
+            File(dir, "dmodem-print-" + SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) + ".txt")
+        }
+        try {
+            f.appendText(text)
+            _printed.value = f
+        } catch (_: IOException) {
         }
     }
 

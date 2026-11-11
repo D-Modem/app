@@ -59,7 +59,9 @@ import org.dmodem.app.android.NativeModem
 import org.dmodem.app.android.modem.ModemState
 import org.dmodem.app.android.settings.BellMode
 import org.dmodem.app.android.settings.TerminalSettingsStore
+import org.dmodem.app.terminal.BarKey
 import org.dmodem.app.terminal.Key
+import org.dmodem.app.terminal.KeyBars
 import org.dmodem.app.terminal.TermCharset
 import org.dmodem.app.android.terminal.Terminal
 import org.dmodem.app.android.terminal.TerminalView
@@ -164,6 +166,12 @@ fun TerminalScreen(
     LaunchedEffect(s.charset) { Terminal.session.charset = s.charset }
     // (and its kind of terminal)
     LaunchedEffect(s.terminalType) { Terminal.session.profile = s.profile }
+
+    // the remote's printer port: where it went, said once
+    val printed by session.printed.collectAsStateWithLifecycle()
+    LaunchedEffect(printed) {
+        printed?.let { Toast.makeText(context, "Printed to ${it.name} (with the captures)", Toast.LENGTH_LONG).show() }
+    }
 
     // the bell
     DisposableEffect(s.bell, view, session) {
@@ -534,41 +542,28 @@ private fun ExtraKeys(
     val session = Terminal.active.collectAsStateWithLifecycle().value ?: Terminal.session
     val ctrl by session.ctrl.collectAsStateWithLifecycle()
     val alt by session.alt.collectAsStateWithLifecycle()
-    var fn by remember { mutableStateOf(false) }
+    val pages = session.profileState.collectAsStateWithLifecycle().value.keyBar
+    var page by remember(pages) { mutableStateOf(0) }
+    val p = pages[page.coerceIn(0, pages.size - 1)]
 
     Surface(tonalElevation = 3.dp) {
         Column(Modifier.fillMaxWidth().padding(2.dp)) {
-            if (!fn) {
+            for (row in p.rows) {
                 KeyRow {
-                    KeyButton("ESC") { onKey(Key.ESCAPE) }
-                    KeyButton("/") { onText("/") }
-                    KeyButton("-") { onText("-") }
-                    KeyButton("HOME") { onKey(Key.HOME) }
-                    KeyButton("↑", repeat = true) { onKey(Key.UP) }
-                    KeyButton("END") { onKey(Key.END) }
-                    KeyButton("PGUP") { onKey(Key.PAGE_UP) }
-                    KeyButton("|") { onText("|") }
-                }
-                KeyRow {
-                    KeyButton("TAB") { onKey(Key.TAB) }
-                    KeyButton("CTRL", latched = ctrl) { session.ctrl.value = !ctrl }
-                    KeyButton("ALT", latched = alt) { session.alt.value = !alt }
-                    KeyButton("←", repeat = true) { onKey(Key.LEFT) }
-                    KeyButton("↓", repeat = true) { onKey(Key.DOWN) }
-                    KeyButton("→", repeat = true) { onKey(Key.RIGHT) }
-                    KeyButton("PGDN") { onKey(Key.PAGE_DOWN) }
-                    KeyButton(if (fullscreen) "EXIT" else "Fn") { if (fullscreen) onExitFullscreen() else fn = true }
-                }
-            } else {
-                KeyRow {
-                    for (i in 0 until 6) KeyButton("F${i + 1}") { onKey(Key.entries[Key.F1.ordinal + i]) }
-                    KeyButton("INS") { onKey(Key.INSERT) }
-                    KeyButton("~") { onText("~") }
-                }
-                KeyRow {
-                    for (i in 6 until 12) KeyButton("F${i + 1}") { onKey(Key.entries[Key.F1.ordinal + i]) }
-                    KeyButton("DEL") { onKey(Key.DELETE) }
-                    KeyButton("ABC", latched = true) { fn = false }
+                    for (k in row) {
+                        when (k) {
+                            is BarKey.Send -> KeyButton(k.label, repeat = k.repeat) { onKey(k.key) }
+                            is BarKey.Type -> KeyButton(k.label) { onText(k.text) }
+                            BarKey.Ctrl -> KeyButton(k.label, latched = ctrl) { session.ctrl.value = !ctrl }
+                            BarKey.Alt -> KeyButton(k.label, latched = alt) { session.alt.value = !alt }
+                            // (full screen: the first page's goes back out of it)
+                            BarKey.NextPage -> if (fullscreen && page == 0) {
+                                KeyButton("EXIT") { onExitFullscreen() }
+                            } else {
+                                KeyButton(KeyBars.nextLabel(pages, page), latched = page != 0) { page = (page + 1) % pages.size }
+                            }
+                        }
+                    }
                 }
             }
         }

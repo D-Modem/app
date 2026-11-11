@@ -4,6 +4,7 @@ package org.dmodem.app.android.terminal
 
 import org.dmodem.app.terminal.Key
 import org.dmodem.app.terminal.Line
+import org.dmodem.app.terminal.LineSize
 import org.dmodem.app.terminal.Style
 import org.dmodem.app.terminal.TermImage
 import org.dmodem.app.terminal.TermTheme
@@ -181,11 +182,13 @@ class TerminalView @JvmOverloads constructor(
     /** the font's size (from the settings, or to fit the fixed columns in the width) and the cell's from it */
     private fun measureFont() {
         val w = width
-        fontPx = if (settings.fixedColumns > 0 && w > 0) {
+        // (the remote's DECCOLM, 80 or 132, over the settings')
+        val fixed = fittedColumns.takeIf { it > 0 } ?: settings.fixedColumns
+        fontPx = if (fixed > 0 && w > 0) {
             // the size whose cells fit the columns in the width
             textPaint.textSize = 100f
             val per = textPaint.measureText("M") / 100f
-            w / (settings.fixedColumns * per)
+            w / (fixed * per)
         } else {
             TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, settings.fontSize, resources.displayMetrics)
         }
@@ -232,8 +235,23 @@ class TerminalView @JvmOverloads constructor(
         redrawPosted = true
         postOnAnimation {
             redrawPosted = false
+            fitRequestedColumns()
             invalidate()
         }
+    }
+
+    /** the columns the remote asked for (DECCOLM) that the font is fitted to, 0 for none */
+    private var fittedColumns = 0
+
+    /** the font fitted again if the remote asked for other columns (DECCOLM) */
+    private fun fitRequestedColumns() {
+        val e = session?.emulator ?: return
+        val asked = synchronized(e) { e.requestedColumns }
+        if (asked == fittedColumns) return
+        fittedColumns = asked
+        measureFont()
+        syncEmulator()
+        resizeEmulator()
     }
 
     /** the background, then the visible rows (scrolled back or live) and the cursor if it shows */
@@ -285,9 +303,29 @@ class TerminalView @JvmOverloads constructor(
 
     private val runText = StringBuilder()
 
-    /** a line's cells in runs of one look: background, then text, then any images */
+    /**
+     * A line: its cells, or for one of double width or height its first
+     * half's, drawn twice the size (only the top or bottom half of a
+     * double-height one shows on its row).
+     */
     private fun drawLine(c: Canvas, line: Line, row: Int, y: Float, rev: Boolean) {
-        val cols = min(line.cols, (width / cellW).toInt() + 1)
+        val size = line.size
+        if (size == LineSize.SINGLE) {
+            drawCells(c, line, row, y, rev, min(line.cols, (width / cellW).toInt() + 1))
+            return
+        }
+        c.save()
+        c.clipRect(0f, y, width.toFloat(), y + cellH)
+        // (the line's y drawn at its own row, its bottom half's a row higher)
+        c.translate(0f, if (size == LineSize.DOUBLE_BOTTOM) y - cellH else y)
+        c.scale(2f, if (size == LineSize.DOUBLE_WIDTH) 1f else 2f)
+        c.translate(0f, -y)
+        drawCells(c, line, row, y, rev, min(line.cols / 2, (width / cellW / 2).toInt() + 1))
+        c.restore()
+    }
+
+    /** a line's first [cols] cells in runs of one look: background, then text, then any images */
+    private fun drawCells(c: Canvas, line: Line, row: Int, y: Float, rev: Boolean, cols: Int) {
         var x = 0
         while (x < cols) {
             val st = line.styles[x]
@@ -490,6 +528,19 @@ class TerminalView @JvmOverloads constructor(
 
     /** the cursor in the remote's shape (DECSCUSR) or the user's; a block hollow without focus */
     private fun drawCursor(c: Canvas, e: TerminalEmulator) {
+        if (e.line(e.cursorY).size.doubleWidth) {
+            // (a cell twice as wide: drawn scaled about the row's start)
+            c.save()
+            c.scale(2f, 1f)
+            drawCursorCell(c, e)
+            c.restore()
+            return
+        }
+        drawCursorCell(c, e)
+    }
+
+    /** the cursor's cell, in the scale it is drawn at */
+    private fun drawCursorCell(c: Canvas, e: TerminalEmulator) {
         val col = min(e.cursorX, e.cols - 1)
         val x = px(col)
         val cw = px(col + 1) - x
@@ -1059,7 +1110,17 @@ class TerminalView @JvmOverloads constructor(
             KeyEvent.KEYCODE_INSERT -> Key.INSERT
             KeyEvent.KEYCODE_FORWARD_DEL -> Key.DELETE
             KeyEvent.KEYCODE_DEL -> Key.BACKSPACE
-            KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> Key.ENTER
+            KeyEvent.KEYCODE_ENTER -> Key.ENTER
+            // the keypad as the DEC one (NumLock / * as PF1-PF3, + as its comma)
+            KeyEvent.KEYCODE_NUMPAD_ENTER -> Key.KP_ENTER
+            KeyEvent.KEYCODE_NUM_LOCK -> Key.PF1
+            KeyEvent.KEYCODE_NUMPAD_DIVIDE -> Key.PF2
+            KeyEvent.KEYCODE_NUMPAD_MULTIPLY -> Key.PF3
+            KeyEvent.KEYCODE_NUMPAD_SUBTRACT -> Key.KP_MINUS
+            KeyEvent.KEYCODE_NUMPAD_ADD, KeyEvent.KEYCODE_NUMPAD_COMMA -> Key.KP_COMMA
+            in KeyEvent.KEYCODE_NUMPAD_0..KeyEvent.KEYCODE_NUMPAD_9 ->
+                if (event.isNumLockOn) Key.entries[Key.KP_0.ordinal + keyCode - KeyEvent.KEYCODE_NUMPAD_0] else null
+            KeyEvent.KEYCODE_NUMPAD_DOT -> if (event.isNumLockOn) Key.KP_PERIOD else null
             KeyEvent.KEYCODE_TAB -> Key.TAB
             KeyEvent.KEYCODE_ESCAPE -> Key.ESCAPE
             in KeyEvent.KEYCODE_F1..KeyEvent.KEYCODE_F12 -> Key.entries[Key.F1.ordinal + keyCode - KeyEvent.KEYCODE_F1]

@@ -24,6 +24,9 @@ abstract class TerminalProfile {
     /** ESC[2J homes the cursor, as ANSI.SYS did (BBS screens expect it) */
     open val homeOnClear: Boolean get() = false
 
+    /** the keys the apps' bar offers, page by page */
+    open val keyBar: List<KeyBarPage> get() = KeyBars.STANDARD
+
     /** an interpreter of this terminal's sequences, on [t]'s screen */
     abstract fun interpreter(t: TerminalEmulator): TerminalInterpreter
 
@@ -37,6 +40,8 @@ enum class VtFeature {
     COLOR,
     /** sixel images */
     SIXEL,
+    /** a printer port (VT102 and later): printer controller mode, auto print, print screen (MC) */
+    PRINTER,
     /** xterm's own: mouse and focus reports, bracketed paste, the alternate screen, OSC titles, colours, clipboard and links, XTVERSION, window reports */
     XTERM,
 }
@@ -56,11 +61,29 @@ abstract class DecProfile : TerminalProfile() {
     /** what it has beyond its level's text */
     open val features: Set<VtFeature> get() = emptySet()
 
+    /** the standard keys and the DEC keypad */
+    override val keyBar: List<KeyBarPage> get() = KeyBars.DEC
+
     /** whether it has [f] */
     fun has(f: VtFeature): Boolean = f in features
 
     /** a [VtInterpreter] (subclasses for levels that read more) */
     override fun interpreter(t: TerminalEmulator): TerminalInterpreter = VtInterpreter(t, this)
+}
+
+/** DEC VT52: its own escape sequences (no ANSI), its graphics set, no attributes */
+open class Vt52Profile : TerminalProfile() {
+    override val id get() = "vt52"
+    override val label get() = "DEC VT52"
+    override val term get() = "vt52"
+    override val telnetType get() = "DEC-VT52"
+
+    /** the standard keys and the keypad (the VT52's has PF1-PF3 and its digits) */
+    override val keyBar: List<KeyBarPage> get() = KeyBars.DEC
+
+    /** a [Vt52Interpreter] with the VT52's own graphics, answering ESC Z as a VT52 without a copier */
+    override fun interpreter(t: TerminalEmulator): TerminalInterpreter =
+        Vt52Interpreter(t, GSet.VT52_GRAPHICS, "\u001b/K")
 }
 
 /** DEC VT100, with the Advanced Video Option */
@@ -79,6 +102,7 @@ open class Vt102Profile : Vt100Profile() {
     override val term get() = "vt102"
     override val telnetType get() = "DEC-VT102"
     override val primaryDa get() = "\u001b[?6c"
+    override val features: Set<VtFeature> get() = super.features + VtFeature.PRINTER
 }
 
 /** DEC VT220: level 2, 8-bit controls, more character sets */
@@ -120,6 +144,7 @@ open class AnsiBbsProfile : XtermProfile() {
 
 /** The profiles there are, by id. */
 object TerminalProfiles {
+    val VT52: TerminalProfile = Vt52Profile()
     val VT100: TerminalProfile = Vt100Profile()
     val VT102: TerminalProfile = Vt102Profile()
     val VT220: TerminalProfile = Vt220Profile()
@@ -130,7 +155,7 @@ object TerminalProfiles {
     val DEFAULT: TerminalProfile get() = XTERM
 
     /** in the pickers' order */
-    val all: List<TerminalProfile> = listOf(XTERM, ANSI_BBS, VT100, VT102, VT220)
+    val all: List<TerminalProfile> = listOf(XTERM, ANSI_BBS, VT52, VT100, VT102, VT220)
 
     /** the profile [id] names, or null for none or one not known */
     fun byId(id: String?): TerminalProfile? = all.firstOrNull { it.id == id }

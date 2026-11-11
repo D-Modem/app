@@ -33,6 +33,8 @@ class TerminalEmulator(
         fun onBell() {}
         /** OSC 52: the remote puts text on the clipboard */
         fun onClipboard(text: String) {}
+        /** what the remote sent to the printer (printer controller mode, auto print, print screen) */
+        fun onPrint(text: String) {}
     }
 
     /** which mouse events are reported (DECSET 9, 1000, 1002, 1003) */
@@ -128,6 +130,18 @@ class TerminalEmulator(
     internal fun resetColors(range: IntRange) {
         for (i in range) if (i in colorOverrides.indices) colorOverrides[i] = -1
     }
+
+    /** the columns the remote asked for (DECCOLM: 80 or 132), for the view to fit; 0: none asked */
+    var requestedColumns = 0
+        private set
+
+    /** the keyboard's four LEDs (DECLL), L1 the lowest bit */
+    var leds = 0
+        internal set
+
+    /** the keys are a VT52's (ESC A for up, ESC ? p for the keypad's 0) */
+    var vt52Keys = false
+        internal set
 
     /** OSC 8: the link the next characters carry */
     internal var link: String? = null
@@ -305,9 +319,12 @@ class TerminalEmulator(
             }
             pendingWrap = false
         }
+        // (a line of double width holds half as many)
+        val lc = lineWidth(cursorY)
+        if (cursorX >= lc) cursorX = lc - 1
         // a wide character with one column left: to the next line (the last cell left blank)
-        if (w == 2 && cursorX == cols - 1) {
-            if (!autowrap || cols < 2) return
+        if (w == 2 && cursorX == lc - 1) {
+            if (!autowrap || lc < 2) return
             screen[cursorY].clear(cursorX, cols, style)
             screen[cursorY].wrapped = true
             carriageReturn()
@@ -321,12 +338,37 @@ class TerminalEmulator(
         line.set(cursorX, cp, style)
         if (w == 2) line.set(cursorX + 1, Line.WIDE_TAIL, style)
         link?.let { l -> for (k in 0 until w) line.extraFor(cursorX + k).link = l }
-        if (cursorX + w >= cols) {
-            cursorX = cols - 1
+        if (cursorX + w >= lineWidth(cursorY)) {
+            cursorX = lineWidth(cursorY) - 1
             pendingWrap = true
         } else {
             cursorX += w
         }
+    }
+
+    /** the columns line [y] holds: half the screen's on a line of double width */
+    internal fun lineWidth(y: Int): Int =
+        if (screen[y].size.doubleWidth) maxOf(1, cols / 2) else cols
+
+    /** DECSWL, DECDWL, DECDHL: the cursor's line made [size] (the cursor kept within it) */
+    internal fun setLineSize(size: LineSize) {
+        screen[cursorY].size = size
+        if (cursorX >= lineWidth(cursorY)) cursorX = lineWidth(cursorY) - 1
+    }
+
+    /**
+     * DECCOLM: the screen 132 columns wide ([wide]) or 80, as the remote
+     * asked: the view fits that many (it can't be told to), the screen
+     * cleared, the margins reset and the cursor home as a VT100 does.
+     */
+    internal fun setColumnMode(wide: Boolean) {
+        requestedColumns = if (wide) 132 else 80
+        for (l in screen) l.blank(Style.NORMAL)
+        top = 0
+        bottom = rows - 1
+        cursorX = 0
+        cursorY = 0
+        pendingWrap = false
     }
 
     /** a cell about to be written: the wide character it was half of, blanked */
@@ -401,8 +443,7 @@ class TerminalEmulator(
             while (history.size > historyMax) history.removeFirst()
         }
         for (y in t until b) screen[y] = screen[y + 1]
-        gone.clear(0, cols, Style.erased(style))
-        gone.wrapped = false
+        gone.blank(Style.erased(style))
         screen[b] = gone
     }
 
@@ -410,28 +451,22 @@ class TerminalEmulator(
     internal fun scrollDown(t: Int, b: Int) {
         val gone = screen[b]
         for (y in b downTo t + 1) screen[y] = screen[y - 1]
-        gone.clear(0, cols, Style.erased(style))
-        gone.wrapped = false
+        gone.blank(Style.erased(style))
         screen[t] = gone
     }
 
     /** the cursor to ([x], [y]) on the screen, or within the scrolling region if [clampToRegion] and it is in it */
     internal fun moveCursor(x: Int, y: Int, clampToRegion: Boolean = false) {
         val (lo, hi) = if (clampToRegion && cursorY in top..bottom) top to bottom else 0 to rows - 1
-        cursorX = x.coerceIn(0, cols - 1)
         cursorY = y.coerceIn(lo, hi)
+        cursorX = x.coerceIn(0, lineWidth(cursorY) - 1)
         pendingWrap = false
     }
 
     /** CUP: the cursor to ([x], [y]), from the region's top in origin mode */
     internal fun cursorPosition(x: Int, y: Int) {
-        if (originMode) {
-            cursorX = x.coerceIn(0, cols - 1)
-            cursorY = (y + top).coerceIn(top, bottom)
-        } else {
-            cursorX = x.coerceIn(0, cols - 1)
-            cursorY = y.coerceIn(0, rows - 1)
-        }
+        cursorY = if (originMode) (y + top).coerceIn(top, bottom) else y.coerceIn(0, rows - 1)
+        cursorX = x.coerceIn(0, lineWidth(cursorY) - 1)
         pendingWrap = false
     }
 
@@ -447,10 +482,11 @@ class TerminalEmulator(
 
     /** the cursor on [n] tab stops (the last column at most) */
     internal fun tab(n: Int) {
+        val lc = lineWidth(cursorY)
         repeat(n) {
             var x = cursorX + 1
-            while (x < cols - 1 && !tabs[x]) x++
-            cursorX = x.coerceAtMost(cols - 1)
+            while (x < lc - 1 && !tabs[x]) x++
+            cursorX = x.coerceAtMost(lc - 1)
         }
         pendingWrap = false
     }
@@ -486,14 +522,14 @@ class TerminalEmulator(
         when (mode) {
             0 -> {
                 screen[cursorY].clear(cursorX, cols, e)
-                for (y in cursorY + 1 until rows) { screen[y].clear(0, cols, e); screen[y].wrapped = false }
+                for (y in cursorY + 1 until rows) { screen[y].blank(e) }
             }
             1 -> {
-                for (y in 0 until cursorY) { screen[y].clear(0, cols, e); screen[y].wrapped = false }
+                for (y in 0 until cursorY) { screen[y].blank(e) }
                 screen[cursorY].clear(0, cursorX + 1, e)
             }
             2 -> {
-                for (y in 0 until rows) { screen[y].clear(0, cols, e); screen[y].wrapped = false }
+                for (y in 0 until rows) { screen[y].blank(e) }
                 // ANSI.SYS homes the cursor with ESC[2J; BBSes count on it
                 if (homeOnClear) { cursorX = 0; cursorY = 0 }
             }
@@ -548,8 +584,7 @@ class TerminalEmulator(
             // (not to the scrollback: the region starts at the cursor)
             val gone = screen[cursorY]
             for (y in cursorY until bottom) screen[y] = screen[y + 1]
-            gone.clear(0, cols, Style.erased(style))
-            gone.wrapped = false
+            gone.blank(Style.erased(style))
             screen[bottom] = gone
         }
         cursorX = 0
@@ -560,7 +595,7 @@ class TerminalEmulator(
     internal fun setAltScreen(on: Boolean, clear: Boolean) {
         if (on == altScreen) return
         screen = if (on) alt else main
-        if (on && clear) for (l in alt) { l.clear(0, cols, Style.NORMAL); l.wrapped = false }
+        if (on && clear) for (l in alt) { l.blank(Style.NORMAL) }
     }
 
     /** DECSC: the cursor, rendition, origin mode and character sets saved, the screen's own */
@@ -585,9 +620,15 @@ class TerminalEmulator(
         interpreter.restoreCharsetState(s.charsets)
     }
 
-    /** DECALN: the screen filled with E, the cursor home */
+    /** DECALN: the screen filled with E (its lines single size), the cursor home, the margins gone */
     internal fun alignmentTest() {
-        for (l in screen) for (x in 0 until cols) l.set(x, 'E'.code, Style.NORMAL)
+        for (l in screen) {
+            for (x in 0 until cols) l.set(x, 'E'.code, Style.NORMAL)
+            l.size = LineSize.SINGLE
+            l.wrapped = false
+        }
+        top = 0
+        bottom = rows - 1
         cursorPosition(0, 0)
     }
 
@@ -611,8 +652,8 @@ class TerminalEmulator(
     fun reset() {
         softReset()
         screen = main
-        for (l in main) { l.clear(0, cols, Style.NORMAL); l.wrapped = false }
-        for (l in alt) { l.clear(0, cols, Style.NORMAL); l.wrapped = false }
+        for (l in main) { l.blank(Style.NORMAL) }
+        for (l in alt) { l.blank(Style.NORMAL) }
         cursorX = 0
         cursorY = 0
         pendingWrap = false
@@ -625,6 +666,9 @@ class TerminalEmulator(
         mouseUtf8 = false
         focusEvents = false
         cursorStyle = 0
+        requestedColumns = 0
+        leds = 0
+        vt52Keys = false
         sixelScrolling = true
         sixelCursorRight = false
         colorOverrides.fill(-1)
@@ -639,7 +683,7 @@ class TerminalEmulator(
     /** the screen and the scrollback cleared, the cursor home */
     fun clearAll() {
         history.clear()
-        for (l in screen) { l.clear(0, cols, Style.erased(style)); l.wrapped = false }
+        for (l in screen) { l.blank(Style.erased(style)) }
         cursorX = 0
         cursorY = 0
         pendingWrap = false
