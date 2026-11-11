@@ -31,8 +31,8 @@
   characters drawn to fill their cells so ANSI art has no gaps. A
   terminal type (Settings, and each directory entry's own) picks what it
   is: xterm, ANSI-BBS (a PC's, in CP437, as SyncTERM is), DEC VT52, VT100,
-  VT102, VT220, VT320, VT420, VT510, VT520 or VT525, a Commodore or an
-  Atari. Each
+  VT102, VT220, VT320, VT420, VT510, VT520 or VT525, a Commodore, an
+  Atari, Viewdata (Prestel) or a Minitel. Each
   answers the device attribute requests as that terminal did, knows only
   its own sequences (a VT100 has no colours, a VT220 no xterm titles or
   mouse), and gives SSH its `TERM` and Telnet its TERMINAL-TYPE. The DEC
@@ -83,7 +83,20 @@
   inverse video, its cursor keys wrapping round the screen, CLEAR, EOL,
   insert and delete of characters and lines, tabs, the buzzer and ESC to
   show a control's character; CTRL with a letter types its graphic and
-  the key bar's INV key types the next character inverse. Colour
+  the key bar's INV key types the next character inverse. Viewdata is
+  Prestel's 40x24 of teletext: its attributes take a cell and change the
+  rest of the row (alpha and mosaic colours, flash, conceal, contiguous
+  or separated mosaics, hold, new and black background; double height is
+  drawn single), the 2x3 mosaics drawn from the app's own bitmaps, the
+  cursor wrapping round the screen, and # (Enter too) as the key that
+  sends. The Minitel is Teletel's 40x25 with its status row: US
+  addressing, text and mosaics (SO/SI), SS2's accents and symbols, the
+  ESC colours and attributes (the background and separation taking
+  effect at the next space or mosaic), REP, its CSI commands, the
+  protocol commands (it answers as a Minitel 2), scrolling or page mode,
+  the 80-column Mixte mode, the Téléinformatique mode as a VT100, and a
+  key bar of Envoi, Retour, Suite, Répétition, Correction, Sommaire,
+  Guide, Annulation and Connexion/Fin. Both save captures as `.vdt`. Colour
   themes (VGA, xterm, Solarized, Dracula, Monokai, Gruvbox, Nord, green
   and amber phosphor), fonts (Cascadia Code, Sauce Code Pro Nerd Font,
   Source Code Pro, Roboto Mono, JetBrains Mono, Fira Code, OpenDyslexic

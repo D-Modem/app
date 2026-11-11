@@ -77,7 +77,7 @@ abstract class ByteControlInterpreter(t: TerminalEmulator, private val machine: 
     protected abstract fun charOf(b: Int): Int
 
     /** what's written now looks like: the colour, reverse, the machine's attributes */
-    protected fun look(): Long =
+    protected open fun look(): Long =
         Style.of(color, Style.DEFAULT_BG, (if (reverse) Style.INVERSE else 0) or extraAttrs)
 
     /** the colour written in from now on */

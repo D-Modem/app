@@ -226,6 +226,8 @@ object TerminalProfiles {
     val VT220: TerminalProfile = Vt220Profile()
     val VT320: TerminalProfile = Vt320Profile()
     val VT420: TerminalProfile = Vt420Profile()
+    val VIEWDATA: TerminalProfile = ViewdataProfile()
+    val MINITEL: TerminalProfile = MinitelProfile()
     val VT510: TerminalProfile = Vt510Profile()
     val VT520: TerminalProfile = Vt520Profile()
     val VT525: TerminalProfile = Vt525Profile()
@@ -245,7 +247,7 @@ object TerminalProfiles {
     val DEFAULT: TerminalProfile get() = XTERM
 
     /** in the pickers' order */
-    val all: List<TerminalProfile> = listOf(XTERM, ANSI_BBS, VT52, VT100, VT102, VT220, VT320, VT420, VT510, VT520, VT525, C64, C128, C128_80, PLUS4, VIC20, PET, PET80, ATARI, ATARI_INTL)
+    val all: List<TerminalProfile> = listOf(XTERM, ANSI_BBS, VT52, VT100, VT102, VT220, VT320, VT420, VT510, VT520, VT525, C64, C128, C128_80, PLUS4, VIC20, PET, PET80, ATARI, ATARI_INTL, VIEWDATA, MINITEL)
 
     /** the profile [id] names, or null for none or one not known */
     fun byId(id: String?): TerminalProfile? = all.firstOrNull { it.id == id }

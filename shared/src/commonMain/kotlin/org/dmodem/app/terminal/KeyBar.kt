@@ -103,6 +103,32 @@ object KeyBars {
         ),
     )
 
+    /** Prestel's keypad: *, # (that sends), the digits, and the cursor keys */
+    val VIEWDATA = KeyBarPage(
+        "VDT",
+        listOf(
+            listOf(BarKey.Type("*"), BarKey.Type("#"), BarKey.Type("*0#", "*0#"), BarKey.Type("*#", "BACK")) +
+                listOf(BarKey.Send(Key.UP, "↑", repeat = true), BarKey.Send(Key.BACKSPACE, "DEL", repeat = true)),
+            listOf(BarKey.Ctrl, BarKey.Send(Key.LEFT, "←", repeat = true), BarKey.Send(Key.DOWN, "↓", repeat = true),
+                BarKey.Send(Key.RIGHT, "→", repeat = true), BarKey.Send(Key.ESCAPE, "ESC"), BarKey.NextPage),
+        ),
+    )
+
+    /** the Minitel's function keys (SEP and the key's code) */
+    val MINITEL = KeyBarPage(
+        "MTL",
+        listOf(
+            listOf(
+                minitel(0x41, "ENVOI"), minitel(0x42, "RETOUR"), minitel(0x48, "SUITE"), minitel(0x43, "RÉPÉT"),
+                minitel(0x47, "CORR"),
+            ),
+            listOf(
+                minitel(0x46, "SOMM"), minitel(0x44, "GUIDE"), minitel(0x45, "ANNUL"), minitel(0x49, "CX/FIN"),
+                BarKey.NextPage,
+            ),
+        ),
+    )
+
     /** a Commodore's: RUN/STOP, CLR/HOME, INST/DEL, RVS ON/OFF, C=, the cursor keys, its symbols */
     val COMMODORE_MAIN = KeyBarPage(
         "C=",
@@ -176,6 +202,9 @@ object KeyBars {
     /** F[n + 1] (with Shift: ⇧ before its name) */
     private fun fn(n: Int, shift: Boolean = false) =
         BarKey.Send(Key.entries[Key.F1.ordinal + n], (if (shift) "⇧" else "") + "F${n + 1}", shift = shift)
+
+    /** the Minitel's key [code] (sent after SEP) */
+    private fun minitel(code: Int, label: String) = BarKey.Octets("\u0013" + code.toChar(), label)
 
     /** the keypad's [n] */
     private fun kp(n: Int) = BarKey.Send(Key.entries[Key.KP_0.ordinal + n], "$n")
