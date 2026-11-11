@@ -174,15 +174,28 @@ class VoiceTest {
         try {
             j.dial("555 1234")
             waitFor("the call") { j.state?.phase == VoiceJob.Phase.TALKING }
-            val mic = ShortArray(160) { (sin(2 * PI * 300 * it / 8000) * 10000).toInt().toShort() }
             val heard = ShortArray(8000)
             var n = 0
+            var said = 0L
+            var phase = 0.0
             val got0 = m.got
             val loud0 = m.loud
             val t0 = monotonicMs()
+            // (as a sound card would: the microphone's samples as time passes, all the far end's read; a sleep
+            // may take longer than asked, on a busy machine)
             while (monotonicMs() - t0 < 1000) {
+                val due = (monotonicMs() - t0) * 8
+                val mic = ShortArray((due - said).toInt()) {
+                    phase += 2 * PI * 300 / 8000
+                    (sin(phase) * 10000).toInt().toShort()
+                }
+                said = due
                 j.write(mic)
-                n += j.read(heard, n % 4000, 160)
+                while (true) {
+                    val k = j.read(heard, n % 4000, 160)
+                    if (k == 0) break
+                    n += k
+                }
                 sleepMs(20)
             }
             val ms = monotonicMs() - t0
