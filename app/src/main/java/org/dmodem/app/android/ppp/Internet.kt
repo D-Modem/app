@@ -76,6 +76,7 @@ object Internet {
         ModemState.run.value != ModemState.Run.RUNNING -> "the modem is off"
         running -> "it's connected already"
         Fax.running -> "a fax call is going on"
+        org.dmodem.app.android.voice.Voice.running -> "a voice call is going on"
         dial && ModemState.status.value.offhook -> "the modem is in a call"
         !dial && ModemState.status.value.link != NativeModem.Link.ONLINE -> "no call to start PPP on: dial and log in first"
         Bridges.serial.client.value != null -> "the modem is in use by ${Bridges.serial.client.value?.name}"

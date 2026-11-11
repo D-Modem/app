@@ -35,6 +35,9 @@ final class AppModel: ObservableObject {
     /// the last of what the modem said, looked at for RING and the caller's number
     private var ringScan = ""
     private var callerId: String?
+    /// the ringing call's RINGs so far, and when the last came
+    private var rings = 0
+    private var lastRing = Date.distantPast
     /// what's typed at the terminal on its line, and the number its last ATD dialled
     private var typedLine = ""
     private var lastDial = ""
@@ -59,6 +62,7 @@ final class AppModel: ObservableObject {
         calls.onAnswer = { [weak self] in self?.session.command("ATA") }
         calls.onEnd = { [weak self] in self?.callEndedByUser() }
         calls.onAudio = { [audio] on in if on { audio.resume() } }
+        jobs.voiceEnded = { [audio] in audio.resume() }
     }
 
     /// what the modem said (for the terminal): a remote's transfer started, a call ringing
@@ -81,7 +85,36 @@ final class AppModel: ObservableObject {
     private func ring() {
         if jobs.running { return }
         calls.ringing(from: callerId)
-        if settings.faxAutoAnswer && jobs.answerFax() == nil { calls.answeredHere() }
+        if Date().timeIntervalSince(lastRing) > 8 { rings = 0 }
+        lastRing = Date()
+        rings += 1
+        if settings.faxAutoAnswer {
+            if jobs.answerFax() == nil { calls.answeredHere() }
+        } else if settings.voicemail && rings >= settings.voicemailRings {
+            // (the answering machine, when it's on and nobody has answered)
+            rings = 0
+            if takeMessage() == nil { calls.answeredHere() }
+        }
+    }
+
+    /// caller ID's number for the call ringing, or ""
+    private var callerNumber: String {
+        guard let n = callerId, n != "P", n != "O" else { return "" }
+        return n
+    }
+
+    /// the ringing call answered to talk (the Phone screen's button)
+    func answerVoice() -> String? {
+        let r = jobs.voiceAnswer(caller: callerNumber)
+        if r == nil { calls.answeredHere() }
+        return r
+    }
+
+    /// the ringing call answered by the answering machine
+    func takeMessage() -> String? {
+        let r = jobs.takeMessage(caller: callerNumber, maxSeconds: settings.voicemailMaxSeconds)
+        if r == nil { calls.answeredHere() }
+        return r
     }
 
     /// the ringing call answered as a fax (the Fax screen's button)
@@ -113,6 +146,7 @@ final class AppModel: ObservableObject {
         if jobs.fax?.running == true { jobs.cancelFax() }
         if jobs.internet?.running == true { jobs.disconnectInternet() }
         if jobs.transfer?.running == true { jobs.cancelTransfer() }
+        if jobs.voice?.running == true { jobs.hangUpVoice() }
         if status.offHook { hangUp() }
     }
 
@@ -120,6 +154,7 @@ final class AppModel: ObservableObject {
     private var dialling: String {
         if jobs.fax?.running == true, jobs.fax?.sending == true { return jobs.fax?.number ?? "" }
         if jobs.internet?.running == true { return settings.ispNumber }
+        if jobs.voice?.running == true, jobs.voice?.calling == true { return jobs.voice?.number ?? "" }
         return lastDial
     }
 

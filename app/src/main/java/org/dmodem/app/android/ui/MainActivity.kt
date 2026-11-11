@@ -118,6 +118,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+                val mic = rememberMicrophone()
                 // a call ringing in: the popup, over any tab
                 val call by org.dmodem.app.android.modem.ModemState.incoming.state.collectAsStateWithLifecycle()
                 call?.takeIf { !it.ignored }?.let { c ->
@@ -129,6 +130,8 @@ class MainActivity : ComponentActivity() {
                             tab = TAB_TERMINAL
                         },
                         onFax = { answerAsFax() },
+                        onVoice = { mic { voice(org.dmodem.app.android.voice.Voice.answer(this@MainActivity)) } },
+                        onMessage = { voice(org.dmodem.app.android.voice.Voice.takeMessage(this@MainActivity)) },
                         onIgnore = { org.dmodem.app.android.modem.ModemState.incoming.ignore() },
                         offerFax = !org.dmodem.app.android.modem.ModemState.adaptiveAnswer,
                     )
@@ -234,6 +237,12 @@ class MainActivity : ComponentActivity() {
         org.dmodem.app.android.modem.ModemState.incoming.end()
         val why = org.dmodem.app.android.fax.Fax.answer(this)
         if (why != null) android.widget.Toast.makeText(this, "Fax: $why", android.widget.Toast.LENGTH_LONG).show()
+        goTo.value = TAB_MODEM
+    }
+
+    /** a voice call answered (or why not, in a toast): shown on the modem's tab */
+    private fun voice(why: String?) {
+        if (why != null) android.widget.Toast.makeText(this, "Voice: $why", android.widget.Toast.LENGTH_LONG).show()
         goTo.value = TAB_MODEM
     }
 
