@@ -19,6 +19,7 @@ graphics terminals draw through `Raster.kt`.
 | xterm | `xterm` | `xterm-256color` / `XTERM-256COLOR` | any | The default: a VT220 with 256 and 24-bit colour, sixel, the mouse, titles, and Tek mode |
 | ANSI-BBS (PC) | `ansi-bbs` | `ansi` / `ANSI` | 80x25 | A PC's BBS terminal, as SyncTERM is: CP437 in a VGA font, iCE colours, ANSI music, doorway mode |
 | Avatar (AVT/0+) | `avatar` | `avatar` / `ANSI` | 80x25 | ANSI-BBS with FidoNet's Avatar codes: ^L, ^Y repeat, ^V's attributes, moves and AVT/0+'s area scrolls, clears, fills and pattern repeat |
+| Amiga ANSI | `amiga` | `amiga` / `ANSI` | 80x25 | ANSI-BBS in Latin-1 with 8x8 glyphs (Topaz's size, Unscii's drawing) and colours from the Amiga's 12-bit palette |
 | DEC VT52 | `vt52` | `vt52` / `DEC-VT52` | 80x24 | The VT52's own escape codes and graphics |
 | DEC VT100 | `vt100` | `vt100` / `DEC-VT100` | 80/132x24 | ANSI codes at level 1: no colour; double-size lines; VT52 mode |
 | DEC VT102 | `vt102` | `vt102` / `DEC-VT102` | 80/132x24 | Adds character and line insert and delete, and a printer port |

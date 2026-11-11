@@ -10,7 +10,7 @@ package org.dmodem.app.terminal
  * 255 h: the keys as a PC's scan codes), and font selection (CSI SP D:
  * only code page 437 is there, so the others are taken and ignored).
  */
-open class AnsiBbsInterpreter(t: TerminalEmulator, profile: AnsiBbsProfile) : VtInterpreter(t, profile) {
+open class AnsiBbsInterpreter(t: TerminalEmulator, private val bbs: AnsiBbsProfile) : VtInterpreter(t, bbs) {
     /** which CSIs start ANSI music (CSI = n M): 0 only CSI |, 1 CSI N too, 2 CSI M too (unless it has parameters: then it's DL) */
     private var musicMode = 2
     /** the music being gathered, until SO; null outside it */
@@ -25,16 +25,18 @@ open class AnsiBbsInterpreter(t: TerminalEmulator, profile: AnsiBbsProfile) : Vt
         attach()
     }
 
-    /** the PC's 80x25 */
+    /** the PC's 80x25, and the profile's own sixteen colours if it has them */
     private fun attach() {
         t.requestedColumns = 80
         t.requestedRows = 25
+        bbs.colors?.forEachIndexed { i, c -> t.setColorOverride(i, c) }
     }
 
-    /** the view's size back, for the profile taking over */
+    /** the view's size (and the theme's colours) back, for the profile taking over */
     override fun detach() {
         t.requestedColumns = 0
         t.requestedRows = 0
+        if (bbs.colors != null) t.resetColors(0..15)
         t.iceColors = false
         t.emulatedBps = 0
     }
