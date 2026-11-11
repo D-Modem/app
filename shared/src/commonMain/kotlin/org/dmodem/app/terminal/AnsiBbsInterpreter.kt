@@ -113,7 +113,7 @@ open class AnsiBbsInterpreter(t: TerminalEmulator, profile: AnsiBbsProfile) : Vt
 
     /** in doorway mode, a key as NUL and its scan code (Alt with a letter its own); otherwise the VT sequences */
     override fun keyOctets(k: Key, shift: Boolean, alt: Boolean, ctrl: Boolean): ByteArray? {
-        if (!doorway) return null
+        if (!doorway) return super.keyOctets(k, shift, alt, ctrl)
         val code = SCAN_CODES[k] ?: return null
         return byteArrayOf(0, code.toByte())
     }

@@ -12,7 +12,7 @@ sealed class BarKey {
     abstract val label: String
 
     /** a key that isn't a character; [repeat]: held down, it repeats */
-    data class Send(val key: Key, override val label: String, val repeat: Boolean = false) : BarKey()
+    data class Send(val key: Key, override val label: String, val repeat: Boolean = false, val shift: Boolean = false) : BarKey()
 
     /** text typed */
     data class Type(val text: String, override val label: String = text) : BarKey()
@@ -83,6 +83,26 @@ object KeyBars {
         ),
     )
 
+    /** an LK201's top row past F5: F6-F20 (F15 Help, F16 Do), Find and Select */
+    val LK201_FUNCTION = KeyBarPage(
+        "F6+",
+        listOf(
+            (5 until 13).map { fn(it) },
+            listOf(fn(13), BarKey.Send(Key.F15, "HELP"), BarKey.Send(Key.F16, "DO")) + (16 until 20).map { fn(it) } +
+                BarKey.Send(Key.FIND, "FIND"),
+            listOf(BarKey.Send(Key.SELECT, "SEL"), BarKey.Send(Key.INSERT, "INS"), BarKey.Send(Key.DELETE, "REM"), BarKey.NextPage),
+        ),
+    )
+
+    /** F6-F20 with Shift: the keys the host loaded (DECUDK) */
+    val USER_DEFINED = KeyBarPage(
+        "UDK",
+        listOf(
+            (5 until 13).map { fn(it, shift = true) },
+            (13 until 20).map { fn(it, shift = true) } + BarKey.NextPage,
+        ),
+    )
+
     /** a Commodore's: RUN/STOP, CLR/HOME, INST/DEL, RVS ON/OFF, C=, the cursor keys, its symbols */
     val COMMODORE_MAIN = KeyBarPage(
         "C=",
@@ -150,8 +170,12 @@ object KeyBars {
     /** a DEC terminal's: the standard ones and its keypad */
     val DEC = STANDARD + DEC_KEYPAD
 
-    /** F[n + 1] */
-    private fun fn(n: Int) = BarKey.Send(Key.entries[Key.F1.ordinal + n], "F${n + 1}")
+    /** a VT220's and later: a DEC terminal's, the LK201's other function keys, and the user-defined ones */
+    val LK201 = DEC + LK201_FUNCTION + USER_DEFINED
+
+    /** F[n + 1] (with Shift: ⇧ before its name) */
+    private fun fn(n: Int, shift: Boolean = false) =
+        BarKey.Send(Key.entries[Key.F1.ordinal + n], (if (shift) "⇧" else "") + "F${n + 1}", shift = shift)
 
     /** the keypad's [n] */
     private fun kp(n: Int) = BarKey.Send(Key.entries[Key.KP_0.ordinal + n], "$n")

@@ -26,6 +26,8 @@ object Style {
     /** SGR 4:3 (and the dotted and dashed ones, 4:4 and 4:5) */
     const val CURLY_UNDERLINE = 512
     const val OVERLINE = 1024
+    /** DECSCA's: not erased by DECSED and DECSEL (not drawn: it isn't a rendition) */
+    const val PROTECTED = 2048
 
     /** any of the underlines */
     const val ANY_UNDERLINE = UNDERLINE or DOUBLE_UNDERLINE or CURLY_UNDERLINE

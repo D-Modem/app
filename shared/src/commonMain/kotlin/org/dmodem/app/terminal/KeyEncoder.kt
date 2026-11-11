@@ -6,6 +6,8 @@ package org.dmodem.app.terminal
 enum class Key {
     UP, DOWN, RIGHT, LEFT, HOME, END, PAGE_UP, PAGE_DOWN, INSERT, DELETE,
     F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
+    /** an LK201's F13-F20 (F15 its Help, F16 its Do), and its Find and Select */
+    F13, F14, F15, F16, F17, F18, F19, F20, FIND, SELECT,
     TAB, ENTER, BACKSPACE, ESCAPE,
     /** the DEC keypad: PF1-PF4 above it, its digits, minus, comma, period and Enter */
     PF1, PF2, PF3, PF4,
@@ -86,6 +88,16 @@ class KeyEncoder {
             Key.F10 -> tilde(21)
             Key.F11 -> tilde(23)
             Key.F12 -> tilde(24)
+            Key.F13 -> tilde(25)
+            Key.F14 -> tilde(26)
+            Key.F15 -> tilde(28)
+            Key.F16 -> tilde(29)
+            Key.F17 -> tilde(31)
+            Key.F18 -> tilde(32)
+            Key.F19 -> tilde(33)
+            Key.F20 -> tilde(34)
+            Key.FIND -> tilde(1)
+            Key.SELECT -> tilde(4)
             Key.TAB -> if (shift) "\u001b[Z" else prefix + "\t"
             Key.ENTER -> prefix + enter.bytes
             Key.BACKSPACE -> prefix + (if (ctrl) "\u0008" else backspace.code.toChar().toString())

@@ -166,7 +166,7 @@ class TerminalBridge(cols: Int, rows: Int) {
     /** what the key at ([row], [col]) of page [page] sends, as octets in Latin-1 ("" for one that doesn't) */
     fun keyBarPress(page: Int, row: Int, col: Int, ctrl: Boolean = false, alt: Boolean = false): String =
         when (val k = keyAt(page, row, col)) {
-            is BarKey.Send -> key(k.key.name, alt = alt, ctrl = ctrl)
+            is BarKey.Send -> key(k.key.name, shift = k.shift, alt = alt, ctrl = ctrl)
             is BarKey.Type -> typed(k.text, ctrl, alt)
             is BarKey.Octets -> k.octets
             else -> ""

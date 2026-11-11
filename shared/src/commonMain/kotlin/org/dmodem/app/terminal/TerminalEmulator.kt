@@ -245,9 +245,12 @@ class TerminalEmulator(
     fun line(row: Int): Line =
         if (row >= 0) screen[row] else history[history.size + row]
 
-    /** [s] to the remote, as Latin-1 octets */
+    /** replies' controls in their 8-bit forms (S8C1T: CSI as 9B, DCS as 90, ST as 9C) */
+    internal var eightBitReplies = false
+
+    /** [s] to the remote, as Latin-1 octets (its ESC Fe's as C1 controls, when [eightBitReplies]) */
     internal fun reply(s: String) {
-        output(s.latin1())
+        output((if (eightBitReplies) ESC_FE.replace(s) { (it.groupValues[1][0].code + 0x40).toChar().toString() } else s).latin1())
     }
 
     // ------------------------------------------------------------------
@@ -545,25 +548,39 @@ class TerminalEmulator(
         if (cursorX < cols) tabs[cursorX] = false
     }
 
+    /** the columns with tab stops (from 0), for DECTABSR */
+    internal fun tabStops(): List<Int> = tabs.indices.filter { tabs[it] }
+
     /** TBC 3: every tab stop cleared */
     internal fun clearTabs() {
         tabs.fill(false)
     }
 
-    /** ED: the screen erased below the cursor (0), above it (1), all of it (2), or the scrollback (3) */
-    internal fun eraseDisplay(mode: Int) {
+    /** cells [from] until [to] of [l] erased in [e]: all of them, or (DECSED, DECSEL: [selective]) those DECSCA didn't protect */
+    private fun erase(l: Line, from: Int, to: Int, e: Long, selective: Boolean) {
+        if (!selective) {
+            if (from <= 0 && to >= l.cols) l.blank(e) else l.clear(from, to, e)
+            return
+        }
+        for (x in from.coerceAtLeast(0) until to.coerceAtMost(l.cols)) {
+            if (Style.attrs(l.styles[x]) and Style.PROTECTED == 0) l.clear(x, x + 1, e)
+        }
+    }
+
+    /** ED (DECSED if [selective]): the screen erased below the cursor (0), above it (1), all of it (2), or the scrollback (3) */
+    internal fun eraseDisplay(mode: Int, selective: Boolean = false) {
         val e = Style.erased(style)
         when (mode) {
             0 -> {
-                screen[cursorY].clear(cursorX, cols, e)
-                for (y in cursorY + 1 until rows) { screen[y].blank(e) }
+                erase(screen[cursorY], cursorX, cols, e, selective)
+                for (y in cursorY + 1 until rows) erase(screen[y], 0, cols, e, selective)
             }
             1 -> {
-                for (y in 0 until cursorY) { screen[y].blank(e) }
-                screen[cursorY].clear(0, cursorX + 1, e)
+                for (y in 0 until cursorY) erase(screen[y], 0, cols, e, selective)
+                erase(screen[cursorY], 0, cursorX + 1, e, selective)
             }
             2 -> {
-                for (y in 0 until rows) { screen[y].blank(e) }
+                for (y in 0 until rows) erase(screen[y], 0, cols, e, selective)
                 // ANSI.SYS homes the cursor with ESC[2J; BBSes count on it
                 if (homeOnClear) { cursorX = 0; cursorY = 0 }
             }
@@ -572,14 +589,14 @@ class TerminalEmulator(
         pendingWrap = false
     }
 
-    /** EL: the line erased right of the cursor (0), left of it (1), or all of it (2) */
-    internal fun eraseLine(mode: Int) {
+    /** EL (DECSEL if [selective]): the line erased right of the cursor (0), left of it (1), or all of it (2) */
+    internal fun eraseLine(mode: Int, selective: Boolean = false) {
         val e = Style.erased(style)
         val l = screen[cursorY]
         when (mode) {
-            0 -> l.clear(cursorX, cols, e)
-            1 -> l.clear(0, cursorX + 1, e)
-            2 -> l.clear(0, cols, e)
+            0 -> erase(l, cursorX, cols, e, selective)
+            1 -> erase(l, 0, cursorX + 1, e, selective)
+            2 -> erase(l, 0, cols, e, selective)
         }
         if (mode != 1) l.wrapped = false
         pendingWrap = false
@@ -802,6 +819,9 @@ class TerminalEmulator(
     companion object {
         /** the largest sixel image (pixels a side) */
         const val MAX_IMAGE = 2048
+
+        /** an ESC Fe (ESC [, ESC P, ST's ESC and backslash ...): what has a C1 form */
+        private val ESC_FE = Regex("\u001b([\\x40-\\x5f])")
 
         /** xterm's colours: the 16, the 6x6x6 cube, the greys; default fg light grey, bg black */
         fun xtermColor(i: Int): Int {

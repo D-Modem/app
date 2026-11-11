@@ -166,7 +166,9 @@ class DecLevelTest {
     /** a DEC profile's key bar has the keypad page; the next page's label wraps */
     @Test
     fun keyBars() {
-        assertEquals(KeyBars.DEC, TerminalProfiles.VT220.keyBar)
+        assertEquals(KeyBars.DEC, TerminalProfiles.VT100.keyBar)
+        assertEquals(KeyBars.LK201, TerminalProfiles.VT220.keyBar)
+        assertEquals(KeyBars.DEC, TerminalProfiles.XTERM.keyBar)
         assertEquals(KeyBars.STANDARD, TerminalProfiles.XTERM.keyBar.take(2))
         assertEquals("KP", KeyBars.nextLabel(KeyBars.DEC, 1))
         assertEquals("ABC", KeyBars.nextLabel(KeyBars.DEC, 2))

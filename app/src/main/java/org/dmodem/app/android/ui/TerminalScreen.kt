@@ -301,7 +301,7 @@ fun TerminalScreen(
         }
         if (s.extraKeys) {
             ExtraKeys(
-                onKey = { k -> view?.scrollToBottom(); session.sendKey(k) },
+                onKey = { k, shift -> view?.scrollToBottom(); session.sendKey(k, shift = shift) },
                 onText = { t -> view?.scrollToBottom(); session.sendTyped(t) },
                 fullscreen = fullscreen,
                 onExitFullscreen = { onFullscreen(false) },
@@ -535,7 +535,7 @@ private fun TopBar(
 /** The keys a phone's keyboard hasn't got, as JuiceSSH's bar had them: Ctrl and Alt stay down for the next key. */
 @Composable
 private fun ExtraKeys(
-    onKey: (Key) -> Unit,
+    onKey: (Key, Boolean) -> Unit,
     onText: (String) -> Unit,
     fullscreen: Boolean,
     onExitFullscreen: () -> Unit,
@@ -553,7 +553,7 @@ private fun ExtraKeys(
                 KeyRow {
                     for (k in row) {
                         when (k) {
-                            is BarKey.Send -> KeyButton(k.label, repeat = k.repeat) { onKey(k.key) }
+                            is BarKey.Send -> KeyButton(k.label, repeat = k.repeat) { onKey(k.key, k.shift) }
                             is BarKey.Type -> KeyButton(k.label) { onText(k.text) }
                             is BarKey.Octets -> KeyButton(k.label, swatch = k.color) {
                                 session.sendTerminal(k.octets.toByteArray(Charsets.ISO_8859_1))
