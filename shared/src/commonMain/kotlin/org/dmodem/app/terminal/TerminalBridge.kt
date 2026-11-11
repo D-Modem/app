@@ -16,6 +16,7 @@ class TerminalBridge(cols: Int, rows: Int) {
         kotlinx.atomicfu.locks.synchronized(lock) { for (x in b) replies.append((x.toInt() and 0xff).toChar()) }
     })
     private val keys = KeyEncoder()
+    private val music = ArrayList<MusicNote>()
     private var look = RunLook()
 
     /** the window's title (OSC 0/2), as the remote last set it */
@@ -26,6 +27,11 @@ class TerminalBridge(cols: Int, rows: Int) {
         emulator.listener = object : TerminalEmulator.Listener {
             /** the remote's title kept */
             override fun onTitle(title: String) { this@TerminalBridge.title = title }
+
+            /** ANSI music kept for [takeMusic] */
+            override fun onMusic(notes: List<MusicNote>) {
+                kotlinx.atomicfu.locks.synchronized(lock) { music.addAll(notes) }
+            }
         }
     }
 
@@ -47,6 +53,14 @@ class TerminalBridge(cols: Int, rows: Int) {
     fun takeReplies(): String = kotlinx.atomicfu.locks.synchronized(lock) {
         replies.toString().also { replies.setLength(0) }
     }
+
+    /** ANSI music the remote sent since the last call, to play in order; taken */
+    fun takeMusic(): List<MusicNote> = kotlinx.atomicfu.locks.synchronized(lock) {
+        music.toList().also { music.clear() }
+    }
+
+    /** the line speed the remote asked to be shown at (CTerm's CSI * r), bits a second; 0: as it comes */
+    val emulatedBps: Int get() = emulator.emulatedBps
 
     /** a row (0: the screen's top) as runs */
     fun runs(row: Int): List<StyledRun> = emulator.runs(row, look)
@@ -107,14 +121,17 @@ class TerminalBridge(cols: Int, rows: Int) {
     /** the rows the view should have at most (a Commodore's 25), 0 for as many as fit */
     val requestedRows: Int get() = emulator.requestedRows
 
-    /** whether the cells are drawn from 8x8 bitmaps (the profile's machine's glyphs), not the font */
+    /** whether the cells are drawn from bitmaps (the profile's machine's glyphs, 8 wide), not the font */
     val bitmapGlyphs: Boolean get() = emulator.glyphs != null
 
-    /** row [row] (0 top) of [cp]'s 8x8 glyph, its leftmost pixel bit 7; -1 if the profile has no glyph for it (drawn with the font) */
+    /** the bitmap glyphs' height: 8, 16 for a VGA's (0: none) */
+    val glyphHeight: Int get() = emulator.glyphs?.height ?: 0
+
+    /** row [row] (0 top) of [cp]'s bitmap glyph, its leftmost pixel bit 7; -1 if the profile has no glyph for it (drawn with the font) */
     fun glyphRow(cp: Int, row: Int): Int {
         val g = emulator.glyphs ?: return -1
         if (!g.has(cp)) return -1
-        return BitmapFont.row(g.glyph(cp), row)
+        return g.row(cp, row)
     }
 
     /** the swatch (ARGB) the key at ([row], [col]) of page [page] shows, 0 for none */

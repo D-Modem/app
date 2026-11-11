@@ -8,10 +8,12 @@ mappings) and an 8x8 glyph for each character they use (Unscii's, public
 domain), so the app draws them as those machines did without shipping
 their ROM fonts.
 
-  python3 tools/gen_legacy_charsets.py UNSCII_8_HEX MAPPINGS_DIR
+  python3 tools/gen_legacy_charsets.py UNSCII_8_HEX UNSCII_16_HEX MAPPINGS_DIR
 
-UNSCII_8_HEX is unscii-8.hex (http://viznut.fi/unscii/); MAPPINGS_DIR is
-mappings/legacy of https://github.com/kreativekorp/charset.
+UNSCII_8_HEX and UNSCII_16_HEX are unscii-8.hex and unscii-16.hex
+(http://viznut.fi/unscii/); MAPPINGS_DIR is mappings/legacy of
+https://github.com/kreativekorp/charset. The 8x16 ones are a PC's: code
+page 437 as a VGA showed it, for the ANSI-BBS profile.
 """
 import os
 import sys
@@ -36,6 +38,18 @@ VIDEO = {"atari8ig": "atari8vg", "atari8ii": "atari8vi"}
 EXTRA = {
     0x241B: ["........", ".######.", ".##.....", ".#.#....", ".#..#...", ".#...#..", ".#....#.", "........"],
     0x1F8B0: ["........", ".####...", ".##.....", ".#.#....", ".#..#...", ".....#..", "......#.", "........"],
+}
+
+
+# code page 437's 0x20..0xff (as Charsets.kt's Cp437 has them)
+CP437 = [chr(c) for c in range(0x20, 0x7F)] + list(
+    "ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥₧ƒáíóúñÑªº¿⌐¬½¼¡«»░▒▓│┤╡╢╖╕╣║╗╝╜╛┐"
+    "└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀αßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■\u00a0")
+
+# 8x16 glyphs Unscii hasn't got, drawn here: the reversed not sign and the bullet operator
+EXTRA_16 = {
+    0x2310: ["........"] * 7 + ["..#####.", "..##....", "..##....", "..##...."] + ["........"] * 5,
+    0x2219: ["........"] * 7 + ["...##...", "...##..."] + ["........"] * 7,
 }
 
 
@@ -65,22 +79,46 @@ def mapping(path):
     return m
 
 
-def glyphs(path):
-    """unscii-8.hex's 8x8 glyphs, by code point"""
+def glyphs(path, height):
+    """a .hex font's 8-pixel-wide glyphs [height] rows high, by code point"""
     g = {}
     for line in open(path):
         cp, bits = line.strip().split(":")
-        if len(bits) == 16:
+        if len(bits) == 2 * height:
             g[int(cp, 16)] = bits.upper()
     return g
 
 
+def drawn(rows):
+    """rows of . and # as hex"""
+    return "".join("%02X" % int(r.replace(".", "0").replace("#", "1"), 2) for r in rows)
+
+
+def font_kotlin(w, name, what, height, font, cps):
+    """a BitmapFont of [font]'s glyphs for code points [cps] (in order)"""
+    w("    /** %s */" % what)
+    w("    val %s: BitmapFont = BitmapFont.parse(" % name)
+    w("        %d," % height)
+    per = 4 if height == 8 else 2
+    for i in range(0, len(cps), per):
+        w("        \"" + "".join("%X:%s;" % (cp, font[cp]) for cp in cps[i:i + per]) + "\" +")
+    w("            \"\",")
+    w("    )")
+
+
 def main():
     """the tables and glyphs read, LegacyCharsets.kt written"""
-    hexfile, mapdir = sys.argv[1], sys.argv[2]
-    font = glyphs(hexfile)
+    hexfile, hex16, mapdir = sys.argv[1], sys.argv[2], sys.argv[3]
+    font = glyphs(hexfile, 8)
     for cp, rows in EXTRA.items():
-        font.setdefault(cp, "".join("%02X" % int(r.replace(".", "0").replace("#", "1"), 2) for r in rows))
+        font.setdefault(cp, drawn(rows))
+    vga = glyphs(hex16, 16)
+    for cp, rows in EXTRA_16.items():
+        vga.setdefault(cp, drawn(rows))
+    pc = [ord(c) for c in CP437]
+    gone = [cp for cp in pc if cp not in vga]
+    if gone:
+        print("no 8x16 glyph for: " + " ".join("U+%04X" % cp for cp in gone), file=sys.stderr)
     tables = []
     used = set(range(0x20, 0x7F))
     for name, f, what in SETS:
@@ -108,8 +146,8 @@ def main():
     w(" * The 8-bit home computers' character sets, each code (0x00..0xff) as its")
     w(" * Unicode code point (0: not a character), from Rebecca Bettencourt's")
     w(" * Legacy Computing mappings; and [GLYPHS], an 8x8 glyph for every one of")
-    w(" * them, from Unscii (public domain; the two it hasn't, the Atari's ESC")
-    w(" * and CLEAR symbols, drawn in the generator).")
+    w(" * them, and [VGA], code page 437 in 8x16 as a PC's VGA showed it; both")
+    w(" * from Unscii (public domain; the few it hasn't drawn in the generator).")
     w(" */")
     w("internal object LegacyCharsets {")
     for name, f, what, t in tables:
@@ -120,12 +158,9 @@ def main():
         w("    )")
         w("")
     have = sorted(cp for cp in used if cp in font)
-    w("    /** the glyphs: each code point (hex) and its eight rows (top first, high bit leftmost) */")
-    w("    val GLYPHS: BitmapFont = BitmapFont.parse(")
-    for i in range(0, len(have), 4):
-        w("        \"" + "".join("%X:%s;" % (cp, font[cp]) for cp in have[i:i + 4]) + "\" +")
-    w("            \"\",")
-    w("    )")
+    font_kotlin(w, "GLYPHS", "the sets' 8x8 glyphs: each code point (hex) and its rows (top first, high bit leftmost)", 8, font, have)
+    w("")
+    font_kotlin(w, "VGA", "code page 437's 8x16 glyphs, as [GLYPHS]", 16, vga, sorted(cp for cp in set(pc) if cp in vga))
     w("}")
     open(OUT, "w").write("\n".join(out) + "\n")
     print("%d sets, %d glyphs, %d missing" % (len(tables), len(have), len(missing)))

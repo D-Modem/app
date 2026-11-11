@@ -30,7 +30,8 @@
   clear-home, bold as bright, iCE colours, and box drawing and block
   characters drawn to fill their cells so ANSI art has no gaps. A
   terminal type (Settings, and each directory entry's own) picks what it
-  is: xterm, ANSI-BBS (a PC's, in CP437), DEC VT52, VT100, VT102 or VT220. Each
+  is: xterm, ANSI-BBS (a PC's, in CP437, as SyncTERM is), DEC VT52, VT100,
+  VT102 or VT220, a Commodore or an Atari. Each
   answers the device attribute requests as that terminal did, knows only
   its own sequences (a VT100 has no colours, a VT220 no xterm titles or
   mouse), and gives SSH its `TERM` and Telnet its TERMINAL-TYPE. The DEC
@@ -40,7 +41,13 @@
   the keyboard LEDs and parameter reports, and a printer port (from the
   VT102 on) whose output is saved to a text file. The key bar gains the
   DEC keypad (PF1-PF4, digits, minus, comma, period, Enter, in numeric or
-  application mode), and a hardware numpad sends those keys. The
+  application mode), and a hardware numpad sends those keys. ANSI-BBS is
+  the PC's 80x25 drawn in a VGA's 8x16 code page 437 (Unscii's, public
+  domain), with SyncTERM's additions: ANSI music (`ESC [ |`, and a bare
+  `ESC [ M` when a PLAY string follows it) played as a PC speaker would,
+  iCE colours when the BBS asks (`ESC [ ? 33 h`), the line speed it asks
+  to be shown at for ANSI animations (`ESC [ 0 ; n * r`), and doorway
+  mode for DOS doors (`ESC [ = 255 h`: the keys as a PC's scan codes). The
   Commodore types (C64, C128 in 40 or 80 columns, Plus/4, VIC-20, PET in
   40 or 80 columns) speak PETSCII as CCGMS and Novaterm do: the screen
   becomes the machine's (40x25, the VIC-20's 22x23) in its palette, drawn

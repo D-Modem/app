@@ -62,7 +62,7 @@ fun TerminalEmulator.runs(row: Int, look: RunLook = RunLook()): List<StyledRun> 
         var fg = Style.fg(st)
         var bg = Style.bg(st)
         if (a and Style.BOLD != 0 && look.boldBright && fg in 0..7) fg += 8
-        if (look.iceColors && a and Style.BLINK != 0 && bg in 0..7) bg += 8
+        if ((look.iceColors || iceColors) && a and Style.BLINK != 0 && bg in 0..7) bg += 8
         var f = color(fg, true)
         var b = color(bg, false)
         if ((a and Style.INVERSE != 0) != reverseVideo) {
