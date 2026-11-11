@@ -58,6 +58,7 @@ enum class SettingsPage(val title: String) {
     MODEM("Modem"),
     BRIDGES("Serial bridges"),
     FAX("Fax"),
+    VOICE("Phone and answering machine"),
     INTERNET("Dial-up internet"),
     APPEARANCE("Appearance"),
     TERMINAL("Terminal"),
@@ -73,6 +74,7 @@ enum class SettingsPage(val title: String) {
             MODEM -> SettingsIcons.Modem
             BRIDGES -> SettingsIcons.Bridges
             FAX -> SettingsIcons.Fax
+            VOICE -> SettingsIcons.Voicemail
             INTERNET -> SettingsIcons.Internet
             APPEARANCE -> SettingsIcons.Appearance
             TERMINAL -> SettingsIcons.Terminal
@@ -257,6 +259,7 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
                     }
                     SettingsPage.BRIDGES -> BridgeSection()
                     SettingsPage.FAX -> FaxSettingsSection()
+                    SettingsPage.VOICE -> VoiceSettingsSection()
                     SettingsPage.INTERNET -> IspSettingsSection()
                     SettingsPage.APPEARANCE -> AppearanceSection()
                     SettingsPage.TERMINAL -> TerminalSettingsSection()
@@ -301,6 +304,7 @@ private fun SettingsMenu(modifier: Modifier, s: ModemSettings) {
             (if (s.speaker) "on" else "off") + "; " + (if (s.adaptiveAnswer) "fax or data as calls turn out" else "calls answered as data"),
         SettingsPage.BRIDGES to "The modem for another computer: TCP, Bluetooth, USB serial",
         SettingsPage.FAX to "This fax's number and name, answering, the rates",
+        SettingsPage.VOICE to "Voice calls; the answering machine, its greeting and messages",
         SettingsPage.INTERNET to "The ISP to dial; dial-in for callers",
         SettingsPage.APPEARANCE to "Theme, dark mode, colours",
         SettingsPage.TERMINAL to "Emulation, fonts, colours, keys",

@@ -23,12 +23,23 @@ final class JobsModel: ObservableObject {
     @Published private(set) var preparing = false
     /// why the last fax couldn't start (its document unreadable)
     @Published var faxError: String?
+    /// the voice call (going, or how the last one ended)
+    @Published private(set) var voice: VoiceJob.State?
+    /// a message being left heard on the loudspeaker; the microphone muted; the loudspeaker (else the earpiece)
+    @Published private(set) var listening = false
+    @Published private(set) var muted = false
+    @Published private(set) var loud = true
+    /// the voice call over: the modem's own sound back (the app's)
+    var voiceEnded: (() -> Void)?
 
     private let session: ModemSession
     private let settings: () -> ModemSettings
     private var faxJob: FaxJob?
     private var transferJob: TransferJob?
     private var dialUp: DialUpJob?
+    private var voiceJob: VoiceJob?
+    private let sound = VoiceSound()
+    private var pump: VoicePump?
     private var tunnel: UdpPacketTunnel?
     private var sawOnline = false
 
@@ -38,7 +49,7 @@ final class JobsModel: ObservableObject {
         self.settings = settings
     }
 
-    var running: Bool { faxJob != nil || transferJob != nil || dialUp != nil || preparing }
+    var running: Bool { faxJob != nil || transferJob != nil || dialUp != nil || voiceJob != nil || preparing }
 
     /// why a job can't start now (a call to make: not while the modem's in one), or nil
     private func busy(call: Bool) -> String? {
@@ -127,6 +138,117 @@ final class JobsModel: ObservableObject {
         if job.state?.running == false {
             faxJob = nil
             session.release(leftover: Octets.data(job.leftover))
+        }
+    }
+
+    // MARK: voice calls
+
+    /// a voice job lent the DTE, [begin] it: nil, or why not
+    private func startVoice(call: Bool, _ begin: (VoiceJob) -> Void) -> String? {
+        if let b = busy(call: call) { return b }
+        let l = link { $0.refreshVoice() }
+        let job = VoiceJob(out: l, log: l, changed: l)
+        guard lend({ job.feed(latin1: $0) }) else { return "the modem is in use" }
+        voiceJob = job
+        listening = false
+        muted = false
+        pump = VoicePump(job: job, sound: sound)
+        begin(job)
+        voice = job.state
+        return nil
+    }
+
+    /// [number] called, to talk: nil when it's started, else why it can't
+    func voiceDial(_ number: String) -> String? {
+        let n = number.trimmingCharacters(in: .whitespaces)
+        if n.isEmpty { return "no number" }
+        return startVoice(call: true) { $0.dial(number: n) }
+    }
+
+    /// the call ringing answered, to talk ([caller]: caller ID's number)
+    func voiceAnswer(caller: String) -> String? {
+        startVoice(call: false) { $0.answer(caller: caller) }
+    }
+
+    /// the call ringing answered by the answering machine: its greeting played, the message kept in Documents/Voicemail
+    func takeMessage(caller: String, maxSeconds: Int) -> String? {
+        let f = DateFormatter()
+        f.dateFormat = "yyyyMMdd-HHmmss"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        let name = VoiceJob.companion.messageName(time: f.string(from: Date()), caller: caller)
+        let greeting = VoiceFiles.decode(VoiceFiles.greeting)
+        let dir = VoiceFiles.messages.path
+        return startVoice(call: false) {
+            $0.takeMessage(greeting: greeting, maxS: Int32(maxSeconds), silenceS: VoiceJob.companion.MESSAGE_SILENCE_S,
+                           into: PosixFolderIncoming(dir: dir), fileName: name, caller: caller)
+        }
+    }
+
+    /// the answering machine's call taken, to talk
+    func pickUp() {
+        guard let j = voiceJob, j.pickUp() else { return }
+        listening = false
+        voiceSound()
+    }
+
+    /// the message being left heard (or not)
+    func listen(_ on: Bool) {
+        guard voiceJob?.state?.machine == true else { return }
+        listening = on
+        voiceSound()
+    }
+
+    /// the voice call hung up
+    func hangUpVoice() { voiceJob?.hangUp() }
+
+    /// DTMF digit [key] played to the far end
+    func dtmf(_ key: Character) { _ = voiceJob?.dtmf(d: key.utf16.first ?? 0) }
+
+    /// our microphone muted (the far end hears silence) or not
+    func mute(_ on: Bool) {
+        muted = on
+        voiceJob?.muted = on
+    }
+
+    /// the call's sound on the loudspeaker (else the earpiece)
+    func loudspeaker(_ on: Bool) {
+        loud = on
+        sound.loudspeaker(on)
+    }
+
+    /// the last voice call's outcome cleared (not while one's going)
+    func dismissVoice() { if voiceJob == nil { voice = nil } }
+
+    /// the sound as the call needs it: speaker and microphone when talking, the speaker alone when listening, none else
+    private func voiceSound() {
+        guard let j = voiceJob, let st = j.state, st.running else { return }
+        let talking = st.phase == VoiceJob.Phase.talking
+        let machine = st.machine && st.phase != VoiceJob.Phase.ending
+        if talking || (machine && listening) {
+            if !sound.running || talking { _ = sound.start(record: talking, loud: talking ? loud : true) }
+            pump?.start()
+        } else if sound.running {
+            pump?.stop()
+            sound.stop()
+        }
+    }
+
+    /// the voice job's state copied in, the sound started or stopped; once it's over, the DTE back
+    private func refreshVoice() {
+        guard let job = voiceJob else { return }
+        let before = voice?.phase
+        voice = job.state
+        if let st = job.state, st.phase != before { voiceSound() }
+        if job.state?.phase == VoiceJob.Phase.ending || job.state?.running == false {
+            pump?.stop()
+            sound.stop()
+        }
+        if job.state?.running == false {
+            voiceJob = nil
+            pump = nil
+            listening = false
+            session.release(leftover: Octets.data(job.leftover))
+            voiceEnded?()
         }
     }
 

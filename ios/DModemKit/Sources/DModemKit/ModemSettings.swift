@@ -45,6 +45,12 @@ public struct ModemSettings: Codable, Equatable, Sendable {
     public var faxFine = true
     public var faxAutoAnswer = false
 
+    /// voice calls: the answering machine takes calls nobody answers (off until turned on), after this many
+    /// rings, a message this long at most (s)
+    public var voicemail = false
+    public var voicemailRings = 4
+    public var voicemailMaxSeconds = 120
+
     /// dial-up internet: the ISP's number, login, its login script (chat, if any), the modem's commands first
     public var ispNumber = ""
     public var ispUser = ""
@@ -128,6 +134,9 @@ public struct ModemSettings: Codable, Equatable, Sendable {
         faxMaxBps = try c.decodeIfPresent(Int.self, forKey: .faxMaxBps) ?? d.faxMaxBps
         faxFine = try c.decodeIfPresent(Bool.self, forKey: .faxFine) ?? d.faxFine
         faxAutoAnswer = try c.decodeIfPresent(Bool.self, forKey: .faxAutoAnswer) ?? d.faxAutoAnswer
+        voicemail = try c.decodeIfPresent(Bool.self, forKey: .voicemail) ?? d.voicemail
+        voicemailRings = try c.decodeIfPresent(Int.self, forKey: .voicemailRings) ?? d.voicemailRings
+        voicemailMaxSeconds = try c.decodeIfPresent(Int.self, forKey: .voicemailMaxSeconds) ?? d.voicemailMaxSeconds
         ispNumber = try c.decodeIfPresent(String.self, forKey: .ispNumber) ?? d.ispNumber
         ispUser = try c.decodeIfPresent(String.self, forKey: .ispUser) ?? d.ispUser
         ispPassword = try c.decodeIfPresent(String.self, forKey: .ispPassword) ?? d.ispPassword

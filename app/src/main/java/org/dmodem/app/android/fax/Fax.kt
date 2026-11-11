@@ -108,6 +108,7 @@ object Fax {
     private fun busy(): String? = when {
         ModemState.run.value != ModemState.Run.RUNNING -> "the modem is off"
         running -> "a fax call is going on"
+        org.dmodem.app.android.voice.Voice.running -> "a voice call is going on"
         ModemState.line == ModemSettings.LINE_CELL -> CELL_NO_FAX
         ModemState.status.value.offhook -> "the modem is in a call"
         Bridges.serial.client.value != null -> "the modem is in use by ${Bridges.serial.client.value?.name}"

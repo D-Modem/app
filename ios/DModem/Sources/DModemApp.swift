@@ -3,7 +3,8 @@
 import SwiftUI
 
 /// D-Modem for iOS: the modem on a SIP account (or another phone), its
-/// terminal and file transfers, faxes, dial-up internet.
+/// terminal and file transfers, voice calls and the answering machine,
+/// faxes, dial-up internet.
 @main
 struct DModemApp: App {
     @StateObject private var model = AppModel()
@@ -15,6 +16,8 @@ struct DModemApp: App {
                     .tabItem { Label("Home", systemImage: "house") }
                 NavigationStack { TerminalTab(model: model, jobs: model.jobs) }
                     .tabItem { Label("Terminal", systemImage: "terminal") }
+                NavigationStack { PhoneView(model: model, jobs: model.jobs) }
+                    .tabItem { Label("Phone", systemImage: "phone") }
                 NavigationStack { FaxView(model: model, jobs: model.jobs) }
                     .tabItem { Label("Fax", systemImage: "printer") }
                 NavigationStack { InternetView(model: model, jobs: model.jobs) }

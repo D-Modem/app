@@ -12,7 +12,7 @@ The Kotlin the two apps share is `shared/` (Kotlin Multiplatform: the
 JVM for Android, iOS's framework `DModemShared`; Linux native for its
 tests): the terminal's emulator, the file transfers (X/Y/ZMODEM, Kermit, Intel HEX and S-records, plain text),
 PPP (its client and server, the chat scripts), fax (T.4, T.30, class 1,
-the PDF) and the line to another phone (PeerLine), on a small common I/O
+the PDF), voice calls and the answering machine (V.253, μ-law, WAV) and the line to another phone (PeerLine), on a small common I/O
 layer (`shared/.../io`). What stays each app's own: the UI, the modem
 service, sockets and Bluetooth, Android's VPN and files. Its tests run on
 the JVM and natively: `./gradlew :shared:allTests`.
@@ -28,6 +28,9 @@ offered and found with Bonjour (`_dmodem._tcp`, as Android's NSD). It has:
   colours, Esc/Ctrl/Tab/arrows) and its file transfers (ZMODEM, YMODEM,
   XMODEM, Kermit, Intel HEX, S-records, plain text; a remote's `sz` or `kermit -s`
   starts one by itself)
+- Phone: voice calls through the modem (dialled, answered, the keypad);
+  the answering machine, off until turned on, its greeting and messages
+  ([voice.md](voice.md))
 - Fax: PDFs, images and text sent; a ringing call answered as a fax, by
   hand or each one; the received faxes as PDFs
 - Internet: dial-up to an ISP (its login script if it has one, PPP), the
@@ -45,7 +48,7 @@ no push service, a call can't wake it). Dial-up's VPN needs the Network
 Extensions capability on the app's team.
 
 What the screens run is the shared Kotlin's jobs (`shared/.../jobs`: a
-fax call, a transfer, dial-up, each lent the modem's DTE while it lasts),
+fax call, a voice call, a transfer, dial-up, each lent the modem's DTE while it lasts),
 tested on the JVM and natively. The modem apart from the views is the
 `ios/DModemKit` Swift package (the engine from Swift, its DTE and who
 it's lent to, the settings and their secrets, the session), whose tests

@@ -5,7 +5,8 @@
   its rates down and up and the call's time) and the one thing to do about
   it (set up SIP, start, hang up, stop); the line (the SIP account,
   incoming calls, the network, fax); quick dial of the systems last
-  dialled; the terminal and the directory; the modem's console (folded,
+  dialled; the phone (a voice call made or answered, the answering
+  machine's messages: [voice.md](voice.md)); the terminal and the directory; the modem's console (folded,
   with an AT command line).
 - **A call ringing in** (SIP, the other phone, a mobile call): the
   phone's incoming call notification (heads-up, over the lock screen,
@@ -13,7 +14,8 @@
   line says (the other phone's name): Answer (ATA: a fax machine's call
   goes to the fax receiver by itself, a modem's to the terminal), or
   Ignore (it rings on, out of sight); Answer as fax too when adaptive
-  answer is off. Gone when the modem
+  answer is off; Answer as a voice call, or Take a message (the
+  answering machine). Gone when the modem
   answers (here, a computer on a bridge, S0) or the caller gives up.
 - **Settings**: the SIP account (or paste `user:password@host`, as
   dmodemd's `SIP_LOGIN`), taking incoming calls, T.38, the AT commands

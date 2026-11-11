@@ -169,6 +169,9 @@ fun DashboardScreen(
         SectionTitle("Internet")
         InternetCard(onSetUp = { SettingsNav.open(SettingsPage.INTERNET); onOpenSettings() })
 
+        SectionTitle("Phone")
+        PhoneSection(onOpenSettings = { SettingsNav.open(SettingsPage.VOICE); onOpenSettings() })
+
         SectionTitle("Fax")
         FaxSection()
 

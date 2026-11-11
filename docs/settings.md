@@ -67,6 +67,9 @@ Every setting the apps keep, from their code. [The app, screen by screen](featur
 | `faxMaxBps` |  | number | `14400` | As above. |
 | `faxFine` |  | on/off | `true` | As above. |
 | `faxAutoAnswer` |  | on/off | `false` | As above. |
+| `voicemail` |  | on/off | `false` | Voice calls: the answering machine takes calls nobody answers (off until turned on), after this many rings, a message this long at most (s). |
+| `voicemailRings` |  | number | `4` | As above. |
+| `voicemailMaxSeconds` |  | number | `120` | As above. |
 | `ispNumber` |  | text | (empty) | Dial-up internet: the ISP's number, login, its login script (chat, if any), the modem's commands first. |
 | `ispUser` |  | text | (empty) | As above. |
 | `ispPassword` | `isp-password` | text | (empty) | As above. |

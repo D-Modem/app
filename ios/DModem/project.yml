@@ -37,6 +37,8 @@ targets:
         UIBackgroundModes: [audio]
         NSLocalNetworkUsageDescription: "D-Modem calls another phone with the app on this network, and SIP servers on it."
         NSBonjourServices: [_dmodem._tcp]
+        # voice calls through the modem, a greeting recorded for the answering machine
+        NSMicrophoneUsageDescription: "D-Modem uses the microphone for voice calls through the modem, and to record the answering machine's greeting."
         # received files and faxes in the Files app (On My iPhone › D-Modem)
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true

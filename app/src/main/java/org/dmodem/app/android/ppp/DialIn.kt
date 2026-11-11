@@ -107,6 +107,7 @@ object DialIn {
 
     /** whether a call may be taken now: nothing else has the modem */
     private fun free(): Boolean = call == null && !ModemState.dte.claimed && !Internet.running && !Fax.running &&
+        !org.dmodem.app.android.voice.Voice.running &&
         Bridges.serial.client.value == null
 
     /** the modem's line being read (its results come in pieces) */

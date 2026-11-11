@@ -25,8 +25,9 @@ import org.dmodem.app.android.modem.IncomingCalls
  * ID's name and number, or the line's name for the caller), and what to
  * do: answer it (the terminal, ATA: with adaptive answer a fax machine's
  * call goes to the fax receiver by itself), answer
- * it as a fax (without adaptive answer), or let it ring (out of sight
- * until it's over).
+ * it as a fax (without adaptive answer), as a voice call (to talk, on the
+ * phone's speaker and microphone), by the answering machine, or let it
+ * ring (out of sight until it's over).
  */
 @Composable
 fun IncomingCallDialog(
@@ -35,6 +36,9 @@ fun IncomingCallDialog(
     caller: String,
     onAnswer: () -> Unit,
     onFax: () -> Unit,
+    /** answered as a voice call (to talk), or by the answering machine */
+    onVoice: () -> Unit,
+    onMessage: () -> Unit,
     onIgnore: () -> Unit,
     /** answer as fax offered (adaptive answer off: a plain answer is a data call's) */
     offerFax: Boolean = true,
@@ -60,6 +64,8 @@ fun IncomingCallDialog(
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Button(onClick = onAnswer, Modifier.fillMaxWidth()) { Text("Answer") }
                 if (offerFax) OutlinedButton(onClick = onFax, Modifier.fillMaxWidth()) { Text("Answer as fax") }
+                OutlinedButton(onClick = onVoice, Modifier.fillMaxWidth()) { Text("Answer as a voice call") }
+                OutlinedButton(onClick = onMessage, Modifier.fillMaxWidth()) { Text("Take a message") }
                 TextButton(
                     onClick = onIgnore,
                     Modifier.fillMaxWidth(),

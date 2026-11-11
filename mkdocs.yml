@@ -15,6 +15,7 @@ nav:
   - The app, screen by screen: features.md
   - The modem's line: lines.md
   - Fax: fax.md
+  - Voice calls and the answering machine: voice.md
   - Serial adapters and phone lines: adapters.md
   - Settings reference: settings.md
   - Building for Android: building.md

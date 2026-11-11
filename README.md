@@ -13,6 +13,7 @@ toward another digital modem, V.91 at up to 62667 bit/s both ways.
 
 - A terminal, a dialling directory and the modem's AT console
 - Class 1 fax up to 14400 bit/s: PDFs and images sent, faxes received as PDFs, T.38 too
+- Voice calls through the modem on the phone's speaker and microphone, and an answering machine that keeps messages on the phone (off until turned on)
 - A vintage computer's external modem, on a USB serial adapter, [pico-serial](https://github.com/D-Modem/hardware), Bluetooth serial or TCP
 - Real phone lines through USB modems (the pico-serial Line stick among them), a Hayes modem on a serial adapter, or a Bluetooth modem
 - Two phones as each other's line over Wi-Fi or Bluetooth, no SIP account needed
@@ -32,7 +33,7 @@ in [docs/building.md](docs/building.md).
 
 The documentation is also a website, [d-modem.github.io/app](https://d-modem.github.io/app/), with reference pages made from the code.
 
-[docs/](docs/README.md) covers the modem's lines, fax, adapters and
+[docs/](docs/README.md) covers the modem's lines, fax, voice calls, adapters and
 phone lines, every screen of the app, building for Android and iOS, and
 the source layout.
 
