@@ -88,21 +88,37 @@ class TerminalBridge(cols: Int, rows: Int) {
                 c.code
             }
             i++
-            if (cp == '\n'.code || cp == '\r'.code) {
-                out.append(keys.key(Key.ENTER, emulator, alt = alt))
-                continue
+            val b = if (cp == '\n'.code || cp == '\r'.code) {
+                emulator.keyOctets(keys, Key.ENTER, alt = alt)
+            } else {
+                emulator.charOctets(keys, cp, alt, ctrl)
             }
-            out.append(keys.char(cp, alt, ctrl))
+            out.append(latin1(b))
         }
-        return octets(out.toString())
+        return out.toString()
     }
 
     /** a key that isn't a character ([Key]'s names: UP, ESCAPE, F1 …) as octets in Latin-1; "" for no such key */
     fun key(name: String, shift: Boolean = false, alt: Boolean = false, ctrl: Boolean = false): String {
         val k = Key.entries.firstOrNull { it.name == name } ?: return ""
-        if (k == Key.BACKSPACE) return keys.backspace.code.toChar().toString()
-        return octets(keys.key(k, emulator, shift, alt, ctrl))
+        return latin1(emulator.keyOctets(keys, k, shift, alt, ctrl))
     }
+
+    /** the rows the view should have at most (a Commodore's 25), 0 for as many as fit */
+    val requestedRows: Int get() = emulator.requestedRows
+
+    /** whether the cells are drawn from 8x8 bitmaps (the profile's machine's glyphs), not the font */
+    val bitmapGlyphs: Boolean get() = emulator.glyphs != null
+
+    /** row [row] (0 top) of [cp]'s 8x8 glyph, its leftmost pixel bit 7; -1 if the profile has no glyph for it (drawn with the font) */
+    fun glyphRow(cp: Int, row: Int): Int {
+        val g = emulator.glyphs ?: return -1
+        if (!g.has(cp)) return -1
+        return BitmapFont.row(g.glyph(cp), row)
+    }
+
+    /** the swatch (ARGB) the key at ([row], [col]) of page [page] shows, 0 for none */
+    fun keyBarColor(page: Int, row: Int, col: Int): Int = (keyAt(page, row, col) as? BarKey.Octets)?.color ?: 0
 
     /** row [row]'s size: 0 single, 1 double width, 2 double height's top half, 3 its bottom half */
     fun lineSize(row: Int): Int = emulator.line(row).size.ordinal
@@ -125,7 +141,7 @@ class TerminalBridge(cols: Int, rows: Int) {
     /** what the key at ([row], [col]) of page [page] is: "ctrl", "alt", "next" (page), or "" for one that sends */
     fun keyBarAction(page: Int, row: Int, col: Int): String = when (keyAt(page, row, col)) {
         BarKey.Ctrl -> "ctrl"
-        BarKey.Alt -> "alt"
+        is BarKey.Alt -> "alt"
         BarKey.NextPage -> "next"
         else -> ""
     }
@@ -135,6 +151,7 @@ class TerminalBridge(cols: Int, rows: Int) {
         when (val k = keyAt(page, row, col)) {
             is BarKey.Send -> key(k.key.name, alt = alt, ctrl = ctrl)
             is BarKey.Type -> typed(k.text, ctrl, alt)
+            is BarKey.Octets -> k.octets
             else -> ""
         }
 
@@ -144,9 +161,6 @@ class TerminalBridge(cols: Int, rows: Int) {
     /** the screen's text from (row, col) to (row2, col2), for copying */
     fun text(row: Int, col: Int, row2: Int, col2: Int): String = emulator.text(row, col, row2, col2)
 
-    /** [s] in the character set, as Latin-1 text (one character an octet) */
-    private fun octets(s: String): String {
-        val b = emulator.decoder.charset.encode(s)
-        return CharArray(b.size) { (b[it].toInt() and 0xff).toChar() }.concatToString()
-    }
+    /** octets as Latin-1 text (one character each) */
+    private fun latin1(b: ByteArray): String = CharArray(b.size) { (b[it].toInt() and 0xff).toChar() }.concatToString()
 }

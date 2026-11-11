@@ -24,6 +24,9 @@ abstract class TerminalProfile {
     /** ESC[2J homes the cursor, as ANSI.SYS did (BBS screens expect it) */
     open val homeOnClear: Boolean get() = false
 
+    /** the bitmap glyphs its cells are drawn with (its machine's character ROM, as Unscii draws it); null: the view's font */
+    open val glyphs: BitmapFont? get() = null
+
     /** the keys the apps' bar offers, page by page */
     open val keyBar: List<KeyBarPage> get() = KeyBars.STANDARD
 
@@ -150,12 +153,19 @@ object TerminalProfiles {
     val VT220: TerminalProfile = Vt220Profile()
     val XTERM: TerminalProfile = XtermProfile()
     val ANSI_BBS: TerminalProfile = AnsiBbsProfile()
+    val C64: TerminalProfile = C64Profile()
+    val C128: TerminalProfile = C128Profile()
+    val C128_80: TerminalProfile = C128VdcProfile()
+    val PLUS4: TerminalProfile = Plus4Profile()
+    val VIC20: TerminalProfile = Vic20Profile()
+    val PET: TerminalProfile = PetProfile()
+    val PET80: TerminalProfile = Pet80Profile()
 
     /** the default: what the app was before profiles */
     val DEFAULT: TerminalProfile get() = XTERM
 
     /** in the pickers' order */
-    val all: List<TerminalProfile> = listOf(XTERM, ANSI_BBS, VT52, VT100, VT102, VT220)
+    val all: List<TerminalProfile> = listOf(XTERM, ANSI_BBS, VT52, VT100, VT102, VT220, C64, C128, C128_80, PLUS4, VIC20, PET, PET80)
 
     /** the profile [id] names, or null for none or one not known */
     fun byId(id: String?): TerminalProfile? = all.firstOrNull { it.id == id }

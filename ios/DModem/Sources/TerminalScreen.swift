@@ -23,6 +23,9 @@ struct TerminalScreen: View {
                     .onChange(of: fontSize) { _ in fit(geo.size, metrics(geo.size)) }
                     // (the remote's DECCOLM: 80 or 132 columns fitted to the width)
                     .onChange(of: model.bridge.requestedColumns) { _ in fit(geo.size, metrics(geo.size)) }
+                    // (a machine's own screen: its rows at most, square cells for its glyphs)
+                    .onChange(of: model.bridge.requestedRows) { _ in fit(geo.size, metrics(geo.size)) }
+                    .onChange(of: model.bridge.bitmapGlyphs) { _ in fit(geo.size, metrics(geo.size)) }
                     .overlay(KeyInput(model: model, focused: $focused).frame(width: 1, height: 1).opacity(0.01), alignment: .topLeading)
                     .contentShape(Rectangle())
                     .onTapGesture { focused = true }
@@ -36,15 +39,20 @@ struct TerminalScreen: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    /// the cells: as many as the remote asked for (DECCOLM) across [size], else at the font size
+    /// the cells: as many as the remote or the machine asked for (DECCOLM, a Commodore's 40) across [size], else at the font size; square for bitmap glyphs
     private func metrics(_ size: CGSize) -> CellMetrics {
         let asked = Int(model.bridge.requestedColumns)
-        return asked > 0 && size.width > 0 ? CellMetrics(columns: asked, across: size.width) : CellMetrics(fontSize: fontSize)
+        let m = asked > 0 && size.width > 0 ? CellMetrics(columns: asked, across: size.width) : CellMetrics(fontSize: fontSize)
+        return model.bridge.bitmapGlyphs ? m.squared() : m
     }
 
-    /// as many cells as fit
+    /// as many cells as fit (no more rows than the machine's screen had)
     private func fit(_ size: CGSize, _ cell: CellMetrics) {
-        model.resize(cols: max(20, Int(size.width / cell.width)), rows: max(5, Int(size.height / cell.height)))
+        let asked = Int(model.bridge.requestedColumns)
+        let fitRows = max(5, Int(size.height / cell.height))
+        let maxRows = Int(model.bridge.requestedRows)
+        model.resize(cols: asked > 0 ? asked : max(20, Int(size.width / cell.width)),
+                     rows: maxRows > 0 ? min(fitRows, maxRows) : fitRows)
     }
 }
 
@@ -60,6 +68,16 @@ struct CellMetrics {
         width = ceil(("M" as NSString).size(withAttributes: [.font: font]).width)
         height = ceil(font.lineHeight)
     }
+
+    /// a cell as given
+    private init(font: UIFont, width: CGFloat, height: CGFloat) {
+        self.font = font
+        self.width = width
+        self.height = height
+    }
+
+    /// these cells made square (as tall as wide), for 8x8 glyphs
+    func squared() -> CellMetrics { CellMetrics(font: font, width: width, height: width) }
 
     /// the font size whose cells put [columns] across [width]
     init(columns: Int, across width: CGFloat) {
@@ -97,6 +115,10 @@ private struct ScreenCanvas: View {
                     let w = CGFloat(run.cells) * cell.width
                     ctx.fill(Path(CGRect(x: x, y: y, width: w, height: cell.height)), with: .color(Color(argb: run.bg)))
                     if run.text.trimmingCharacters(in: .whitespaces).isEmpty { continue }
+                    if model.bridge.bitmapGlyphs {
+                        drawGlyphs(ctx, run, y: y)
+                        continue
+                    }
                     var t = Text(run.text).font(run.bold ? bold : regular).foregroundColor(Color(argb: run.fg))
                     if run.italic { t = t.italic() }
                     if run.underline { t = t.underline() }
@@ -111,6 +133,32 @@ private struct ScreenCanvas: View {
                                width: cell.width, height: cell.height)
                 ctx.fill(Path(r), with: .color(Color(argb: model.bridge.cursorColor).opacity(0.6)))
             }
+        }
+    }
+}
+
+extension ScreenCanvas {
+    /// a run's characters one cell each from the profile's 8x8 glyphs (a pixel row's runs as one rectangle), the font's for one it hasn't
+    func drawGlyphs(_ ctx: GraphicsContext, _ run: StyledRun, y: CGFloat) {
+        let color = GraphicsContext.Shading.color(Color(argb: run.fg))
+        for (i, ch) in run.text.unicodeScalars.enumerated() {
+            let x = CGFloat(Int(run.col) + i) * cell.width
+            guard let rows = model.glyph(ch.value) else {
+                if ch != " " { ctx.draw(Text(String(ch)).font(Font(cell.font as CTFont)).foregroundColor(Color(argb: run.fg)), at: CGPoint(x: x, y: y), anchor: .topLeading) }
+                continue
+            }
+            var path = Path()
+            for (r, bits) in rows.enumerated() where bits != 0 {
+                var c = 0
+                while c < 8 {
+                    if bits & (0x80 >> c) == 0 { c += 1; continue }
+                    let start = c
+                    while c < 8 && bits & (0x80 >> c) != 0 { c += 1 }
+                    path.addRect(CGRect(x: x + CGFloat(start) * cell.width / 8, y: y + CGFloat(r) * cell.height / 8,
+                                        width: CGFloat(c - start) * cell.width / 8, height: cell.height / 8))
+                }
+            }
+            ctx.fill(path, with: color)
         }
     }
 }
@@ -143,6 +191,8 @@ private struct ExtraKeys: View {
     private func key(_ label: String, page p: Int, row: Int, col: Int, pages: Int) -> some View {
         let action = model.bridge.keyBarAction(page: Int32(p), row: Int32(row), col: Int32(col))
         let latched = (action == "ctrl" && model.ctrl) || (action == "alt" && model.alt) || (action == "next" && p != 0)
+        // (a colour key shows its colour)
+        let swatch = model.bridge.keyBarColor(page: Int32(p), row: Int32(row), col: Int32(col))
         return Button {
             switch action {
             case "ctrl": model.ctrl.toggle()
@@ -155,7 +205,7 @@ private struct ExtraKeys: View {
                 .minimumScaleFactor(0.6).frame(maxWidth: .infinity, minHeight: 30)
         }
         .buttonStyle(.bordered)
-        .tint(latched ? .accentColor : .secondary)
+        .tint(swatch != 0 ? Color(argb: swatch) : latched ? .accentColor : .secondary)
     }
 }
 

@@ -204,6 +204,11 @@ class TerminalView @JvmOverloads constructor(
         val down = max(fm.descent, ink.bottom.toFloat())
         cellH = floor(up + down + 0.5f).coerceAtLeast(1f)
         ascent = up
+        // (a machine's 8x8 glyphs in square cells, as its screen had them; the font's text centred in them)
+        if (fittedGlyphs) {
+            cellH = floor(cellW + 0.5f).coerceAtLeast(1f)
+            ascent = (cellH - (up + down)) / 2 + up
+        }
     }
 
     /** the cells measured again and the emulator fitted to the new size */
@@ -218,7 +223,10 @@ class TerminalView @JvmOverloads constructor(
         val s = session ?: return
         if (width <= 0 || height <= 0) return
         val cols = max(1, (width / cellW).toInt())
-        val rows = max(1, (height / cellH).toInt())
+        val fit = max(1, (height / cellH).toInt())
+        // (no more than the machine's screen had: a Commodore's 25)
+        val asked = synchronized(s.emulator) { s.emulator.requestedRows }
+        val rows = if (asked > 0) min(fit, asked) else fit
         s.resize(cols, rows)
         scrollRows = scrollRows.coerceIn(0, historySize())
     }
@@ -243,12 +251,19 @@ class TerminalView @JvmOverloads constructor(
     /** the columns the remote asked for (DECCOLM) that the font is fitted to, 0 for none */
     private var fittedColumns = 0
 
-    /** the font fitted again if the remote asked for other columns (DECCOLM) */
+    /** whether the cells are fitted to bitmap glyphs (square) */
+    private var fittedGlyphs = false
+    /** the rows the screen was fitted to at most, 0 for none */
+    private var fittedRows = 0
+
+    /** the font fitted again if the remote asked for other columns (DECCOLM), or the profile for its own size and glyphs */
     private fun fitRequestedColumns() {
         val e = session?.emulator ?: return
-        val asked = synchronized(e) { e.requestedColumns }
-        if (asked == fittedColumns) return
+        val (asked, glyphs, rows) = synchronized(e) { Triple(e.requestedColumns, e.glyphs != null, e.requestedRows) }
+        if (asked == fittedColumns && glyphs == fittedGlyphs && rows == fittedRows) return
         fittedColumns = asked
+        fittedGlyphs = glyphs
+        fittedRows = rows
         measureFont()
         syncEmulator()
         resizeEmulator()
@@ -422,6 +437,12 @@ class TerminalView @JvmOverloads constructor(
                 flush(x + 1)
                 continue
             }
+            val g = drawing?.glyphs
+            if (g != null && g.has(cp)) {
+                flush(x + 1)
+                drawGlyph(c, g.glyph(cp), px(x), y, px(x + 1) - px(x))
+                continue
+            }
             if (settings.drawBoxes && BoxDrawing.handles(cp)) {
                 flush(x + 1)
                 BoxDrawing.draw(c, cp, px(x), y, px(x + 1) - px(x), cellH, fillPaint)
@@ -459,6 +480,23 @@ class TerminalView @JvmOverloads constructor(
         }
         if (a and Style.STRIKE != 0) {
             c.drawRect(px(from), floor(y + cellH / 2), px(to), floor(y + cellH / 2) + thin, fillPaint)
+        }
+    }
+
+    /** an 8x8 glyph filling the cell at ([left], [y]), [w] wide, in fillPaint's colour: each row's runs of pixels as one rectangle */
+    private fun drawGlyph(c: Canvas, g: Long, left: Float, y: Float, w: Float) {
+        for (r in 0 until 8) {
+            val bits = org.dmodem.app.terminal.BitmapFont.row(g, r)
+            if (bits == 0) continue
+            val top = y + floor(r * cellH / 8)
+            val bottom = y + floor((r + 1) * cellH / 8)
+            var col = 0
+            while (col < 8) {
+                if (bits and (0x80 ushr col) == 0) { col++; continue }
+                val start = col
+                while (col < 8 && bits and (0x80 ushr col) != 0) col++
+                c.drawRect(left + floor(start * w / 8), top, left + floor(col * w / 8), bottom, fillPaint)
+            }
         }
     }
 
@@ -566,7 +604,11 @@ class TerminalView @JvmOverloads constructor(
                         textPaint.color = theme.bgArgb
                         textPaint.isFakeBoldText = false
                         textPaint.textSkewX = 0f
-                        if (settings.drawBoxes && BoxDrawing.handles(cp)) {
+                        val g = e.glyphs
+                        if (g != null && g.has(cp)) {
+                            fillPaint.color = theme.bgArgb
+                            drawGlyph(c, g.glyph(cp), x, y, cw)
+                        } else if (settings.drawBoxes && BoxDrawing.handles(cp)) {
                             fillPaint.color = theme.bgArgb
                             BoxDrawing.draw(c, cp, x, y, cw, cellH, fillPaint)
                         } else {

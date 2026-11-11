@@ -22,10 +22,11 @@ sealed class BarKey {
         override val label get() = "CTRL"
     }
 
-    /** Alt, down for the next key */
-    data object Alt : BarKey() {
-        override val label get() = "ALT"
-    }
+    /** Alt, down for the next key (a Commodore's C= key) */
+    data class Alt(override val label: String = "ALT") : BarKey()
+
+    /** octets sent as they are (Latin-1, one character each): a machine's own codes ([color]: the swatch it shows, ARGB) */
+    data class Octets(val octets: String, override val label: String, val color: Int? = null) : BarKey()
 
     /** to the next page (from the last, the first): shown as that page's name */
     data object NextPage : BarKey() {
@@ -48,7 +49,7 @@ object KeyBars {
                 BarKey.Type("|"),
             ),
             listOf(
-                BarKey.Send(Key.TAB, "TAB"), BarKey.Ctrl, BarKey.Alt, BarKey.Send(Key.LEFT, "←", repeat = true),
+                BarKey.Send(Key.TAB, "TAB"), BarKey.Ctrl, BarKey.Alt(), BarKey.Send(Key.LEFT, "←", repeat = true),
                 BarKey.Send(Key.DOWN, "↓", repeat = true), BarKey.Send(Key.RIGHT, "→", repeat = true),
                 BarKey.Send(Key.PAGE_DOWN, "PGDN"), BarKey.NextPage,
             ),
@@ -80,6 +81,50 @@ object KeyBars {
                 BarKey.NextPage,
             ),
         ),
+    )
+
+    /** a Commodore's: RUN/STOP, CLR/HOME, INST/DEL, RVS ON/OFF, C=, the cursor keys, its symbols */
+    val COMMODORE_MAIN = KeyBarPage(
+        "C=",
+        listOf(
+            listOf(
+                BarKey.Octets("\u0003", "STOP"), BarKey.Octets("\u0093", "CLR"), BarKey.Send(Key.HOME, "HOME"),
+                BarKey.Send(Key.UP, "↑", repeat = true), BarKey.Send(Key.INSERT, "INST"), BarKey.Octets("\u0012", "RVS"),
+                BarKey.Octets("\u0092", "OFF"), BarKey.Type("£"),
+            ),
+            listOf(
+                BarKey.Ctrl, BarKey.Alt("C="), BarKey.Send(Key.LEFT, "←", repeat = true), BarKey.Send(Key.DOWN, "↓", repeat = true),
+                BarKey.Send(Key.RIGHT, "→", repeat = true), BarKey.Type("↑", "^"), BarKey.Type("←", "_"), BarKey.NextPage,
+            ),
+        ),
+    )
+
+    /** F1-F8 (F2, F4, F6, F8 the shifted ones) and DEL */
+    val COMMODORE_FUNCTION = KeyBarPage(
+        "F1",
+        listOf(
+            listOf(fn(0), fn(2), fn(4), fn(6), BarKey.Send(Key.BACKSPACE, "DEL", repeat = true)),
+            listOf(fn(1), fn(3), fn(5), fn(7), BarKey.NextPage),
+        ),
+    )
+
+    /** the colours, CTRL 1-8 and C= 1-8, each key showing its colour on [palette] (16 ARGB, the machine's order) */
+    fun commodoreColors(palette: IntArray, ctrlCodes: List<Int>, cbmCodes: List<Int>): KeyBarPage {
+        /** the key for colour code [code], colour [i] */
+        fun key(code: Int, i: Int) = BarKey.Octets(code.toChar().toString(), COMMODORE_COLOR_NAMES[i], palette[i])
+        return KeyBarPage(
+            "COL",
+            listOf(
+                ctrlCodes.mapIndexed { i, c -> key(c, i) },
+                cbmCodes.mapIndexed { i, c -> key(c, 8 + i) } + BarKey.NextPage,
+            ),
+        )
+    }
+
+    /** the 16 colours' short names, in the machines' order */
+    private val COMMODORE_COLOR_NAMES = listOf(
+        "BLK", "WHT", "RED", "CYN", "PUR", "GRN", "BLU", "YEL",
+        "ORN", "BRN", "LRD", "DGY", "GRY", "LGN", "LBL", "LGY",
     )
 
     /** the bar most terminals have: the main keys and the function keys */
