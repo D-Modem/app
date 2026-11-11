@@ -182,24 +182,32 @@ class PictureLayer(
     private val logicalHeight: Int,
     private val setUp: (Raster) -> Unit = {},
 ) {
-    var raster: Raster = make()
-        private set
+    private var current: Raster = make()
+
+    /** the raster to draw in: a new one first if the screen's size changed (what's drawn can't be redrawn: the picture starts again) */
+    val raster: Raster
+        get() {
+            if (pixelWidth() != current.width || pixelHeight() != current.height) reset()
+            return current
+        }
+
+    /** the screen's width in pixels */
+    private fun pixelWidth() = maxOf(1, t.cols * t.cellPixelWidth)
+
+    /** the screen's height in pixels */
+    private fun pixelHeight() = maxOf(1, t.rows * t.cellPixelHeight)
 
     /** a raster the screen's size, blank */
-    private fun make() = Raster(
-        maxOf(1, t.cols * t.cellPixelWidth), maxOf(1, t.rows * t.cellPixelHeight), logicalWidth, logicalHeight,
-    ).also(setUp)
+    private fun make() = Raster(pixelWidth(), pixelHeight(), logicalWidth, logicalHeight).also(setUp)
 
     /** the picture started again, blank (what it showed taken off the screen at the next [flush]) */
     fun reset() {
-        raster = make().also { it.clear() }
+        current = make().also { it.clear() }
     }
 
-    /** what was drawn put on the screen (if the screen's size changed, the picture started again at the new one: what's drawn can't be redrawn) */
+    /** what was drawn put on the screen */
     fun flush() {
-        if (maxOf(1, t.cols * t.cellPixelWidth) != raster.width || maxOf(1, t.rows * t.cellPixelHeight) != raster.height) {
-            reset()
-        }
-        if (raster.dirty) t.showPicture(raster.take(t.cellPixelWidth, t.cellPixelHeight))
+        val r = raster
+        if (r.dirty) t.showPicture(r.take(t.cellPixelWidth, t.cellPixelHeight))
     }
 }
