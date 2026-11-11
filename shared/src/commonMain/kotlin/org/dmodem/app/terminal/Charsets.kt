@@ -105,30 +105,86 @@ class TermDecoder(var charset: TermCharset) {
 }
 
 /**
- * A 94-character set a G0-G3 slot can hold: what its 0x21..0x7e stand for.
- * [final] is the character that designates it (ESC ( B for ASCII); a set
- * with none is chosen another way (a VT52's ESC F).
+ * A character set a G0-G3 slot can hold: what its 0x21..0x7e stand for
+ * (a 96-character set's 0x20..0x7f). [designators] are what follow the
+ * slot's intermediate to designate it (ESC ( B for ASCII, ESC ( % 5 for
+ * DEC Supplemental; a 96-character set's after ESC - . or /); a set with
+ * none is chosen another way (a VT52's ESC F). [level] is the VT level
+ * that has it (the national sets the VT220's NRCS, Portuguese the VT320's).
  */
-enum class GSet(val final: Char?) {
-    ASCII('B'),
+enum class GSet(val designators: List<String>, val is96: Boolean = false, val level: Int = 1, private val table: String? = null) {
+    ASCII(listOf("B")),
     /** DEC Special Graphics: line drawing in 0x5f..0x7e */
-    DEC_GRAPHICS('0'),
+    DEC_GRAPHICS(listOf("0")),
     /** the United Kingdom set: ASCII with £ for # */
-    UK('A'),
+    UK(listOf("A"), table = "#£"),
     /** the VT52's graphics: fractions, scan lines, subscripts in 0x5e..0x7e (its ESC F) */
-    VT52_GRAPHICS(null);
+    VT52_GRAPHICS(emptyList()),
+    /** DEC Supplemental Graphics (the VT220's GR): Latin-1's letters with Œ, Ÿ, œ, ÿ and ¤ where DEC put them */
+    DEC_SUPPLEMENTAL(listOf("%5", "<"), level = 2),
+    /** DEC Technical (VT320): mathematics, Greek, arrows, and the pieces of big brackets, integrals and sums */
+    DEC_TECHNICAL(listOf(">"), level = 3),
+    /** ISO Latin-1's upper half (a 96-character set) */
+    LATIN1(listOf("A"), is96 = true, level = 3),
+    DUTCH(listOf("4"), level = 2, table = "#£@¾[ĳ\\½]|{¨|ƒ}¼~´"),
+    FINNISH(listOf("C", "5"), level = 2, table = "[Ä\\Ö]Å^Ü`é{ä|ö}å~ü"),
+    FRENCH(listOf("R", "f"), level = 2, table = "#£@à[°\\ç]§{é|ù}è~¨"),
+    FRENCH_CANADIAN(listOf("Q", "9"), level = 2, table = "@à[â\\ç]ê^î`ô{é|ù}è~û"),
+    GERMAN(listOf("K"), level = 2, table = "@§[Ä\\Ö]Ü{ä|ö}ü~ß"),
+    ITALIAN(listOf("Y"), level = 2, table = "#£@§[°\\ç]é`ù{à|ò}è~ì"),
+    NORWEGIAN_DANISH(listOf("E", "6", "`"), level = 2, table = "@Ä[Æ\\Ø]Å^Ü`ä{æ|ø}å~ü"),
+    SPANISH(listOf("Z"), level = 2, table = "#£@§[¡\\Ñ]¿{°|ñ}ç"),
+    SWEDISH(listOf("H", "7"), level = 2, table = "@É[Ä\\Ö]Å^Ü`é{ä|ö}å~ü"),
+    SWISS(listOf("="), level = 2, table = "#ù@à[é\\ç]ê^î_è`ô{ä|ö}ü~û"),
+    PORTUGUESE(listOf("%6"), level = 3, table = "[Ã\\Ç]Õ{ã|ç}õ"),
+    /** the soft set the host loaded (DECDLD): designated by the designator it gave, mapped by [CharsetShifting] */
+    SOFT(emptyList(), level = 2);
 
-    /** [cp] as this set has it */
+    /** the national set's replacements: each ASCII character and what it is here */
+    private val replaced: Map<Int, Int> by lazy {
+        val t = table ?: return@lazy emptyMap()
+        (t.indices step 2).associate { t[it].code to t[it + 1].code }
+    }
+
+    /** the designator a slot is given this set by (its first) */
+    val designator: String? get() = designators.firstOrNull()
+
+    /** [cp] (0x20..0x7f, as GL has it) as this set has it */
     fun map(cp: Int): Int = when (this) {
         ASCII -> cp
         DEC_GRAPHICS -> TerminalEmulator.decGraphics(cp)
-        UK -> if (cp == '#'.code) '£'.code else cp
         VT52_GRAPHICS -> if (cp in 0x5e..0x7e) VT52[cp - 0x5e] else cp
+        DEC_SUPPLEMENTAL -> if (cp in 0x21..0x7e) SUPPLEMENTAL_ODD[cp] ?: (cp + 0x80) else cp
+        DEC_TECHNICAL -> if (cp in 0x21..0x7e) TECHNICAL[cp - 0x21].code else cp
+        LATIN1 -> if (cp in 0x20..0x7f) cp + 0x80 else cp
+        else -> replaced[cp] ?: cp
     }
 
     companion object {
-        /** the set [final] designates (ESC ( [final]), or null for one not known */
-        fun byFinal(final: Int): GSet? = entries.firstOrNull { it.final?.code == final }
+        /** the set of the size [is96] that [designator] (ESC ( [designator]) names, or null for one not known */
+        fun byDesignator(designator: String, is96: Boolean = false): GSet? =
+            entries.firstOrNull { it.is96 == is96 && designator in it.designators }
+
+        /** the set [final] designates as a 94-character set (ESC ( [final]), or null for one not known */
+        fun byFinal(final: Int): GSet? = byDesignator(final.toChar().toString())
+
+        /** where DEC Supplemental isn't Latin-1: ¤ at 0x28, Œ Ÿ œ ÿ, the codes it left empty (shown blank) */
+        private val SUPPLEMENTAL_ODD: Map<Int, Int> = mapOf(
+            0x28 to 0xa4, 0x57 to 0x152, 0x5d to 0x178, 0x77 to 0x153, 0x7d to 0xff,
+        ) + listOf(0x24, 0x26, 0x2c, 0x2d, 0x2e, 0x2f, 0x34, 0x38, 0x3e, 0x50, 0x5e, 0x70, 0x7e).associateWith { 0x20 }
+
+        /**
+         * DEC Technical, 0x21..0x7e (as xterm draws it: the brackets', the
+         * integral's and the sum's pieces as Unicode's nearest; the codes DEC
+         * left empty blank).
+         */
+        private const val TECHNICAL =
+            "⎷┌─⌠⌡│⎡⎣⎤⎦⎛⎝⎞⎠⎨⎬" +
+            "⎲⎳╲╱⌝⌟⟩    ≤≠≥∫∴" +
+            "∝∞÷Δ∇ΦΓ∼≃Θ×Λ⇔⇒≡Π" +
+            "Ψ Σ  √ΩΞΥ⊂⊃∩∪∧∨¬" +
+            "αβχδεφγηιθκλ ν∂π" +
+            "ψρστ ƒωξυζ←↑→↓"
 
         /**
          * The VT52's graphics, 0x5e..0x7e (DECscope User's Manual EK-VT5X-OP-001,

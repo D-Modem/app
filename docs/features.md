@@ -31,7 +31,8 @@
   characters drawn to fill their cells so ANSI art has no gaps. A
   terminal type (Settings, and each directory entry's own) picks what it
   is: xterm, ANSI-BBS (a PC's, in CP437, as SyncTERM is), DEC VT52, VT100,
-  VT102 or VT220, a Commodore or an Atari. Each
+  VT102, VT220, VT320, VT420, VT510, VT520 or VT525, a Commodore, an
+  Atari, Viewdata (Prestel) or a Minitel. Each
   answers the device attribute requests as that terminal did, knows only
   its own sequences (a VT100 has no colours, a VT220 no xterm titles or
   mouse), and gives SSH its `TERM` and Telnet its TERMINAL-TYPE. The DEC
@@ -39,9 +40,28 @@
   column switching (the screen refits to the width), the VT52's own
   sequences and graphics (and a VT100's VT52 mode), the UK character set,
   the keyboard LEDs and parameter reports, and a printer port (from the
-  VT102 on) whose output is saved to a text file. The key bar gains the
-  DEC keypad (PF1-PF4, digits, minus, comma, period, Enter, in numeric or
-  application mode), and a hardware numpad sends those keys. ANSI-BBS is
+  VT102 on) whose output is saved to a text file. The VT220 and VT320
+  add G0-G3 with their locking and single shifts, the national
+  replacement sets, DEC Supplemental and (VT320) DEC Technical and
+  Latin-1 as 96-character sets, 8-bit replies (S8C1T), protected
+  characters with selective erase (DECSCA, DECSED, DECSEL), the
+  conformance level (DECSCL), the printer, keyboard and user-defined key
+  status reports, the cursor and tab stop reports (DECCIR, DECTABSR), the
+  preferred supplemental set, user-defined keys (DECUDK: Shift with
+  F6-F20), and soft characters (DECDLD: the host's own glyphs, drawn from
+  its bitmaps). A VT320 also has its status line below the screen: the
+  cursor's place, or a line the host writes (DECSSDT, DECSASD). The VT420
+  adds left and right margins (DECLRMM, DECSLRM), the rectangular area
+  operations (copy, erase, selective erase, fill, attribute change and
+  reverse, as a rectangle or a stream, and the checksum), column insert
+  and delete, back and forward index, six pages (NP, PP, PPA, PPR, PPB),
+  the lines and columns asked for (DECSNLS, DECSLPP, DECSCPP), and the
+  keypad and backarrow modes; the VT5xx add the display extent report,
+  and the VT525 colour, with its colour table (DECAC, DECRQTSR, DECRSTS,
+  in RGB or DEC's HLS). The key bar gains the DEC keypad (PF1-PF4, digits, minus,
+  comma, period, Enter, in numeric or application mode), and on a VT220
+  or VT320 the LK201's F6-F20, Find and Select and a page of the
+  user-defined keys; a hardware numpad sends the keypad's keys. ANSI-BBS is
   the PC's 80x25 drawn in a VGA's 8x16 code page 437 (Unscii's, public
   domain), with SyncTERM's additions: ANSI music (`ESC [ |`, and a bare
   `ESC [ M` when a PLAY string follows it) played as a PC speaker would,
@@ -63,7 +83,20 @@
   inverse video, its cursor keys wrapping round the screen, CLEAR, EOL,
   insert and delete of characters and lines, tabs, the buzzer and ESC to
   show a control's character; CTRL with a letter types its graphic and
-  the key bar's INV key types the next character inverse. Colour
+  the key bar's INV key types the next character inverse. Viewdata is
+  Prestel's 40x24 of teletext: its attributes take a cell and change the
+  rest of the row (alpha and mosaic colours, flash, conceal, contiguous
+  or separated mosaics, hold, new and black background; double height is
+  drawn single), the 2x3 mosaics drawn from the app's own bitmaps, the
+  cursor wrapping round the screen, and # (Enter too) as the key that
+  sends. The Minitel is Teletel's 40x25 with its status row: US
+  addressing, text and mosaics (SO/SI), SS2's accents and symbols, the
+  ESC colours and attributes (the background and separation taking
+  effect at the next space or mosaic), REP, its CSI commands, the
+  protocol commands (it answers as a Minitel 2), scrolling or page mode,
+  the 80-column Mixte mode, the Téléinformatique mode as a VT100, and a
+  key bar of Envoi, Retour, Suite, Répétition, Correction, Sommaire,
+  Guide, Annulation and Connexion/Fin. Both save captures as `.vdt`. Colour
   themes (VGA, xterm, Solarized, Dracula, Monokai, Gruvbox, Nord, green
   and amber phosphor), fonts (Cascadia Code, Sauce Code Pro Nerd Font,
   Source Code Pro, Roboto Mono, JetBrains Mono, Fira Code, OpenDyslexic

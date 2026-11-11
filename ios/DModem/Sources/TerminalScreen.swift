@@ -31,6 +31,15 @@ struct TerminalScreen: View {
                     .onTapGesture { focused = true }
                     .gesture(MagnificationGesture().onEnded { s in fontSize = min(24, max(7, fontSize * Double(s))) })
             }
+            // a VT320's status line, below the screen (the screen a line shorter)
+            if !model.statusText.isEmpty {
+                Text(model.statusText)
+                    .font(.system(size: 12, design: .monospaced))
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 4)
+                    .background(Color(.secondarySystemBackground))
+            }
             ExtraKeys(model: model)
         }
         .onAppear { model.setProfile(profile) }
@@ -115,7 +124,7 @@ private struct ScreenCanvas: View {
                     let w = CGFloat(run.cells) * cell.width
                     ctx.fill(Path(CGRect(x: x, y: y, width: w, height: cell.height)), with: .color(Color(argb: run.bg)))
                     if run.text.trimmingCharacters(in: .whitespaces).isEmpty { continue }
-                    if model.bridge.bitmapGlyphs {
+                    if model.bridge.bitmapGlyphs || (model.bridge.softGlyphs && run.text.unicodeScalars.contains { $0.value >= 0xF0000 }) {
                         drawGlyphs(ctx, run, y: y)
                         continue
                     }
@@ -143,20 +152,23 @@ extension ScreenCanvas {
         let color = GraphicsContext.Shading.color(Color(argb: run.fg))
         for (i, ch) in run.text.unicodeScalars.enumerated() {
             let x = CGFloat(Int(run.col) + i) * cell.width
-            guard let rows = model.glyph(ch.value) else {
+            guard let glyph = model.glyph(ch.value) else {
                 if ch != " " { ctx.draw(Text(String(ch)).font(Font(cell.font as CTFont)).foregroundColor(Color(argb: run.fg)), at: CGPoint(x: x, y: y), anchor: .topLeading) }
                 continue
             }
             var path = Path()
-            for (r, bits) in rows.enumerated() where bits != 0 {
+            let gw = glyph.width
+            let high = 1 << (gw - 1)
+            for (r, bits) in glyph.rows.enumerated() where bits != 0 {
                 var c = 0
-                while c < 8 {
-                    if bits & (0x80 >> c) == 0 { c += 1; continue }
+                while c < gw {
+                    if bits & (high >> c) == 0 { c += 1; continue }
                     let start = c
-                    while c < 8 && bits & (0x80 >> c) != 0 { c += 1 }
-                    let h = CGFloat(rows.count)
-                    path.addRect(CGRect(x: x + CGFloat(start) * cell.width / 8, y: y + CGFloat(r) * cell.height / h,
-                                        width: CGFloat(c - start) * cell.width / 8, height: cell.height / h))
+                    while c < gw && bits & (high >> c) != 0 { c += 1 }
+                    let h = CGFloat(glyph.rows.count)
+                    let w = CGFloat(gw)
+                    path.addRect(CGRect(x: x + CGFloat(start) * cell.width / w, y: y + CGFloat(r) * cell.height / h,
+                                        width: CGFloat(c - start) * cell.width / w, height: cell.height / h))
                 }
             }
             ctx.fill(path, with: color)

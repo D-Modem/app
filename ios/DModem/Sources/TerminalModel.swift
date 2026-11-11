@@ -17,6 +17,8 @@ final class TerminalModel: ObservableObject {
     @Published var ctrl = false
     /// the next key with Alt (the key bar's sticky Alt)
     @Published var alt = false
+    /// the status line below the screen (a VT320's, DECSSDT): "" for none
+    @Published private(set) var statusText = ""
 
     /// to the modem
     var send: ((Data) -> Void)?
@@ -34,16 +36,25 @@ final class TerminalModel: ObservableObject {
         revision = bridge.revision
     }
 
-    /// the profile's glyphs, as they're asked for
-    private var glyphCache: [UInt32: [Int]?] = [:]
+    /// a bitmap glyph: its rows, top first, bit width - 1 the leftmost pixel
+    struct Glyph {
+        let rows: [Int]
+        let width: Int
+    }
 
-    /// the profile's bitmap glyph for [cp] (8 wide, 8 or 16 high): its rows, top first, bit 7 the leftmost pixel; nil: drawn with the font
-    func glyph(_ cp: UInt32) -> [Int]? {
-        if let g = glyphCache[cp] { return g }
-        let first = Int(bridge.glyphRow(cp: Int32(bitPattern: cp), row: 0))
-        let h = Int(bridge.glyphHeight)
-        let g: [Int]? = first < 0 ? nil : [first] + (1..<max(h, 1)).map { Int(bridge.glyphRow(cp: Int32(bitPattern: cp), row: Int32($0))) }
-        glyphCache[cp] = g
+    /// the profile's glyphs, as they're asked for
+    private var glyphCache: [UInt32: Glyph?] = [:]
+
+    /// the bitmap glyph for [cp] (the profile's, 8 wide and 8 or 16 high, or a soft character the host loaded); nil: drawn with the font
+    func glyph(_ cp: UInt32) -> Glyph? {
+        // (soft characters can be loaded again: never kept)
+        let soft = cp >= 0xF0000
+        if !soft, let g = glyphCache[cp] { return g }
+        let c = Int32(bitPattern: cp)
+        let h = Int(bridge.glyphHeightOf(cp: c))
+        let g: Glyph? = h == 0 ? nil : Glyph(rows: (0..<h).map { Int(bridge.glyphRow(cp: c, row: Int32($0))) },
+                                             width: Int(bridge.glyphWidthOf(cp: c)))
+        if !soft { glyphCache[cp] = g }
         return g
     }
 
@@ -87,6 +98,8 @@ final class TerminalModel: ObservableObject {
         if !replies.isEmpty { out(replies) }
         let notes = bridge.takeMusic()
         if !notes.isEmpty { music.play(notes) }
+        let status = bridge.statusText
+        if status != statusText { statusText = status }
         revision = bridge.revision
     }
 

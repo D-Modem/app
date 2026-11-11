@@ -174,6 +174,45 @@ class TerminalEmulator(
 
     private var tabs = BooleanArray(cols) { it % 8 == 0 && it > 0 }
 
+    /** DECLRMM: left and right margins in use (a VT420's) */
+    internal var lrMargins = false
+        set(v) {
+            field = v
+            if (!v) { left = 0; right = cols - 1 }
+        }
+    /** the margins' columns (inclusive): the screen's edges unless [lrMargins] and DECSLRM set them */
+    internal var left = 0
+        private set
+    internal var right = cols - 1
+        private set
+
+    /** the page of the main screen shown and written (0 first; a VT420 has 6) */
+    var page = 0
+        private set
+    /** the pages not shown, by number (made as they're first gone to) */
+    private val pages = HashMap<Int, Array<Line>>()
+
+    /** page [n] shown and written (its cursor home if [home]); the others kept, the alternate screen left alone */
+    internal fun selectPage(n: Int, home: Boolean) {
+        if (n == page) {
+            if (home) cursorPosition(0, 0)
+            return
+        }
+        pages[page] = main
+        val next = pages.remove(n)?.takeIf { it.size == rows && it[0].cols == cols } ?: Array(rows) { Line(cols) }
+        if (screen === main) screen = next
+        main = next
+        page = n
+        if (home) cursorPosition(0, 0)
+        revision++
+    }
+
+    /** whether the cursor is between the left and right margins (always, without them) */
+    internal val withinMargins: Boolean get() = cursorX in left..right
+
+    /** the margins are the screen's edges (the fast path: whole lines move) */
+    private val fullWidth: Boolean get() = left == 0 && right == cols - 1
+
     /** the last character printed (REP repeats it) */
     internal var lastChar = ' '.code
         private set
@@ -230,6 +269,28 @@ class TerminalEmulator(
     /** the glyphs its cells are drawn with, a bitmap font the profile's machine had (null: the view's font) */
     val glyphs: BitmapFont? get() = profile.glyphs
 
+    /** the soft characters the host loaded (DECDLD), their code points [SoftFont.BASE]'s; null for none */
+    var softGlyphs: BitmapFont? = null
+        internal set
+
+    /** the bitmap glyph [cp] is drawn with: a soft character's, the profile's, or null for the view's font */
+    fun glyphFor(cp: Int): BitmapFont? =
+        softGlyphs?.takeIf { cp >= SoftFont.BASE && it.has(cp) } ?: glyphs?.takeIf { it.has(cp) }
+
+    /** DECSSDT's status line: 0 none, 1 the terminal's indicators, 2 the host's */
+    var statusType = 0
+        internal set
+
+    /** the host-writable status line's text and cursor */
+    internal val statusLine = StatusLine(cols)
+
+    /** what the status line shows ("" for none): the cursor's place as the indicators have it, or the host's text */
+    fun statusText(): String = when (statusType) {
+        1 -> "${(cursorY + 1).toString().padStart(4, '0')},${(minOf(cursorX, cols - 1) + 1).toString().padStart(3, '0')}"
+        2 -> statusLine.line.text().ifEmpty { " " }
+        else -> ""
+    }
+
     /** text, as code points (the tests, local echo) */
     fun appendText(s: String) {
         var i = 0
@@ -245,9 +306,12 @@ class TerminalEmulator(
     fun line(row: Int): Line =
         if (row >= 0) screen[row] else history[history.size + row]
 
-    /** [s] to the remote, as Latin-1 octets */
+    /** replies' controls in their 8-bit forms (S8C1T: CSI as 9B, DCS as 90, ST as 9C) */
+    internal var eightBitReplies = false
+
+    /** [s] to the remote, as Latin-1 octets (its ESC Fe's as C1 controls, when [eightBitReplies]) */
     internal fun reply(s: String) {
-        output(s.latin1())
+        output((if (eightBitReplies) ESC_FE.replace(s) { (it.groupValues[1][0].code + 0x40).toChar().toString() } else s).latin1())
     }
 
     // ------------------------------------------------------------------
@@ -353,8 +417,8 @@ class TerminalEmulator(
             }
             pendingWrap = false
         }
-        // (a line of double width holds half as many)
-        val lc = lineWidth(cursorY)
+        // (a line of double width holds half as many; within the margins, the right one's the edge)
+        val lc = if (withinMargins && !fullWidth) minOf(right + 1, lineWidth(cursorY)) else lineWidth(cursorY)
         if (cursorX >= lc) cursorX = lc - 1
         // a wide character with one column left: to the next line (the last cell left blank)
         if (w == 2 && cursorX == lc - 1) {
@@ -365,15 +429,15 @@ class TerminalEmulator(
             lineFeed()
         }
         val line = screen[cursorY]
-        if (insertMode) line.insertCells(cursorX, w, style)
+        if (insertMode) line.insertCells(cursorX, w, style, lc)
         // (half of a wide character written over: its other half blanked)
         unpair(line, cursorX)
         if (w == 2) unpair(line, cursorX + 1)
         line.set(cursorX, cp, style)
         if (w == 2) line.set(cursorX + 1, Line.WIDE_TAIL, style)
         link?.let { l -> for (k in 0 until w) line.extraFor(cursorX + k).link = l }
-        if (cursorX + w >= lineWidth(cursorY)) {
-            cursorX = lineWidth(cursorY) - 1
+        if (cursorX + w >= lc) {
+            cursorX = lc - 1
             pendingWrap = true
         } else {
             cursorX += w
@@ -398,6 +462,7 @@ class TerminalEmulator(
     internal fun setColumnMode(wide: Boolean) {
         requestedColumns = if (wide) 132 else 80
         for (l in screen) l.blank(Style.NORMAL)
+        lrMargins = false
         top = 0
         bottom = rows - 1
         cursorX = 0
@@ -427,9 +492,9 @@ class TerminalEmulator(
         if (cp == 0x200D) joinNext = true
     }
 
-    /** the cursor to the line's start */
+    /** the cursor to the line's start (the left margin's, from within or right of it) */
     internal fun carriageReturn() {
-        cursorX = 0
+        cursorX = if (cursorX >= left) left else 0
         pendingWrap = false
     }
 
@@ -451,7 +516,7 @@ class TerminalEmulator(
     internal fun index() {
         pendingWrap = false
         if (cursorY == bottom) {
-            scrollUp(top, bottom)
+            if (withinMargins) scrollUp(top, bottom)
         } else if (cursorY < rows - 1) {
             cursorY++
         }
@@ -461,7 +526,7 @@ class TerminalEmulator(
     internal fun reverseIndex() {
         pendingWrap = false
         if (cursorY == top) {
-            scrollDown(top, bottom)
+            if (withinMargins) scrollDown(top, bottom)
         } else if (cursorY > 0) {
             cursorY--
         }
@@ -469,6 +534,12 @@ class TerminalEmulator(
 
     /** the region's lines up one, the top one to the scrollback (the whole main screen's) */
     internal fun scrollUp(t: Int, b: Int) {
+        if (!fullWidth) {
+            // (between the margins: the cells move, the lines stay)
+            for (y in t until b) copyCells(screen[y + 1], screen[y])
+            screen[b].clear(left, right + 1, Style.erased(style))
+            return
+        }
         val gone = screen[t]
         if (screen === main && t == 0 && b == rows - 1 && historyMax > 0) {
             val kept = Line(cols)
@@ -483,25 +554,50 @@ class TerminalEmulator(
 
     /** lines [t] to [b] down one, a blank one at the top (the bottom one gone) */
     internal fun scrollDown(t: Int, b: Int) {
+        if (!fullWidth) {
+            for (y in b downTo t + 1) copyCells(screen[y - 1], screen[y])
+            screen[t].clear(left, right + 1, Style.erased(style))
+            return
+        }
         val gone = screen[b]
         for (y in b downTo t + 1) screen[y] = screen[y - 1]
         gone.blank(Style.erased(style))
         screen[t] = gone
     }
 
-    /** the cursor to ([x], [y]) on the screen, or within the scrolling region if [clampToRegion] and it is in it */
+    /** cells [left] to [right] of [from] into [to] (a scroll between the margins) */
+    private fun copyCells(from: Line, to: Line) {
+        for (x in left..right) {
+            to.set(x, from.chars[x], from.styles[x])
+            from.extra(x)?.let { to.extraFor(x).also { e -> e.combining = it.combining; e.image = it.image; e.link = it.link } }
+        }
+    }
+
+    /** the cursor to ([x], [y]) on the screen, or within the scrolling region if [clampToRegion] and it is in it (and between the margins, from between them) */
     internal fun moveCursor(x: Int, y: Int, clampToRegion: Boolean = false) {
         val (lo, hi) = if (clampToRegion && cursorY in top..bottom) top to bottom else 0 to rows - 1
+        val (l, r) = if (withinMargins) left to right else 0 to cols - 1
         cursorY = y.coerceIn(lo, hi)
-        cursorX = x.coerceIn(0, lineWidth(cursorY) - 1)
+        cursorX = x.coerceIn(l, minOf(r, lineWidth(cursorY) - 1))
         pendingWrap = false
     }
 
-    /** CUP: the cursor to ([x], [y]), from the region's top in origin mode */
+    /** CUP: the cursor to ([x], [y]), from the region's top (and the left margin) in origin mode */
     internal fun cursorPosition(x: Int, y: Int) {
         cursorY = if (originMode) (y + top).coerceIn(top, bottom) else y.coerceIn(0, rows - 1)
-        cursorX = x.coerceIn(0, lineWidth(cursorY) - 1)
+        cursorX = if (originMode) (x + left).coerceIn(left, right) else x.coerceIn(0, lineWidth(cursorY) - 1)
+        cursorX = cursorX.coerceAtMost(lineWidth(cursorY) - 1)
         pendingWrap = false
+    }
+
+    /** DECSLRM: the left and right margins columns [l] to [r] (ignored unless left < right), the cursor home */
+    internal fun setMargins(l: Int, r: Int) {
+        val ll = l.coerceIn(0, cols - 1)
+        val rr = r.coerceIn(0, cols - 1)
+        if (ll >= rr) return
+        left = ll
+        right = rr
+        cursorPosition(0, 0)
     }
 
     /** DECSTBM: the scrolling region lines [t] to [b] (ignored unless top < bottom), the cursor home */
@@ -545,25 +641,39 @@ class TerminalEmulator(
         if (cursorX < cols) tabs[cursorX] = false
     }
 
+    /** the columns with tab stops (from 0), for DECTABSR */
+    internal fun tabStops(): List<Int> = tabs.indices.filter { tabs[it] }
+
     /** TBC 3: every tab stop cleared */
     internal fun clearTabs() {
         tabs.fill(false)
     }
 
-    /** ED: the screen erased below the cursor (0), above it (1), all of it (2), or the scrollback (3) */
-    internal fun eraseDisplay(mode: Int) {
+    /** cells [from] until [to] of [l] erased in [e]: all of them, or (DECSED, DECSEL: [selective]) those DECSCA didn't protect */
+    private fun erase(l: Line, from: Int, to: Int, e: Long, selective: Boolean) {
+        if (!selective) {
+            if (from <= 0 && to >= l.cols) l.blank(e) else l.clear(from, to, e)
+            return
+        }
+        for (x in from.coerceAtLeast(0) until to.coerceAtMost(l.cols)) {
+            if (Style.attrs(l.styles[x]) and Style.PROTECTED == 0) l.clear(x, x + 1, e)
+        }
+    }
+
+    /** ED (DECSED if [selective]): the screen erased below the cursor (0), above it (1), all of it (2), or the scrollback (3) */
+    internal fun eraseDisplay(mode: Int, selective: Boolean = false) {
         val e = Style.erased(style)
         when (mode) {
             0 -> {
-                screen[cursorY].clear(cursorX, cols, e)
-                for (y in cursorY + 1 until rows) { screen[y].blank(e) }
+                erase(screen[cursorY], cursorX, cols, e, selective)
+                for (y in cursorY + 1 until rows) erase(screen[y], 0, cols, e, selective)
             }
             1 -> {
-                for (y in 0 until cursorY) { screen[y].blank(e) }
-                screen[cursorY].clear(0, cursorX + 1, e)
+                for (y in 0 until cursorY) erase(screen[y], 0, cols, e, selective)
+                erase(screen[cursorY], 0, cursorX + 1, e, selective)
             }
             2 -> {
-                for (y in 0 until rows) { screen[y].blank(e) }
+                for (y in 0 until rows) erase(screen[y], 0, cols, e, selective)
                 // ANSI.SYS homes the cursor with ESC[2J; BBSes count on it
                 if (homeOnClear) { cursorX = 0; cursorY = 0 }
             }
@@ -572,14 +682,14 @@ class TerminalEmulator(
         pendingWrap = false
     }
 
-    /** EL: the line erased right of the cursor (0), left of it (1), or all of it (2) */
-    internal fun eraseLine(mode: Int) {
+    /** EL (DECSEL if [selective]): the line erased right of the cursor (0), left of it (1), or all of it (2) */
+    internal fun eraseLine(mode: Int, selective: Boolean = false) {
         val e = Style.erased(style)
         val l = screen[cursorY]
         when (mode) {
-            0 -> l.clear(cursorX, cols, e)
-            1 -> l.clear(0, cursorX + 1, e)
-            2 -> l.clear(0, cols, e)
+            0 -> erase(l, cursorX, cols, e, selective)
+            1 -> erase(l, 0, cursorX + 1, e, selective)
+            2 -> erase(l, 0, cols, e, selective)
         }
         if (mode != 1) l.wrapped = false
         pendingWrap = false
@@ -591,29 +701,35 @@ class TerminalEmulator(
         pendingWrap = false
     }
 
-    /** ICH: [n] blank cells inserted at the cursor */
+    /** ICH: [n] blank cells inserted at the cursor (those past the right margin, from within the margins, kept) */
     internal fun insertChars(n: Int) {
-        screen[cursorY].insertCells(cursorX, n, Style.erased(style))
+        if (withinMargins) screen[cursorY].insertCells(cursorX, n, Style.erased(style), right + 1)
         pendingWrap = false
     }
 
-    /** DCH: [n] cells deleted at the cursor */
+    /** DCH: [n] cells deleted at the cursor (blanks in at the right margin) */
     internal fun deleteChars(n: Int) {
-        screen[cursorY].deleteCells(cursorX, n, Style.erased(style))
+        if (withinMargins) screen[cursorY].deleteCells(cursorX, n, Style.erased(style), right + 1)
         pendingWrap = false
     }
 
-    /** IL: [n] blank lines inserted at the cursor's, within the region */
+    /** IL: [n] blank lines inserted at the cursor's, within the region (and the margins) */
     internal fun insertLines(n: Int) {
-        if (cursorY !in top..bottom) return
+        if (cursorY !in top..bottom || !withinMargins) return
         repeat(n.coerceAtMost(bottom - cursorY + 1)) { scrollDown(cursorY, bottom) }
-        cursorX = 0
+        cursorX = left
         pendingWrap = false
     }
 
     /** DL: [n] lines deleted at the cursor's, blank ones in at the region's bottom */
     internal fun deleteLines(n: Int) {
-        if (cursorY !in top..bottom) return
+        if (cursorY !in top..bottom || !withinMargins) return
+        if (!fullWidth) {
+            repeat(n.coerceAtMost(bottom - cursorY + 1)) { scrollUp(cursorY, bottom) }
+            cursorX = left
+            pendingWrap = false
+            return
+        }
         repeat(n.coerceAtMost(bottom - cursorY + 1)) {
             // (not to the scrollback: the region starts at the cursor)
             val gone = screen[cursorY]
@@ -676,6 +792,7 @@ class TerminalEmulator(
         insertMode = false
         top = 0
         bottom = rows - 1
+        lrMargins = false
         style = Style.NORMAL
         interpreter.softReset()
         savedMain = null
@@ -684,7 +801,12 @@ class TerminalEmulator(
 
     /** everything as it was at the start (RIS), the scrollback kept */
     fun reset() {
+        selectPage(0, home = false)
+        pages.clear()
         softReset()
+        statusType = 0
+        statusLine.clear()
+        softGlyphs = null
         screen = main
         for (l in main) { l.blank(Style.NORMAL) }
         for (l in alt) { l.blank(Style.NORMAL) }
@@ -741,6 +863,10 @@ class TerminalEmulator(
         screen = if (wasAlt) alt else main
         cols = newCols
         rows = newRows
+        statusLine.resize(cols)
+        // (the pages not shown don't follow the size: they start again)
+        pages.clear()
+        lrMargins = false
         top = 0
         bottom = rows - 1
         tabs = BooleanArray(cols) { it % 8 == 0 && it > 0 }
@@ -802,6 +928,9 @@ class TerminalEmulator(
     companion object {
         /** the largest sixel image (pixels a side) */
         const val MAX_IMAGE = 2048
+
+        /** an ESC Fe (ESC [, ESC P, ST's ESC and backslash ...): what has a C1 form */
+        private val ESC_FE = Regex("\u001b([\\x40-\\x5f])")
 
         /** xterm's colours: the 16, the 6x6x6 cube, the greys; default fg light grey, bg black */
         fun xtermColor(i: Int): Int {

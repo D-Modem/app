@@ -110,6 +110,7 @@ fun TerminalScreen(
     val status by ModemState.status.collectAsStateWithLifecycle()
     val run by ModemState.run.collectAsStateWithLifecycle()
     val title by session.title.collectAsStateWithLifecycle()
+    val statusLine by session.statusLine.collectAsStateWithLifecycle()
     val capture by session.capture.collectAsStateWithLifecycle()
     var view by remember { mutableStateOf<TerminalView?>(null) }
     var showSnippets by remember { mutableStateOf(false) }
@@ -299,9 +300,20 @@ fun TerminalScreen(
                 )
             }
         }
+        // a VT320's status line, below the screen (the screen a line shorter)
+        if (statusLine.isNotEmpty()) {
+            Text(
+                statusLine,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                maxLines = 1,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 4.dp),
+            )
+        }
         if (s.extraKeys) {
             ExtraKeys(
-                onKey = { k -> view?.scrollToBottom(); session.sendKey(k) },
+                onKey = { k, shift -> view?.scrollToBottom(); session.sendKey(k, shift = shift) },
                 onText = { t -> view?.scrollToBottom(); session.sendTyped(t) },
                 fullscreen = fullscreen,
                 onExitFullscreen = { onFullscreen(false) },
@@ -535,7 +547,7 @@ private fun TopBar(
 /** The keys a phone's keyboard hasn't got, as JuiceSSH's bar had them: Ctrl and Alt stay down for the next key. */
 @Composable
 private fun ExtraKeys(
-    onKey: (Key) -> Unit,
+    onKey: (Key, Boolean) -> Unit,
     onText: (String) -> Unit,
     fullscreen: Boolean,
     onExitFullscreen: () -> Unit,
@@ -553,7 +565,7 @@ private fun ExtraKeys(
                 KeyRow {
                     for (k in row) {
                         when (k) {
-                            is BarKey.Send -> KeyButton(k.label, repeat = k.repeat) { onKey(k.key) }
+                            is BarKey.Send -> KeyButton(k.label, repeat = k.repeat) { onKey(k.key, k.shift) }
                             is BarKey.Type -> KeyButton(k.label) { onText(k.text) }
                             is BarKey.Octets -> KeyButton(k.label, swatch = k.color) {
                                 session.sendTerminal(k.octets.toByteArray(Charsets.ISO_8859_1))

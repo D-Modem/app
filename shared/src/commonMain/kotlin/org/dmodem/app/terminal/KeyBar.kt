@@ -12,7 +12,7 @@ sealed class BarKey {
     abstract val label: String
 
     /** a key that isn't a character; [repeat]: held down, it repeats */
-    data class Send(val key: Key, override val label: String, val repeat: Boolean = false) : BarKey()
+    data class Send(val key: Key, override val label: String, val repeat: Boolean = false, val shift: Boolean = false) : BarKey()
 
     /** text typed */
     data class Type(val text: String, override val label: String = text) : BarKey()
@@ -78,6 +78,52 @@ object KeyBars {
             ),
             listOf(
                 kp(1), kp(2), kp(3), kp(0), BarKey.Send(Key.KP_PERIOD, "."), BarKey.Send(Key.KP_ENTER, "ENT"),
+                BarKey.NextPage,
+            ),
+        ),
+    )
+
+    /** an LK201's top row past F5: F6-F20 (F15 Help, F16 Do), Find and Select */
+    val LK201_FUNCTION = KeyBarPage(
+        "F6+",
+        listOf(
+            (5 until 13).map { fn(it) },
+            listOf(fn(13), BarKey.Send(Key.F15, "HELP"), BarKey.Send(Key.F16, "DO")) + (16 until 20).map { fn(it) } +
+                BarKey.Send(Key.FIND, "FIND"),
+            listOf(BarKey.Send(Key.SELECT, "SEL"), BarKey.Send(Key.INSERT, "INS"), BarKey.Send(Key.DELETE, "REM"), BarKey.NextPage),
+        ),
+    )
+
+    /** F6-F20 with Shift: the keys the host loaded (DECUDK) */
+    val USER_DEFINED = KeyBarPage(
+        "UDK",
+        listOf(
+            (5 until 13).map { fn(it, shift = true) },
+            (13 until 20).map { fn(it, shift = true) } + BarKey.NextPage,
+        ),
+    )
+
+    /** Prestel's keypad: *, # (that sends), the digits, and the cursor keys */
+    val VIEWDATA = KeyBarPage(
+        "VDT",
+        listOf(
+            listOf(BarKey.Type("*"), BarKey.Type("#"), BarKey.Type("*0#", "*0#"), BarKey.Type("*#", "BACK")) +
+                listOf(BarKey.Send(Key.UP, "↑", repeat = true), BarKey.Send(Key.BACKSPACE, "DEL", repeat = true)),
+            listOf(BarKey.Ctrl, BarKey.Send(Key.LEFT, "←", repeat = true), BarKey.Send(Key.DOWN, "↓", repeat = true),
+                BarKey.Send(Key.RIGHT, "→", repeat = true), BarKey.Send(Key.ESCAPE, "ESC"), BarKey.NextPage),
+        ),
+    )
+
+    /** the Minitel's function keys (SEP and the key's code) */
+    val MINITEL = KeyBarPage(
+        "MTL",
+        listOf(
+            listOf(
+                minitel(0x41, "ENVOI"), minitel(0x42, "RETOUR"), minitel(0x48, "SUITE"), minitel(0x43, "RÉPÉT"),
+                minitel(0x47, "CORR"),
+            ),
+            listOf(
+                minitel(0x46, "SOMM"), minitel(0x44, "GUIDE"), minitel(0x45, "ANNUL"), minitel(0x49, "CX/FIN"),
                 BarKey.NextPage,
             ),
         ),
@@ -150,8 +196,15 @@ object KeyBars {
     /** a DEC terminal's: the standard ones and its keypad */
     val DEC = STANDARD + DEC_KEYPAD
 
-    /** F[n + 1] */
-    private fun fn(n: Int) = BarKey.Send(Key.entries[Key.F1.ordinal + n], "F${n + 1}")
+    /** a VT220's and later: a DEC terminal's, the LK201's other function keys, and the user-defined ones */
+    val LK201 = DEC + LK201_FUNCTION + USER_DEFINED
+
+    /** F[n + 1] (with Shift: ⇧ before its name) */
+    private fun fn(n: Int, shift: Boolean = false) =
+        BarKey.Send(Key.entries[Key.F1.ordinal + n], (if (shift) "⇧" else "") + "F${n + 1}", shift = shift)
+
+    /** the Minitel's key [code] (sent after SEP) */
+    private fun minitel(code: Int, label: String) = BarKey.Octets("\u0013" + code.toChar(), label)
 
     /** the keypad's [n] */
     private fun kp(n: Int) = BarKey.Send(Key.entries[Key.KP_0.ordinal + n], "$n")

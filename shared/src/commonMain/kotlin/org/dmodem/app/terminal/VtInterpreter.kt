@@ -12,13 +12,21 @@ import org.dmodem.app.terminal.TerminalEmulator.MouseMode
  * the levels that read more extend this class.
  */
 open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : TerminalInterpreter(t) {
-    // G0, G1 and which of them is in use
-    private var g0 = GSet.ASCII
-    private var g1 = GSet.ASCII
-    private var shiftOut = false
+    /** G0-G3, GL and GR (a VT100 uses G0, G1 and SO/SI of them) */
+    protected val sets = CharsetShifting()
 
-    /** G0, G1 and the shift, as DECSC saves them */
-    private class Charsets(val g0: GSet, val g1: GSet, val so: Boolean)
+    /** the keys the host loaded (DECUDK, a VT220's and later) */
+    protected val userKeys = UserKeys()
+
+    /** the level DECSCL set it to work at (at most the profile's) */
+    protected var operatingLevel = profile.level
+        private set
+
+    /** a designation's intermediates after the first (ESC ( % 5's %) */
+    private var designation = ""
+
+    /** what's written goes to the host-writable status line (DECSASD 1), not the screen */
+    private var statusActive = false
 
     /** VT52 mode (DECANM reset): its interpreter, until ESC < */
     private var vt52: Vt52Interpreter? = null
@@ -45,7 +53,12 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
     // a DCS's handler: a sixel image, or a request's text
     private var sixel: Sixel? = null
     private var dcsText: StringBuilder? = null
-    private var dcsKind = 0
+    /** what the DCS's text is for: its intermediate and final, as "$q" (DECRQSS), "|" (DECUDK) */
+    private var dcsKind = ""
+    /** the DCS's first two parameters, as it began (all of them in [dcsParams]) */
+    private var dcsP0 = 0
+    private var dcsP1 = 0
+    private var dcsParams = IntArray(0)
 
     /** xterm's extensions known */
     protected val xterm: Boolean get() = profile.has(VtFeature.XTERM)
@@ -118,17 +131,25 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
                 0x90 -> startDcs()
                 0x98, 0x9e, 0x9f -> state = State.STRING
                 0x84 -> t.index()
+                0x8e -> if (operatingLevel >= 2) sets.singleShift(2)
+                0x8f -> if (operatingLevel >= 2) sets.singleShift(3)
                 0x85 -> { t.carriageReturn(); t.index() }
                 0x8d -> t.reverseIndex()
                 0x88 -> t.setTab()
             }
             return
         }
-        t.print((if (shiftOut) g1 else g0).map(cp))
+        val c = sets.map(cp, t.decoder.charset == TermCharset.LATIN1)
+        if (statusActive) t.statusLine.print(c, t.style) else t.print(c)
     }
 
     /** a C0 control: ENQ's answerback, the bell, BS, HT, LF/VT/FF, CR, SO/SI, CAN/SUB, ESC */
     private fun control(cp: Int) {
+        if (statusActive && (cp == 0x0d || cp == 0x08)) {
+            // (on the status line only CR and BS move the cursor)
+            t.statusLine.moveTo(if (cp == 0x0d) 0 else t.statusLine.x - 1)
+            return
+        }
         when (cp) {
             0x05 -> if (t.answerback.isNotEmpty()) t.reply(t.answerback)
             0x07 -> t.listener?.onBell()
@@ -140,8 +161,8 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
                 if (t.newlineMode) t.carriageReturn()
             }
             0x0d -> t.carriageReturn()
-            0x0e -> shiftOut = true
-            0x0f -> shiftOut = false
+            0x0e -> sets.lockGl(1)
+            0x0f -> sets.lockGl(0)
             0x18, 0x1a -> state = State.GROUND
             0x1b -> state = State.ESC
         }
@@ -150,12 +171,17 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
     /** the character after ESC: a sequence begun, or its one-character command done */
     private fun esc(cp: Int) {
         state = State.GROUND
+        if (extraEsc(cp)) return
         when (cp.toChar()) {
             '[' -> startCsi()
             ']' -> { osc.setLength(0); state = State.OSC }
             'P' -> startDcs()
             'X', '^', '_' -> state = State.STRING
-            '(', ')', '*', '+', '#', ' ', '%' -> { intermediate = cp; state = State.ESC_INTER }
+            '(', ')', '*', '+', '-', '.', '/', '#', ' ', '%' -> {
+                intermediate = cp
+                designation = ""
+                state = State.ESC_INTER
+            }
             '7' -> t.saveCursor()
             '8' -> t.restoreCursor()
             'D' -> t.index()
@@ -165,6 +191,8 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
             'c' -> t.reset()
             // DECID: as DA1
             'Z' -> t.reply(profile.primaryDa)
+            // the locking shifts (LS2, LS3, LS1R-LS3R) and single shifts (SS2, SS3): a VT220's
+            'n', 'o', '~', '}', '|', 'N', 'O' -> if (operatingLevel >= 2) shift(cp.toChar())
             '=' -> t.appKeypad = true
             '>' -> t.appKeypad = false
             '\\' -> {}
@@ -172,12 +200,50 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
         }
     }
 
-    /** the character after ESC and an intermediate: G0's or G1's set designated, a line's size, DECALN */
+    /** ESC [c]'s shift: GL to G2 or G3, GR to G1-G3, or the next character from G2 or G3 */
+    private fun shift(c: Char) {
+        when (c) {
+            'n' -> sets.lockGl(2)
+            'o' -> sets.lockGl(3)
+            '~' -> sets.lockGr(1)
+            '}' -> sets.lockGr(2)
+            '|' -> sets.lockGr(3)
+            'N' -> sets.singleShift(2)
+            'O' -> sets.singleShift(3)
+        }
+    }
+
+    /** whether this terminal (at the level it works at) has [set] */
+    private fun knows(set: GSet): Boolean = xterm || set.level <= operatingLevel
+
+    /** G[slot] given the 94- or 96-character set [designator] names (< the preferred supplemental set), if this terminal has it */
+    private fun designate(slot: Int, designator: String, is96: Boolean) {
+        if (slot >= 2 && operatingLevel < 2 && !xterm) return
+        val set = when {
+            sets.soft.names(designator, is96) -> GSet.SOFT
+            designator == "<" && !is96 -> sets.preferred
+            else -> GSet.byDesignator(designator, is96) ?: return
+        }
+        if (knows(set)) sets.designate(slot, set)
+    }
+
+    /** the character after ESC and an intermediate: a set designated (ESC ( to ESC /), a line's size, DECALN, S7C1T/S8C1T */
     private fun escInter(cp: Int) {
+        val i = intermediate.toChar()
+        if (cp in 0x20..0x2f && i in "()*+-./" && designation.isEmpty()) {
+            // a designator of two characters (DEC Supplemental's % 5)
+            designation = cp.toChar().toString()
+            return
+        }
         state = State.GROUND
-        when (intermediate.toChar()) {
-            '(' -> GSet.byFinal(cp)?.let { g0 = it }
-            ')' -> GSet.byFinal(cp)?.let { g1 = it }
+        val d = designation + cp.toChar()
+        when (i) {
+            '(', ')', '*', '+' -> designate("()*+".indexOf(i), d, is96 = false)
+            '-', '.', '/' -> designate("-./".indexOf(i) + 1, d, is96 = true)
+            ' ' -> when (cp.toChar()) {
+                'F' -> t.eightBitReplies = false
+                'G' -> if (operatingLevel >= 2) t.eightBitReplies = true
+            }
             '#' -> when (cp.toChar()) {
                 '3' -> t.setLineSize(LineSize.DOUBLE_TOP)
                 '4' -> t.setLineSize(LineSize.DOUBLE_BOTTOM)
@@ -239,6 +305,21 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
      */
     protected open fun extraCsi(final: Int, marker: Int, inter: Int): Boolean = false
 
+    /** an ESC and the character [cp] a subclass carries out (a VT420's DECBI, DECFI): true if it did */
+    protected open fun extraEsc(cp: Int): Boolean = false
+
+    /** DECRQSS's answer for [q] a subclass has (without the DCS around it), or null */
+    protected open fun extraStatus(q: String): String? = null
+
+    /** DECRQM's answer for DEC mode [m] a subclass has (1 set, 2 reset), or 0 */
+    protected open fun extraModeState(m: Int): Int = 0
+
+    /** whether a subclass takes the text of a DCS ended by [final] with [inter]mediate (0 none) */
+    protected open fun wantsDcs(final: Int, inter: Int): Boolean = false
+
+    /** a DCS [wantsDcs] took, ended: its intermediate and final as [kind] ("$p"), its parameters and its text */
+    protected open fun extraDcs(kind: String, params: IntArray, text: String) {}
+
     /** how many parameters the CSI has */
     protected val paramCount: Int get() = nParams
 
@@ -253,6 +334,7 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
     private fun dispatchCsi(final: Int) {
         if (extraCsi(final, privateMarker, intermediate)) return
         val c = final.toChar()
+        if (statusActive && statusCsi(c)) return
         if (privateMarker == '?'.code) {
             if (intermediate == '$'.code && c == 'p') {
                 // DECRQM: a DEC mode asked about
@@ -262,8 +344,10 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
             when (c) {
                 'h' -> for (i in 0 until maxOf(nParams, 1)) decMode(params[i], true)
                 'l' -> for (i in 0 until maxOf(nParams, 1)) decMode(params[i], false)
-                'J' -> t.eraseDisplay(p(0, 0))
-                'K' -> t.eraseLine(p(0, 0))
+                // DECSED and DECSEL: what DECSCA didn't protect erased (a VT220's)
+                'J' -> t.eraseDisplay(p(0, 0), selective = operatingLevel >= 2)
+                'K' -> t.eraseLine(p(0, 0), selective = operatingLevel >= 2)
+                'n' -> decStatus(p(0, 0))
                 'S' -> if (xterm) graphicsAttributes(p(0, 0), p(1, 0))
                 'i' -> if (profile.has(VtFeature.PRINTER)) when (p(0, 0)) {
                     1 -> printer.printLine(t.cursorY)
@@ -295,6 +379,23 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
                 intermediate == ' '.code && c == 'q' -> t.cursorStyle = p(0, 0).coerceIn(0, 6)
                 // DECRQM: an ANSI mode asked about
                 intermediate == '$'.code && c == 'p' -> t.reply("\u001b[${p(0, 0)};${ansiModeState(p(0, 0))}\$y")
+                // DECSCA: the characters written from now protected from DECSED and DECSEL (1) or not
+                intermediate == '"'.code && c == 'q' && operatingLevel >= 2 -> {
+                    val a = Style.attrs(t.style) and Style.PROTECTED.inv()
+                    t.style = Style.withAttrs(t.style, if (p(0, 0) == 1) a or Style.PROTECTED else a)
+                }
+                // DECSCL: the level to work at (61 a VT100 ... 6n this one's), and 7-bit (1) or 8-bit replies
+                intermediate == '"'.code && c == 'p' && profile.level >= 2 -> conformance(p(0, 0), param(1))
+                // DECRQPSR: the cursor's state (DECCIR) or the tab stops (DECTABSR)
+                intermediate == '$'.code && c == 'w' && (operatingLevel >= 3 || xterm) -> presentationState(p(0, 0))
+                // DECSSDT: no status line (0), the indicators (1), the host's (2); DECSASD: writing to the screen (0) or to it (1)
+                intermediate == '$'.code && c == '~' && operatingLevel >= 3 -> {
+                    t.statusType = p(0, 0).coerceIn(0, 2)
+                    if (t.statusType != 2) statusActive = false
+                }
+                intermediate == '$'.code && c == '}' && operatingLevel >= 3 -> statusActive = p(0, 0) == 1 && t.statusType == 2
+                // DECRQUPSS: the user-preferred supplemental set
+                intermediate == '&'.code && c == 'u' && (operatingLevel >= 3 || xterm) -> t.reply(preferredSetString())
             }
             return
         }
@@ -391,6 +492,7 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
 
     /** DECRQM's answer for a DEC mode: 1 set, 2 reset, 0 not one known */
     private fun decModeState(m: Int): Int {
+        extraModeState(m).takeIf { it != 0 }?.let { return it }
         /** DECRQM's 1 for set, 2 for reset */
         fun b(v: Boolean) = if (v) 1 else 2
         val dec = when (m) {
@@ -464,8 +566,10 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
 
     /** SGR: the CSI's parameters applied to the current rendition (none: back to normal); colours only if the profile has them */
     private fun sgr() {
+        // (DECSCA's protection isn't a rendition: SGR leaves it)
+        val kept = Style.attrs(t.style) and Style.PROTECTED
         if (nParams == 0) {
-            t.style = Style.NORMAL
+            t.style = Style.withAttrs(Style.NORMAL, kept)
             return
         }
         val color = profile.has(VtFeature.COLOR)
@@ -546,7 +650,7 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
             if (v != 0 && v != 38 && v != 48 && v != 58 && v !in 30..49 && v !in 90..107) s = Style.withAttrs(s, a)
             i++
         }
-        t.style = s
+        t.style = Style.withAttrs(s, Style.attrs(s) or kept)
     }
 
     /** an OSC ended: the title, colours set, asked or reset, the clipboard, a hyperlink (xterm's: a DEC terminal ignores them) */
@@ -639,7 +743,10 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
     private fun dcsStart(final: Int) {
         sixel = null
         dcsText = null
-        dcsKind = 0
+        dcsKind = ""
+        dcsP0 = param(0)
+        dcsP1 = param(1)
+        dcsParams = IntArray(nParams) { params[it] }
         val max = TerminalEmulator.MAX_IMAGE
         when {
             final == 'q'.code && intermediate == 0 && privateMarker == 0 && profile.has(VtFeature.SIXEL) -> {
@@ -649,10 +756,15 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
                 sixel = Sixel(transparent = p(1, 0) == 1, maxWidth = maxW, maxHeight = maxH)
             }
             // DECRQSS (VT320 and later, xterm), XTGETTCAP: their text collected
-            final == 'q'.code && intermediate == '$'.code && (profile.level >= 3 || xterm) ||
-                final == 'q'.code && intermediate == '+'.code && xterm -> {
+            final == 'q'.code && intermediate == '$'.code && (operatingLevel >= 3 || xterm) ||
+                final == 'q'.code && intermediate == '+'.code && xterm ||
+                // DECUDK (a VT220's), DECAUPSS (a VT320's)
+                final == '|'.code && intermediate == 0 && operatingLevel >= 2 ||
+                final == '{'.code && intermediate == 0 && operatingLevel >= 2 ||
+                final == 'u'.code && intermediate == '!'.code && (operatingLevel >= 3 || xterm) ||
+                wantsDcs(final, intermediate) -> {
                 dcsText = StringBuilder()
-                dcsKind = intermediate
+                dcsKind = (if (intermediate != 0) intermediate.toChar().toString() else "") + final.toChar()
             }
         }
     }
@@ -660,7 +772,8 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
     /** a DCS's data character: to the sixel image, or to the request's text */
     private fun dcsPut(cp: Int) {
         sixel?.let { it.feed(cp); return }
-        dcsText?.let { if (it.length < 1024) it.appendCp(cp) }
+        // (a soft font's glyphs: up to 96 of them)
+        dcsText?.let { if (it.length < (if (dcsKind == "{") 65536 else 1024)) it.appendCp(cp) }
     }
 
     /** the DCS cancelled: its image or text dropped */
@@ -677,17 +790,34 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
         }
         dcsText?.let { q ->
             dcsText = null
-            if (dcsKind == '$'.code) statusString(q.toString()) else t.reply("\u001bP0+r\u001b\\")
+            when (dcsKind) {
+                "\$q" -> statusString(q.toString())
+                "|" -> userKeys.load(dcsP0, dcsP1, q.toString())
+                "{" -> {
+                    sets.soft.load(dcsParams, q.toString())
+                    t.softGlyphs = sets.soft.font
+                }
+                "!u" -> assignPreferred(dcsP0, q.toString())
+                "+q" -> t.reply("\u001bP0+r\u001b\\")
+                else -> extraDcs(dcsKind, dcsParams, q.toString())
+            }
         }
     }
 
     /** DECRQSS: the graphic rendition, the scrolling region, the cursor's style */
     private fun statusString(q: String) {
-        val ok = when (q) {
+        val ok = extraStatus(q) ?: when (q) {
             "m" -> sgrString() + "m"
             "r" -> "${t.top + 1};${t.bottom + 1}r"
             " q" -> "${t.cursorStyle.coerceAtLeast(1)} q"
-            "\"q" -> "0\"q"
+            "\"q" -> "${if (Style.attrs(t.style) and Style.PROTECTED != 0) 1 else 0}\"q"
+            "\"p" -> "${60 + operatingLevel};${if (t.eightBitReplies) 0 else 1}\"p"
+            // the lines a page has (DECSLPP), the columns (DECSCPP), the lines on the screen (DECSNLS)
+            "t" -> "${t.rows}t"
+            "\$|" -> "${t.cols}\$|"
+            "*|" -> "${t.rows}*|"
+            "\$~" -> "${t.statusType}\$~"
+            "\$}" -> "${if (statusActive) 1 else 0}\$}"
             else -> null
         }
         t.reply(if (ok != null) "\u001bP1\$r$ok\u001b\\" else "\u001bP0\$r\u001b\\")
@@ -727,16 +857,94 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
     // ------------------------------------------------------------------
     // the interpreter's own state
 
-    /** G0, G1 and the shift for DECSC */
-    override fun charsetState(): Any = Charsets(g0, g1, shiftOut)
+    /** G0-G3 and the shifts for DECSC */
+    override fun charsetState(): Any = sets.save()
 
-    /** G0, G1 and the shift as DECSC saved them (none: ASCII in both) */
+    /** G0-G3 and the shifts as DECSC saved them (none: as at the start) */
     override fun restoreCharsetState(s: Any?) {
-        val c = s as? Charsets
-        g0 = c?.g0 ?: GSet.ASCII
-        g1 = c?.g1 ?: GSet.ASCII
-        shiftOut = c?.so ?: false
+        sets.restore(s as? CharsetShifting.Saved)
     }
+
+    /** DECSCL: [level] 61-65 (a VT100 to a VT5xx, at most this one), [c1] 1 for 7-bit replies; a soft reset after */
+    private fun conformance(level: Int, c1: Int) {
+        if (level !in 61..65) return
+        operatingLevel = minOf(level - 60, profile.level)
+        t.eightBitReplies = operatingLevel >= 2 && c1 != 1
+        t.softReset()
+    }
+
+    /**
+     * a CSI while writing to the status line: the cursor along it (CUF,
+     * CUB, CHA, CUP's column), EL on it; SGR, the modes and DECSASD as
+     * ever (false: carried out as usual); the rest ignored
+     */
+    private fun statusCsi(c: Char): Boolean {
+        val s = t.statusLine
+        if (privateMarker != 0 || intermediate != 0) return privateMarker == 0 && intermediate == '$'.code && c != '}' && c != '~'
+        when (c) {
+            'C' -> s.moveTo(s.x + p(0, 1))
+            'D' -> s.moveTo(s.x - p(0, 1))
+            'G', '`' -> s.moveTo(p(0, 1) - 1)
+            'H', 'f' -> s.moveTo(p(1, 1) - 1)
+            'K' -> s.erase(p(0, 0), Style.erased(t.style))
+            'm', 'h', 'l' -> return false
+        }
+        return true
+    }
+
+    /** DSR with ?: the printer (15), the user-defined keys (25), the keyboard (26), the cursor with its page (6) */
+    private fun decStatus(n: Int) {
+        if (n == 6) {
+            val y = if (t.originMode) t.cursorY - t.top else t.cursorY
+            t.reply("\u001b[?${y + 1};${minOf(t.cursorX, t.cols - 1) + 1};${t.page + 1}R")
+            return
+        }
+        if (operatingLevel < 2) return
+        when (n) {
+            15 -> t.reply(if (profile.has(VtFeature.PRINTER)) "\u001b[?10n" else "\u001b[?13n")
+            25 -> t.reply(if (userKeys.locked) "\u001b[?21n" else "\u001b[?20n")
+            // North American, ready, an LK201
+            26 -> t.reply("\u001b[?27;1;0;0n")
+        }
+    }
+
+    /** DECRQPSR's answers: the cursor (1, DECCIR) or the tab stops (2, DECTABSR) */
+    private fun presentationState(n: Int) {
+        when (n) {
+            1 -> t.reply("\u001bP1\$u${cursorInformation()}\u001b\\")
+            2 -> t.reply("\u001bP2\$u${t.tabStops().joinToString("/") { (it + 1).toString() }}\u001b\\")
+        }
+    }
+
+    /** DECCIR's: the cursor's row, column and page; its rendition, protection and flags; GL, GR and the sets' sizes and designators */
+    private fun cursorInformation(): String {
+        val a = Style.attrs(t.style)
+        /** 0x40 with the bits the flags given set, as DECCIR's characters are */
+        fun bits(vararg f: Boolean): Char = (0x40 + f.withIndex().sumOf { (i, on) -> if (on) 1 shl i else 0 }).toChar()
+        val rend = bits(a and Style.BOLD != 0, a and Style.ANY_UNDERLINE != 0, a and Style.BLINK != 0, a and Style.INVERSE != 0)
+        val att = bits(a and Style.PROTECTED != 0)
+        val flag = bits(t.originMode, sets.single == 2, sets.single == 3, t.pendingWrap)
+        val css = bits(sets.is96(0), sets.is96(1), sets.is96(2), sets.is96(3))
+        val desig = (0..3).joinToString("") { sets.designator(it) }
+        val y = if (t.originMode) t.cursorY - t.top else t.cursorY
+        return "${y + 1};${minOf(t.cursorX, t.cols - 1) + 1};1;$rend;$att;$flag;${sets.gl};${sets.gr};$css;$desig"
+    }
+
+    /** DECRQUPSS's answer: the preferred supplemental set (0 for a 94-character one, 1 for 96) and its designator */
+    private fun preferredSetString(): String {
+        val s = sets.preferred
+        return "\u001bP${if (s.is96) 1 else 0}!u${s.designator}\u001b\\"
+    }
+
+    /** DECAUPSS: the preferred supplemental set made [designator]'s ([size] 0 a 94-character set, 1 a 96-character one): DEC Supplemental or Latin-1 */
+    private fun assignPreferred(size: Int, designator: String) {
+        val s = GSet.byDesignator(designator, is96 = size == 1) ?: return
+        if (s == GSet.DEC_SUPPLEMENTAL || s == GSet.LATIN1) sets.preferred = s
+    }
+
+    /** with Shift, F6-F20 send what the host loaded into them (DECUDK), if it did */
+    override fun keyOctets(k: Key, shift: Boolean, alt: Boolean, ctrl: Boolean): ByteArray? =
+        if (shift && !alt && !ctrl && operatingLevel >= 2) userKeys.forKey(k) else null
 
     /** VT52 mode: a [Vt52Interpreter] reads what comes, with DEC Special Graphics, until its ESC < */
     private fun enterVt52() {
@@ -751,8 +959,14 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
         restoreCharsetState(null)
     }
 
-    /** RIS: the parser in its ground state, no DCS under way */
+    /** RIS: the parser in its ground state, no DCS under way, the level the profile's, the keys and preferred set cleared */
     override fun reset() {
+        operatingLevel = profile.level
+        t.eightBitReplies = false
+        userKeys.reset()
+        sets.preferred = GSet.LATIN1
+        sets.soft.reset()
+        statusActive = false
         softReset()
         vt52 = null
         t.vt52Keys = false

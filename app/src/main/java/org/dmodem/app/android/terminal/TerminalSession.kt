@@ -71,6 +71,10 @@ class TerminalSession(
     private val _title = MutableStateFlow("")
     val title: StateFlow<String> = _title.asStateFlow()
 
+    /** the status line below the screen (a VT320's, DECSSDT): "" for none */
+    private val _statusLine = MutableStateFlow("")
+    val statusLine: StateFlow<String> = _statusLine.asStateFlow()
+
     /** Ctrl and Alt latched (the extra keys' and the volume keys'): for the next key only */
     val ctrl = MutableStateFlow(false)
     val alt = MutableStateFlow(false)
@@ -172,7 +176,10 @@ class TerminalSession(
         while (off < end) {
             val bps = synchronized(emulator) { emulator.emulatedBps }
             val n = if (bps <= 0) end - off else minOf(end - off, maxOf(1, bps / 10 / (1000 / PACE_MS).toInt()))
-            synchronized(emulator) { emulator.append(if (off == 0 && n == data.size) data else data.copyOfRange(off, off + n), n) }
+            _statusLine.value = synchronized(emulator) {
+                emulator.append(if (off == 0 && n == data.size) data else data.copyOfRange(off, off + n), n)
+                emulator.statusText()
+            }
             onChange?.invoke()
             off += n
             if (bps > 0) {
