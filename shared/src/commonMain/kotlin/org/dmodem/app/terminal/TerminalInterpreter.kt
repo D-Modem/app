@@ -35,6 +35,9 @@ abstract class TerminalInterpreter(protected val t: TerminalEmulator) {
     /** what character [cp] typed or pasted sends on this terminal, as octets; null: [KeyEncoder]'s, in the character set */
     open fun charOctets(cp: Int, alt: Boolean, ctrl: Boolean): ByteArray? = null
 
+    /** a tap at ([fx], [fy]), fractions of the screen's width and height from its top left: what it sends (a RIP button's text), or null if it's nothing to this terminal */
+    open fun tap(fx: Double, fy: Double): ByteArray? = null
+
     /** what came in a read has all been processed: a picture drawn meanwhile put on the screen */
     open fun flush() {}
 

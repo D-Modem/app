@@ -689,6 +689,12 @@ class TerminalView @JvmOverloads constructor(
         val (row, col) = cellAt(x, y)
         if (row < 0) return false
         val e = s.emulator
+        // (a terminal that takes taps itself: a RIP button's text)
+        val taken = synchronized(e) { e.tap(x / (cellW * e.cols).toDouble(), y / (cellH * e.rows).toDouble()) }
+        if (taken != null) {
+            s.sendTerminal(taken)
+            return true
+        }
         val (down, up) = synchronized(e) {
             e.mouseEvent(0, col, row, press = true) to e.mouseEvent(0, col, row, press = false)
         }

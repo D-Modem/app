@@ -244,6 +244,9 @@ class TerminalEmulator(
 
     private val sink = TermDecoder.Sink { cp -> interpreter.process(cp) }
 
+    /** a tap at ([fx], [fy]) (fractions of the screen from its top left) as the terminal takes it: what to send (a RIP button's text), or null if it takes none */
+    fun tap(fx: Double, fy: Double): ByteArray? = interpreter.tap(fx, fy)
+
     /** the remote's octets, decoded in [decoder]'s set (or as they are, to an interpreter that reads octets) */
     fun append(data: ByteArray, length: Int = data.size) {
         if (interpreter.readsOctets) {

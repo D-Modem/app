@@ -71,6 +71,7 @@ class ProfileRenderTest {
             "atari-st", "atari-st-low" -> "${e}EHello ST ${e}b1Red${e}b\u000f ${e}pInverse${e}q \u009e\u00e0"
             "avatar" -> "\u000c\u0016\u0001\u001eAvatar \u0019*\u0008\u0016\u0001\u0004 red \u0016\u0001\u0007 $e[1;32mANSI too$e[0m"
             "amiga" -> "$e[2J$e[HAmiga $e[1;31mANSI$e[0m in Latin-1: \u00e9\u00e8\u00fc\u00df\u00a9 $e[44;33m Topaz $e[0m"
+            "rip" -> "!|*|S0101|B0000HR0K|c0F|@0806RIPscrip on D-Modem|c0E|C8W4628|S0904|o46461O14|c0A|L0078HR78|1UC83CFK4G0000<>Enter<>^M\r\nANSI text in the window"
             "vt52" -> "${e}H${e}JHello VT52 ${e}F" + "abcdefg" + "${e}G"
             else -> "$e[2J$e[HHello ${p.label} $e[1mBold$e[0m $e[7mInverse$e[0m $e[4mUnder$e[0m\r\n" +
                 "$e(0lqqqqk$e(B $e[31mRed$e[0m"

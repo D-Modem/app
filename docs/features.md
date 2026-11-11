@@ -30,7 +30,7 @@
   clear-home, bold as bright, iCE colours, and box drawing and block
   characters drawn to fill their cells so ANSI art has no gaps. A
   terminal type (Settings, and each directory entry's own) picks what it
-  is: xterm, ANSI-BBS (a PC's, in CP437, as SyncTERM is), Avatar, Amiga ANSI, DEC VT52, VT100,
+  is: xterm, ANSI-BBS (a PC's, in CP437, as SyncTERM is), RIPscrip, Avatar, Amiga ANSI, DEC VT52, VT100,
   VT102, VT220, VT320, VT340, VT420, VT510, VT520 or VT525, a Commodore, an
   Atari 8-bit or ST, Viewdata (Prestel), a Minitel or a Tektronix 4014. Each
   answers the device attribute requests as that terminal did, knows only
@@ -82,7 +82,14 @@
   mode for DOS doors (`ESC [ = 255 h`: the keys as a PC's scan codes).
   Avatar is ANSI-BBS with FidoNet's compact codes as well (AVT/0 and
   AVT/0+: ^L, ^Y's repeat, ^V's PC attributes, cursor moves, insert mode,
-  area scrolls, clears and fills, and pattern repeats). Amiga ANSI is
+  area scrolls, clears and fills, and pattern repeats). RIPscrip (1.54)
+  is ANSI-BBS whose lines starting `!|` draw on a 640x350 EGA screen over
+  an 80x43 text window: lines in their styles and thicknesses,
+  rectangles, bars, circles, ellipses, arcs, pie slices, Béziers,
+  polygons, flood fills in BGI's patterns or the host's, text, the
+  palette, viewport and text window, the clipboard, and mouse regions
+  and buttons that send their text when tapped; it answers `ESC [ !`
+  with its version. Amiga ANSI is
   ANSI-BBS in Latin-1, the Amiga's set, drawn 8x8 as Topaz is (Unscii's
   glyphs) in colours from the Amiga's palette. The
   Commodore types (C64, C128 in 40 or 80 columns, Plus/4, VIC-20, PET in
