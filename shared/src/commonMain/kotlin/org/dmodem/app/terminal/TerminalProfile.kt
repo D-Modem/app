@@ -261,12 +261,14 @@ object TerminalProfiles {
     val ATARI: TerminalProfile = AtariProfile()
     val ATARI_INTL: TerminalProfile = AtariInternationalProfile()
     val TEK4014: TerminalProfile = Tek4014Profile()
+    val ATARI_ST: TerminalProfile = AtariStProfile()
+    val ATARI_ST_LOW: TerminalProfile = AtariStLowProfile()
 
     /** the default: what the app was before profiles */
     val DEFAULT: TerminalProfile get() = XTERM
 
     /** in the pickers' order */
-    val all: List<TerminalProfile> = listOf(XTERM, ANSI_BBS, VT52, VT100, VT102, VT220, VT320, VT340, VT420, VT510, VT520, VT525, C64, C128, C128_80, PLUS4, VIC20, PET, PET80, ATARI, ATARI_INTL, VIEWDATA, MINITEL, TEK4014)
+    val all: List<TerminalProfile> = listOf(XTERM, ANSI_BBS, VT52, VT100, VT102, VT220, VT320, VT340, VT420, VT510, VT520, VT525, C64, C128, C128_80, PLUS4, VIC20, PET, PET80, ATARI, ATARI_INTL, ATARI_ST, ATARI_ST_LOW, VIEWDATA, MINITEL, TEK4014)
 
     /** the profile [id] names, or null for none or one not known */
     fun byId(id: String?): TerminalProfile? = all.firstOrNull { it.id == id }

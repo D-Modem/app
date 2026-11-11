@@ -29,6 +29,7 @@ graphics terminals draw through `Raster.kt`.
 | DEC VT525 | `vt525` | `vt525` / `DEC-VT525` | 80/132x24+ | A VT520 in colour, with its colour table |
 | Commodore 64, 128 (40 and 80), Plus/4, VIC-20, PET (40 and 80) | `c64`, `c128`, `c128-80`, `plus4`, `vic20`, `pet`, `pet80` | `petscii` / `PETSCII` | 40x25 (VIC-20: 22x23; 80 for the C128's VDC and the 8032) | PETSCII as CCGMS and Novaterm do it, each in its machine's palette |
 | Atari 8-bit | `atari`, `atari-intl` | `atascii` / `ATASCII` | 40x24 | ATASCII and the screen editor's controls; the XL's international set as a second type |
+| Atari ST | `atari-st`, `atari-st-low` | `st52` / `VT52` | 80x25 in 4 colours, or 40x25 in 16 | TOS's VT52 with its colours (ESC b, ESC c), reverse, wrap, cursor save and on/off, more erases, line insert and delete, in the ST's character set |
 | Viewdata (Prestel) | `viewdata` | `viewdata` / `VIEWDATA` | 40x24 | Teletext Level 1 attributes and mosaics; # sends |
 | Minitel | `minitel` | `minitel` / `MINITEL` | 40x25 | Teletel videotex with the status row, the protocol commands, Mixte (80 columns) and Téléinformatique (a VT100) |
 | Tektronix 4014 | `tek4014` | `tek4014` / `TEK4014` | 4096x3120 tube | Vectors, points, incremental plots and alpha text on a storage tube |

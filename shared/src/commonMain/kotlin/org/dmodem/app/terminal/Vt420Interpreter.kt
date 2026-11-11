@@ -126,7 +126,7 @@ open class Vt420Interpreter(t: TerminalEmulator, profile: DecProfile) : VtInterp
     /** colour [n] of the 16 as the screen shows it now */
     private fun color(n: Int): Int {
         val i = n.coerceIn(0, 15)
-        return t.colorOverride(i).takeIf { it != -1 } ?: t.defaultColor(i)
+        return t.colorOverride(i).takeIf { it != TerminalEmulator.NO_COLOR } ?: t.defaultColor(i)
     }
 
     /** DECCTR: the 16 colours, each Pc; 2 (RGB); its red, green and blue in percent */

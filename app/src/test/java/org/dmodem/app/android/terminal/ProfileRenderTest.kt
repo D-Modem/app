@@ -66,6 +66,7 @@ class ProfileRenderTest {
             "tek4014" -> "\u001d${tek(100, 100)}${tek(900, 100)}${tek(500, 700)}${tek(100, 100)}\u001fTEKTRONIX"
             "vt340" -> "Hello VT340 $e[7mInverse$e[0m\r\n" +
                 "${e}PpS(M2(H120L50S100))W(I2)P[400,240]C[+100]P[100,300]F(V[+100][+0,+100][-100])$e\\"
+            "atari-st", "atari-st-low" -> "${e}EHello ST ${e}b1Red${e}b\u000f ${e}pInverse${e}q \u009e\u00e0"
             "vt52" -> "${e}H${e}JHello VT52 ${e}F" + "abcdefg" + "${e}G"
             else -> "$e[2J$e[HHello ${p.label} $e[1mBold$e[0m $e[7mInverse$e[0m $e[4mUnder$e[0m\r\n" +
                 "$e(0lqqqqk$e(B $e[31mRed$e[0m"

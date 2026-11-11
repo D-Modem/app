@@ -310,7 +310,7 @@ class TerminalView @JvmOverloads constructor(
             }
             if (i >= 0) {
                 val o = e.colorOverride(i)
-                if (o != -1) return o
+                if (o != TerminalEmulator.NO_COLOR) return o
             }
         }
         return theme.argb(c, isFg)
@@ -589,7 +589,7 @@ class TerminalView @JvmOverloads constructor(
         val x = px(col)
         val cw = px(col + 1) - x
         val y = e.cursorY * cellH
-        val cursorColor = e.colorOverride(258).takeIf { it != -1 } ?: theme.cursorArgb
+        val cursorColor = e.colorOverride(258).takeIf { it != TerminalEmulator.NO_COLOR } ?: theme.cursorArgb
         fillPaint.color = cursorColor
         // the remote's shape (DECSCUSR), else the user's
         val shape = when (e.cursorStyle) {

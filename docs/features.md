@@ -32,7 +32,7 @@
   terminal type (Settings, and each directory entry's own) picks what it
   is: xterm, ANSI-BBS (a PC's, in CP437, as SyncTERM is), DEC VT52, VT100,
   VT102, VT220, VT320, VT340, VT420, VT510, VT520 or VT525, a Commodore, an
-  Atari, Viewdata (Prestel), a Minitel or a Tektronix 4014. Each
+  Atari 8-bit or ST, Viewdata (Prestel), a Minitel or a Tektronix 4014. Each
   answers the device attribute requests as that terminal did, knows only
   its own sequences (a VT100 has no colours, a VT220 no xterm titles or
   mouse), and gives SSH its `TERM` and Telnet its TERMINAL-TYPE. The DEC
@@ -95,7 +95,12 @@
   inverse video, its cursor keys wrapping round the screen, CLEAR, EOL,
   insert and delete of characters and lines, tabs, the buzzer and ESC to
   show a control's character; CTRL with a letter types its graphic and
-  the key bar's INV key types the next character inverse. Viewdata is
+  the key bar's INV key types the next character inverse. The Atari ST
+  types (80 columns in medium resolution's four colours, or 40 in low
+  resolution's sixteen) are TOS's VT52 with its additions: the pens (ESC
+  b, ESC c), reverse, wrap, the cursor saved and hidden, erases to the
+  screen's and line's start, line insert and delete, and the ST's own
+  character set. Viewdata is
   Prestel's 40x24 of teletext: its attributes take a cell and change the
   rest of the row (alpha and mosaic colours, flash, conceal, contiguous
   or separated mosaics, hold, new and black background; double height is

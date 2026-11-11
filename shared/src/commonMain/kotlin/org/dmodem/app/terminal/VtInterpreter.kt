@@ -713,7 +713,7 @@ open class VtInterpreter(t: TerminalEmulator, val profile: DecProfile) : Termina
     /** a colour set from its spec, or told (OSC's answer) when the spec is "?" */
     private fun colorSpec(i: Int, spec: String, prefix: String) {
         if (spec == "?") {
-            val c = t.colorOverride(i).takeIf { it != -1 } ?: t.defaultColor(i)
+            val c = t.colorOverride(i).takeIf { it != TerminalEmulator.NO_COLOR } ?: t.defaultColor(i)
             /** a colour channel (0-255) as X's four hex digits */
             fun h(v: Int) = (v * 0x101).toString(16).padStart(4, '0')
             val end = if (oscBel) "\u0007" else "\u001b\\"

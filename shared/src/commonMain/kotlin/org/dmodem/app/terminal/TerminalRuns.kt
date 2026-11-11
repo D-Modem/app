@@ -48,7 +48,7 @@ fun TerminalEmulator.runs(row: Int, look: RunLook = RunLook()): List<StyledRun> 
         }
         if (i >= 0) {
             val o = colorOverride(i)
-            if (o != -1) return o
+            if (o != TerminalEmulator.NO_COLOR) return o
         }
         return look.theme.argb(c, isFg)
     }

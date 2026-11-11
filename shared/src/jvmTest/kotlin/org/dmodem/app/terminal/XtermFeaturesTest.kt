@@ -139,8 +139,8 @@ class XtermFeaturesTest {
         assertEquals(0xffffeedd.toInt(), t.colorOverride(256))
         assertEquals(0xff000000.toInt(), t.colorOverride(257))
         t.send("\u001b]104\u0007\u001b]110\u0007")
-        assertEquals(-1, t.colorOverride(1))
-        assertEquals(-1, t.colorOverride(256))
+        assertEquals(TerminalEmulator.NO_COLOR, t.colorOverride(1))
+        assertEquals(TerminalEmulator.NO_COLOR, t.colorOverride(256))
         assertEquals(0xff000000.toInt(), t.colorOverride(257))
         assertNull(TerminalEmulator.parseColor("red"))
     }

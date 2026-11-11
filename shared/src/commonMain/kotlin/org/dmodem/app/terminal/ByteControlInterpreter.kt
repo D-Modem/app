@@ -29,22 +29,14 @@ abstract class ByteControlInterpreter(t: TerminalEmulator, private val machine: 
 
     /** the machine's size and palette on the emulator */
     private fun attach() {
-        t.requestedColumns = machine.columns
-        t.requestedRows = machine.rows
+        t.useMachine(machine)
         t.autowrap = true
-        val p = machine.palette
-        for (i in p.indices) t.setColorOverride(i, p[i])
-        t.setColorOverride(256, p[machine.defaultColor])
-        t.setColorOverride(257, p[machine.background])
         t.style = look()
     }
 
     /** the view's size and the theme's colours back, for the profile taking over */
     override fun detach() {
-        t.requestedColumns = 0
-        t.requestedRows = 0
-        t.resetColors(0..257)
-        t.style = Style.NORMAL
+        t.releaseMachine()
     }
 
     /** the machine as it starts: its colour, no reverse, the tab stops, its screen and palette */
@@ -196,6 +188,24 @@ abstract class ByteControlInterpreter(t: TerminalEmulator, private val machine: 
         for (b in codes) if (set[b] == cp) return b
         return null
     }
+}
+
+/** [m]'s screen size and palette (its default colours the screen's own) on the emulator */
+internal fun TerminalEmulator.useMachine(m: ByteMachine) {
+    requestedColumns = m.columns
+    requestedRows = m.rows
+    val p = m.palette
+    for (i in p.indices) setColorOverride(i, p[i])
+    setColorOverride(256, p[m.defaultColor])
+    setColorOverride(257, p[m.background])
+}
+
+/** the view's size and the theme's colours back after [useMachine], the style plain */
+internal fun TerminalEmulator.releaseMachine() {
+    requestedColumns = 0
+    requestedRows = 0
+    resetColors(0..257)
+    style = Style.NORMAL
 }
 
 /**
