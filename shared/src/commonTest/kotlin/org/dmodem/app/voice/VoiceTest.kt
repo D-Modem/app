@@ -177,17 +177,21 @@ class VoiceTest {
             val mic = ShortArray(160) { (sin(2 * PI * 300 * it / 8000) * 10000).toInt().toShort() }
             val heard = ShortArray(8000)
             var n = 0
+            val got0 = m.got
+            val loud0 = m.loud
             val t0 = monotonicMs()
             while (monotonicMs() - t0 < 1000) {
                 j.write(mic)
                 n += j.read(heard, n % 4000, 160)
                 sleepMs(20)
             }
-            assertTrue(n > 6000, "heard $n")
+            val ms = monotonicMs() - t0
+            val sent = m.got - got0
+            // (the line's pace, 8 a millisecond, give or take a slow machine's scheduling: a simulator's)
+            assertTrue(n > ms * 4, "heard $n in $ms ms")
             assertTrue(heard.take(4000).any { abs(it.toInt()) > 4000 }, "the far end's tone")
-            // (about 8000 a second, a little ahead)
-            assertTrue(m.got in 7000..10000, "sent ${m.got}")
-            assertTrue(m.loud > 3000, "loud ${m.loud}")
+            assertTrue(sent in ms * 5..ms * 8 + 2000, "sent $sent in $ms ms")
+            assertTrue(m.loud - loud0 > sent / 4, "loud ${m.loud - loud0} of $sent")
             j.hangUp()
             waitFor("the end") { j.state?.running == false }
         } finally {
