@@ -110,6 +110,7 @@ fun TerminalScreen(
     val status by ModemState.status.collectAsStateWithLifecycle()
     val run by ModemState.run.collectAsStateWithLifecycle()
     val title by session.title.collectAsStateWithLifecycle()
+    val statusLine by session.statusLine.collectAsStateWithLifecycle()
     val capture by session.capture.collectAsStateWithLifecycle()
     var view by remember { mutableStateOf<TerminalView?>(null) }
     var showSnippets by remember { mutableStateOf(false) }
@@ -298,6 +299,17 @@ fun TerminalScreen(
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )
             }
+        }
+        // a VT320's status line, below the screen (the screen a line shorter)
+        if (statusLine.isNotEmpty()) {
+            Text(
+                statusLine,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                maxLines = 1,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 4.dp),
+            )
         }
         if (s.extraKeys) {
             ExtraKeys(

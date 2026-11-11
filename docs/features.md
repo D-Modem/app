@@ -46,8 +46,10 @@
   characters with selective erase (DECSCA, DECSED, DECSEL), the
   conformance level (DECSCL), the printer, keyboard and user-defined key
   status reports, the cursor and tab stop reports (DECCIR, DECTABSR), the
-  preferred supplemental set, and user-defined keys (DECUDK: Shift with
-  F6-F20). The key bar gains the DEC keypad (PF1-PF4, digits, minus,
+  preferred supplemental set, user-defined keys (DECUDK: Shift with
+  F6-F20), and soft characters (DECDLD: the host's own glyphs, drawn from
+  its bitmaps). A VT320 also has its status line below the screen: the
+  cursor's place, or a line the host writes (DECSSDT, DECSASD). The key bar gains the DEC keypad (PF1-PF4, digits, minus,
   comma, period, Enter, in numeric or application mode), and on a VT220
   or VT320 the LK201's F6-F20, Find and Select and a page of the
   user-defined keys; a hardware numpad sends the keypad's keys. ANSI-BBS is

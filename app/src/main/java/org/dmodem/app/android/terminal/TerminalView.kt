@@ -440,8 +440,8 @@ class TerminalView @JvmOverloads constructor(
                 flush(x + 1)
                 continue
             }
-            val g = drawing?.glyphs
-            if (g != null && g.has(cp)) {
+            val g = drawing?.glyphFor(cp)
+            if (g != null) {
                 flush(x + 1)
                 drawGlyph(c, g, cp, px(x), y, px(x + 1) - px(x))
                 continue
@@ -489,17 +489,19 @@ class TerminalView @JvmOverloads constructor(
     /** [cp]'s bitmap glyph in [g] filling the cell at ([left], [y]), [w] wide, in fillPaint's colour: each row's runs of pixels as one rectangle */
     private fun drawGlyph(c: Canvas, g: org.dmodem.app.terminal.BitmapFont, cp: Int, left: Float, y: Float, w: Float) {
         val h = g.height
+        val gw = g.width
+        val high = 1 shl (gw - 1)
         for (r in 0 until h) {
             val bits = g.row(cp, r)
             if (bits == 0) continue
             val top = y + floor(r * cellH / h)
             val bottom = y + floor((r + 1) * cellH / h)
             var col = 0
-            while (col < 8) {
-                if (bits and (0x80 ushr col) == 0) { col++; continue }
+            while (col < gw) {
+                if (bits and (high ushr col) == 0) { col++; continue }
                 val start = col
-                while (col < 8 && bits and (0x80 ushr col) != 0) col++
-                c.drawRect(left + floor(start * w / 8), top, left + floor(col * w / 8), bottom, fillPaint)
+                while (col < gw && bits and (high ushr col) != 0) col++
+                c.drawRect(left + floor(start * w / gw), top, left + floor(col * w / gw), bottom, fillPaint)
             }
         }
     }
@@ -608,8 +610,8 @@ class TerminalView @JvmOverloads constructor(
                         textPaint.color = theme.bgArgb
                         textPaint.isFakeBoldText = false
                         textPaint.textSkewX = 0f
-                        val g = e.glyphs
-                        if (g != null && g.has(cp)) {
+                        val g = e.glyphFor(cp)
+                        if (g != null) {
                             fillPaint.color = theme.bgArgb
                             drawGlyph(c, g, cp, x, y, cw)
                         } else if (settings.drawBoxes && BoxDrawing.handles(cp)) {

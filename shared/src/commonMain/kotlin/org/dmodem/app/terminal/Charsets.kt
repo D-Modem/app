@@ -136,7 +136,9 @@ enum class GSet(val designators: List<String>, val is96: Boolean = false, val le
     SPANISH(listOf("Z"), level = 2, table = "#£@§[¡\\Ñ]¿{°|ñ}ç"),
     SWEDISH(listOf("H", "7"), level = 2, table = "@É[Ä\\Ö]Å^Ü`é{ä|ö}å~ü"),
     SWISS(listOf("="), level = 2, table = "#ù@à[é\\ç]ê^î_è`ô{ä|ö}ü~û"),
-    PORTUGUESE(listOf("%6"), level = 3, table = "[Ã\\Ç]Õ{ã|ç}õ");
+    PORTUGUESE(listOf("%6"), level = 3, table = "[Ã\\Ç]Õ{ã|ç}õ"),
+    /** the soft set the host loaded (DECDLD): designated by the designator it gave, mapped by [CharsetShifting] */
+    SOFT(emptyList(), level = 2);
 
     /** the national set's replacements: each ASCII character and what it is here */
     private val replaced: Map<Int, Int> by lazy {

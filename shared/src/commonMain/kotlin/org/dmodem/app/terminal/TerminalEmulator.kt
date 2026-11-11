@@ -230,6 +230,28 @@ class TerminalEmulator(
     /** the glyphs its cells are drawn with, a bitmap font the profile's machine had (null: the view's font) */
     val glyphs: BitmapFont? get() = profile.glyphs
 
+    /** the soft characters the host loaded (DECDLD), their code points [SoftFont.BASE]'s; null for none */
+    var softGlyphs: BitmapFont? = null
+        internal set
+
+    /** the bitmap glyph [cp] is drawn with: a soft character's, the profile's, or null for the view's font */
+    fun glyphFor(cp: Int): BitmapFont? =
+        softGlyphs?.takeIf { cp >= SoftFont.BASE && it.has(cp) } ?: glyphs?.takeIf { it.has(cp) }
+
+    /** DECSSDT's status line: 0 none, 1 the terminal's indicators, 2 the host's */
+    var statusType = 0
+        internal set
+
+    /** the host-writable status line's text and cursor */
+    internal val statusLine = StatusLine(cols)
+
+    /** what the status line shows ("" for none): the cursor's place as the indicators have it, or the host's text */
+    fun statusText(): String = when (statusType) {
+        1 -> "${(cursorY + 1).toString().padStart(4, '0')},${(minOf(cursorX, cols - 1) + 1).toString().padStart(3, '0')}"
+        2 -> statusLine.line.text().ifEmpty { " " }
+        else -> ""
+    }
+
     /** text, as code points (the tests, local echo) */
     fun appendText(s: String) {
         var i = 0
@@ -702,6 +724,9 @@ class TerminalEmulator(
     /** everything as it was at the start (RIS), the scrollback kept */
     fun reset() {
         softReset()
+        statusType = 0
+        statusLine.clear()
+        softGlyphs = null
         screen = main
         for (l in main) { l.blank(Style.NORMAL) }
         for (l in alt) { l.blank(Style.NORMAL) }
@@ -758,6 +783,7 @@ class TerminalEmulator(
         screen = if (wasAlt) alt else main
         cols = newCols
         rows = newRows
+        statusLine.resize(cols)
         top = 0
         bottom = rows - 1
         tabs = BooleanArray(cols) { it % 8 == 0 && it > 0 }

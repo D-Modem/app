@@ -146,4 +146,48 @@ class Vt320Test {
         assertEquals("\u001b[1~", keys.key(Key.FIND, false))
         assertNull(UserKeys().get(17))
     }
+
+    /** DECSSDT and DECSASD: the host's status line written, the cursor kept on it, the indicators; RIS takes it away */
+    @Test
+    fun statusLine() {
+        val t = term()
+        t.send("\u001b[2\$~\u001b[1\$}Hello\rJ\u001b[3GL\u001b[0\$}x")
+        assertEquals("JeLlo", t.statusText().substring(0, 5))
+        assertEquals("x", t.line(0).text())
+        t.send("\u001bP\$q\$~\u001b\\")
+        assertEquals("\u001bP1\$r2\$~\u001b\\", taken())
+        t.send("\u001b[1\$~")
+        assertEquals("0001,002", t.statusText())
+        t.send("\u001bc")
+        assertEquals("", t.statusText())
+        // (a VT220 has none)
+        val v = term(TerminalProfiles.VT220)
+        v.send("\u001b[2\$~")
+        assertEquals("", v.statusText())
+    }
+
+    /** DECDLD: soft characters loaded as sixels, designated by their Dscs, drawn from their glyphs */
+    @Test
+    fun softFont() {
+        val t = term()
+        // two characters 8x10 from 0x21, designated SP @
+        t.send("\u001bP0;1;0;8;0;2;10;0{ @~~~~~~~~/????????;@\u001b\\")
+        t.send("\u001b( @!\"#\u001b(B!")
+        val l = t.line(0)
+        assertEquals(SoftFont.BASE + 0x21, l.chars[0])
+        assertEquals(SoftFont.BASE + 0x22, l.chars[1])
+        assertEquals('#'.code, l.chars[2])
+        assertEquals('!'.code, l.chars[3])
+        val g = t.glyphFor(SoftFont.BASE + 0x21)!!
+        assertEquals(8, g.width)
+        assertEquals(10, g.height)
+        assertEquals(0xff, g.row(SoftFont.BASE + 0x21, 5))
+        assertEquals(0, g.row(SoftFont.BASE + 0x21, 6))
+        assertEquals(0x80, g.row(SoftFont.BASE + 0x22, 0))
+        // DECCIR names the soft set's designator
+        t.send("\u001b( @\u001b[1\$w")
+        assertEquals(" @BAA", taken().substringAfterLast(';').removeSuffix("\u001b\\"))
+        t.send("\u001bc")
+        assertNull(t.glyphFor(SoftFont.BASE + 0x21))
+    }
 }

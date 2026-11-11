@@ -127,12 +127,23 @@ class TerminalBridge(cols: Int, rows: Int) {
     /** the bitmap glyphs' height: 8, 16 for a VGA's (0: none) */
     val glyphHeight: Int get() = emulator.glyphs?.height ?: 0
 
-    /** row [row] (0 top) of [cp]'s bitmap glyph, its leftmost pixel bit 7; -1 if the profile has no glyph for it (drawn with the font) */
+    /** row [row] (0 top) of [cp]'s bitmap glyph (the profile's, or a soft character's), its leftmost pixel bit [glyphWidthOf] - 1; -1 if it has none (drawn with the font) */
     fun glyphRow(cp: Int, row: Int): Int {
-        val g = emulator.glyphs ?: return -1
-        if (!g.has(cp)) return -1
+        val g = emulator.glyphFor(cp) ?: return -1
         return g.row(cp, row)
     }
+
+    /** [cp]'s bitmap glyph's width in pixels (8 for the profile's; a soft character's its own), 0 for none */
+    fun glyphWidthOf(cp: Int): Int = emulator.glyphFor(cp)?.width ?: 0
+
+    /** [cp]'s bitmap glyph's height in pixels, 0 for none */
+    fun glyphHeightOf(cp: Int): Int = emulator.glyphFor(cp)?.height ?: 0
+
+    /** whether the host loaded soft characters (DECDLD): code points from 0xF0000 drawn from their glyphs */
+    val softGlyphs: Boolean get() = emulator.softGlyphs != null
+
+    /** what the status line below the screen shows ("" for none: no line) */
+    val statusText: String get() = emulator.statusText()
 
     /** the swatch (ARGB) the key at ([row], [col]) of page [page] shows, 0 for none */
     fun keyBarColor(page: Int, row: Int, col: Int): Int = (keyAt(page, row, col) as? BarKey.Octets)?.color ?: 0

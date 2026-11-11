@@ -24,6 +24,9 @@ class CharsetShifting {
     /** the user-preferred supplemental set (DECAUPSS), what ESC ( < designates */
     var preferred = GSet.LATIN1
 
+    /** the soft set the host loaded (DECDLD), what a G set holding [GSet.SOFT] shows */
+    val soft = SoftFont()
+
     /** what DECSC keeps */
     class Saved(val g: Array<GSet>, val gl: Int, val gr: Int)
 
@@ -83,12 +86,18 @@ class CharsetShifting {
         val s = single
         single = -1
         return when {
-            cp in 0x20..0x7f -> g[if (s >= 0) s else gl].map(cp)
-            eightBit && cp in 0xa0..0xff -> g[if (s >= 0) s else gr].map(cp - 0x80)
+            cp in 0x20..0x7f -> show(g[if (s >= 0) s else gl], cp)
+            eightBit && cp in 0xa0..0xff -> show(g[if (s >= 0) s else gr], cp - 0x80)
             else -> cp
         }
     }
 
+    /** [cp] (0x20..0x7f) as [set] has it, the soft set's from [soft] */
+    private fun show(set: GSet, cp: Int): Int = if (set == GSet.SOFT) soft.map(cp) else set.map(cp)
+
+    /** the designator G[n] was given (the soft set's its own; one with none, ASCII's) */
+    fun designator(n: Int): String = (if (g[n] == GSet.SOFT) soft.designator else g[n].designator) ?: "B"
+
     /** whether G[n] holds a 96-character set */
-    fun is96(n: Int): Boolean = g[n].is96
+    fun is96(n: Int): Boolean = if (g[n] == GSet.SOFT) soft.is96 else g[n].is96
 }
