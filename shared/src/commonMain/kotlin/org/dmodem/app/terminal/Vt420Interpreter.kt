@@ -2,7 +2,6 @@
 // Copyright (C) 2026 Neo-Desktop
 package org.dmodem.app.terminal
 
-import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
@@ -152,7 +151,7 @@ open class Vt420Interpreter(t: TerminalEmulator, profile: DecProfile) : VtInterp
             val f = entry.split(';').map { it.toIntOrNull() ?: 0 }
             if (f.size < 5 || f[0] !in 0..15) continue
             val argb = when (f[1]) {
-                1 -> hls(f[2], f[3], f[4])
+                1 -> Sixel.hls(f[2], f[3], f[4])
                 2 -> rgb(f[2], f[3], f[4])
                 else -> continue
             }
@@ -165,25 +164,6 @@ open class Vt420Interpreter(t: TerminalEmulator, profile: DecProfile) : VtInterp
         /** a percentage as 0-255 */
         fun c(v: Int) = (v.coerceIn(0, 100) * 255 / 100.0).roundToInt()
         return (0xff shl 24) or (c(r) shl 16) or (c(g) shl 8) or c(b)
-    }
-
-    /** DEC's hue (0 blue, 120 red, 240 green), lightness and saturation (percent) as a colour */
-    private fun hls(hue: Int, light: Int, sat: Int): Int {
-        val h = ((hue - 120) % 360 + 360) % 360 / 60.0
-        val l = light.coerceIn(0, 100) / 100.0
-        val s = sat.coerceIn(0, 100) / 100.0
-        val chroma = (1 - abs(2 * l - 1)) * s
-        val x = chroma * (1 - abs(h % 2 - 1))
-        val (r, g, b) = when (h.toInt()) {
-            0 -> Triple(chroma, x, 0.0)
-            1 -> Triple(x, chroma, 0.0)
-            2 -> Triple(0.0, chroma, x)
-            3 -> Triple(0.0, x, chroma)
-            4 -> Triple(x, 0.0, chroma)
-            else -> Triple(chroma, 0.0, x)
-        }
-        val m = l - chroma / 2
-        return rgb(((r + m) * 100).roundToInt(), ((g + m) * 100).roundToInt(), ((b + m) * 100).roundToInt())
     }
 
     /** page [n] (from 0, kept to the 6 there are) gone to */
