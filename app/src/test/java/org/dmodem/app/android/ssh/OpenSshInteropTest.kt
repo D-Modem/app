@@ -127,7 +127,7 @@ class OpenSshInteropTest {
     ): SshLink {
         val known = KnownHosts(tmp.newFile()) { _, _ -> Answer(accepted = true) }
         val l = SshLink(
-            "127.0.0.1", port, System.getProperty("user.name"), keys.provider(k.id), known,
+            "127.0.0.1", port, System.getProperty("user.name"), keys.privateText(k.id), known,
             ask = { _, _ -> asked.incrementAndGet(); Answer() },
             forwardSpecs = forwards, agent = agent,
         )

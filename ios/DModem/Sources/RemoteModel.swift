@@ -7,7 +7,7 @@ import Foundation
 import Network
 
 /// A login to a server by SSH, Telnet or rlogin, in a terminal of its own
-/// (beside the modem's). SSH is DModemSSH's (SwiftNIO SSH), its host keys
+/// (beside the modem's). SSH is DModemSSH's (libdmodemssh, on libssh), its host keys
 /// kept here the first time they're accepted; Telnet and rlogin a TCP
 /// connection (Network) with the shared Kotlin's protocol (LoginBridge).
 @MainActor

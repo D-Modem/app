@@ -8,7 +8,10 @@ You need JDK 17 or later and the Android SDK with platform 37, NDK
 29.0.14206865 and CMake 3.31.6 (`sdkmanager "platforms;android-37.0"
 "ndk;29.0.14206865" "cmake;3.31.6"`). D-Modem's CMake fetches libre and
 Mbed TLS (git) while configuring and builds them with the NDK's toolchain
-for each ABI. `./gradlew connectedDebugAndroidTest` runs the instrumented
+for each ABI; the SSH client (`native-ssh`) fetches libssh's and its own
+Mbed TLS's release tarballs (pinned by SHA-256) the same way. The unit
+tests build that SSH client for the build host too (`buildHostSsh`: CMake,
+a C compiler and the JDK's JNI headers). `./gradlew connectedDebugAndroidTest` runs the instrumented
 tests on a device or emulator (the native library loads and answers AT
 commands).
 

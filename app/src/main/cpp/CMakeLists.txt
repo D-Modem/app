@@ -90,4 +90,8 @@ if(ANDROID)
 	add_library(dmodem_pty SHARED pty.c)
 	target_compile_options(dmodem_pty PRIVATE -Wall -Wextra)
 	target_link_options(dmodem_pty PRIVATE -Wl,-z,max-page-size=16384)
+
+	# the SSH client (NativeSsh.kt): libdmodemssh on libssh and its own
+	# Mbed TLS, libdmodem_ssh_jni.so (native-ssh, the GUI's and iOS's too)
+	add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../../../native-ssh native-ssh)
 endif()

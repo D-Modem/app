@@ -5,24 +5,12 @@ package org.dmodem.app.android.ssh
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import net.schmizz.sshj.common.Buffer
-import net.schmizz.sshj.common.KeyType
-import net.schmizz.sshj.userauth.keyprovider.KeyPairWrapper
-import net.schmizz.sshj.userauth.keyprovider.KeyProvider
-import net.schmizz.sshj.userauth.keyprovider.OpenSSHKeyFile
-import net.schmizz.sshj.userauth.keyprovider.PKCS8KeyFile
-import net.schmizz.sshj.userauth.keyprovider.PuTTYKeyFile
-import net.schmizz.sshj.userauth.password.PasswordFinder
-import net.schmizz.sshj.userauth.password.Resource
-import com.hierynomus.sshj.userauth.keyprovider.OpenSSHKeyV1KeyFile
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.security.KeyFactory
 import java.security.KeyPair
 import java.security.KeyPairGenerator
-import java.security.MessageDigest
-import java.security.PublicKey
 import java.security.spec.ECGenParameterSpec
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.RSAKeyGenParameterSpec
@@ -52,23 +40,6 @@ data class SshKey(
     val fingerprint: String,
     val created: Long,
 )
-
-/** The public key's SSH form and its fingerprint (SHA256:..., as ssh-keygen -l). */
-object KeyFormat {
-    /** the key in SSH's wire form (its type, then its fields) */
-    fun blob(k: PublicKey): ByteArray = Buffer.PlainBuffer().putPublicKey(k).compactData
-
-    /** the key's SSH type: ssh-ed25519, ecdsa-sha2-nistp256, ssh-rsa... */
-    fun type(k: PublicKey): String = KeyType.fromKey(k).toString()
-
-    /** the key's authorized_keys line: its type, its blob in base64, and [comment] if any */
-    fun openSsh(k: PublicKey, comment: String = ""): String =
-        type(k) + " " + Base64.getEncoder().encodeToString(blob(k)) + if (comment.isNotEmpty()) " $comment" else ""
-
-    /** the key's fingerprint, SHA256: and its blob's digest in unpadded base64 */
-    fun fingerprint(k: PublicKey): String =
-        "SHA256:" + Base64.getEncoder().withoutPadding().encodeToString(MessageDigest.getInstance("SHA-256").digest(blob(k)))
-}
 
 /**
  * The app's SSH keys: made here or imported (OpenSSH's, PuTTY's .ppk or
@@ -124,31 +95,25 @@ class SshKeys(private val dir: File, private val box: SecretBox) {
     }
 
     /**
-     * A private key's text (OpenSSH's "BEGIN OPENSSH PRIVATE KEY", or a PEM
-     * PKCS#8 / PKCS#1 one) imported, opened with [passphrase] if it has one.
-     * Throws if it can't be read.
+     * A private key's text (OpenSSH's "BEGIN OPENSSH PRIVATE KEY", a PEM
+     * PKCS#8 / PKCS#1 / SEC1 one, or PuTTY's .ppk) imported, opened with
+     * [passphrase] if it has one. Throws if it can't be read.
      */
     fun import(text: String, passphrase: String?, name: String): SshKey {
         SshSecurity.ensure()
-        val finder = object : PasswordFinder {
-            /** [passphrase] for the key (none: empty) */
-            override fun reqPassword(resource: Resource<*>?): CharArray = (passphrase ?: "").toCharArray()
-            /** asked once: a wrong passphrase isn't asked again */
-            override fun shouldRetry(resource: Resource<*>?) = false
+        if (Ppk.isPpk(text)) {
+            // (a .ppk's comment kept as the key's)
+            val (kp, comment) = Ppk.read(text, passphrase)
+            return keep(kp, name, comment.takeIf { it.isNotBlank() })
         }
-        val provider: KeyProvider = when {
-            Ppk.isPpk(text) -> PuTTYKeyFile().apply { init(text, null, finder) }
-            text.contains("BEGIN OPENSSH PRIVATE KEY") -> OpenSSHKeyV1KeyFile().apply { init(text, null, finder) }
-            text.contains("BEGIN") && text.contains("PRIVATE KEY") -> PKCS8KeyFile().apply { init(text, null, finder) }
-            else -> OpenSSHKeyFile().apply { init(text, null, finder) }
-        }
-        // (a .ppk's comment kept as the key's)
-        return keep(KeyPair(provider.public, provider.private), name, if (Ppk.isPpk(text)) Ppk.comment(text)?.takeIf { it.isNotBlank() } else null)
+        // (OpenSSH's and PEM's read by libdmodemssh, written again unencrypted for the pair)
+        val plain = NativeSsh.keyExport(text, passphrase, null)
+            ?: throw java.io.IOException("the key can't be read: not a private key, or not with that passphrase")
+        return keep(KeyGen.readOpenSsh(plain).first, name)
     }
 
-    /** [given] kept: its private half sealed in its own file (an RSA one made whole first), its entry added */
-    private fun keep(given: KeyPair, name: String, comment: String? = null): SshKey {
-        val pair = withCrt(given)
+    /** [pair] kept: its private half sealed in its own file, its entry added */
+    private fun keep(pair: KeyPair, name: String, comment: String? = null): SshKey {
         val id = UUID.randomUUID().toString()
         val sealed = box.seal(
             JSONObject()
@@ -167,45 +132,7 @@ class SshKeys(private val dir: File, private val box: SecretBox) {
         return k
     }
 
-    /**
-     * an RSA key given as n and d only (sshj reads PuTTY's that way) made
-     * whole: its primes found again from n, e and d, so that it can be
-     * encoded (Android's provider won't encode one without them)
-     */
-    private fun withCrt(kp: KeyPair): KeyPair {
-        val priv = kp.private as? java.security.interfaces.RSAPrivateKey ?: return kp
-        if (priv is java.security.interfaces.RSAPrivateCrtKey) return kp
-        val pub = kp.public as java.security.interfaces.RSAPublicKey
-        val n = pub.modulus
-        val e = pub.publicExponent
-        val d = priv.privateExponent
-        val one = java.math.BigInteger.ONE
-        // k = de - 1 = 2^s t; for random g, a square root of 1 other than ±1 among g^t, g^2t, ... splits n
-        val k = d.multiply(e).subtract(one)
-        val s = k.lowestSetBit
-        val t = k.shiftRight(s)
-        val rnd = java.security.SecureRandom()
-        var p: java.math.BigInteger? = null
-        while (p == null) {
-            val g = java.math.BigInteger(n.bitLength() - 1, rnd).add(java.math.BigInteger.valueOf(2))
-            var x = g.modPow(t, n)
-            for (i in 0 until s) {
-                val y = x.multiply(x).mod(n)
-                if (y == one && x != one && x != n.subtract(one)) {
-                    p = x.subtract(one).gcd(n)
-                    break
-                }
-                x = y
-            }
-        }
-        val q = n.divide(p)
-        val spec = java.security.spec.RSAPrivateCrtKeySpec(
-            n, e, d, p, q, d.mod(p.subtract(one)), d.mod(q.subtract(one)), q.modInverse(p),
-        )
-        return KeyPair(pub, KeyFactory.getInstance("RSA", "BC").generatePrivate(spec))
-    }
-
-    /** the key's pair, opened: for sshj's authentication */
+    /** the key's pair, opened */
     fun keyPair(id: String): KeyPair {
         SshSecurity.ensure()
         val o = JSONObject(String(box.open(File(dir, "$id.key").readBytes())))
@@ -244,8 +171,8 @@ class SshKeys(private val dir: File, private val box: SecretBox) {
         )
     }
 
-    /** the key as sshj's key provider, for authentication */
-    fun provider(id: String): KeyProvider = KeyPairWrapper(keyPair(id))
+    /** the private key's text, unencrypted in OpenSSH's form: for logging in with */
+    fun privateText(id: String): String = KeyGen.openSshPrivate(keyPair(id), byId(id)?.let { comment(it) } ?: "")
 
     /** the key's name changed to [name] */
     fun rename(id: String, name: String) {

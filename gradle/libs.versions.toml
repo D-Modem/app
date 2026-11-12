@@ -11,7 +11,6 @@ junit = "4.13.2"
 coroutines = "1.10.2"
 atomicfu = "0.33.0"
 robolectric = "4.17"
-sshj = "0.41.2"
 xz = "1.10"
 bouncycastle = "1.86"
 mina-sshd = "2.20.0"
@@ -38,7 +37,6 @@ junit = { module = "junit:junit", version.ref = "junit" }
 kotlinx-atomicfu = { module = "org.jetbrains.kotlinx:atomicfu", version.ref = "atomicfu" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
-sshj = { module = "com.hierynomus:sshj", version.ref = "sshj" }
 xz = { module = "org.tukaani:xz", version.ref = "xz" }
 bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
 bcpkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bouncycastle" }

@@ -6,10 +6,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import net.schmizz.sshj.SSHClient
-import net.schmizz.sshj.connection.channel.Channel
-import net.schmizz.sshj.connection.channel.forwarded.ConnectListener
-import net.schmizz.sshj.connection.channel.forwarded.RemotePortForwarder
 import java.io.Closeable
 import java.io.IOException
 import java.io.InputStream
@@ -123,6 +119,138 @@ data class ForwardState(
     val total: Int = 0,
 )
 
+/** A channel's events, from its connection's thread (each to return quickly). */
+interface ChannelHandler {
+    /** opened, or refused ([why]) */
+    fun opened(ok: Boolean, why: String?) {}
+
+    /** its data ([stderr]: the command's error output) */
+    fun data(b: ByteArray, stderr: Boolean) {}
+
+    /** its end of data */
+    fun eof() {}
+
+    /** its command's exit status */
+    fun exit(status: Int) {}
+
+    /** closed: its last event */
+    fun closed() {}
+}
+
+/** What forwards need of a connection: its channels, each told to its handler. */
+interface SshChannels {
+    /** a TCP connection from the server to host:port, for one from [from]:[fromPort], told to [x]: its channel, or -1 */
+    fun direct(host: String, port: Int, from: String, fromPort: Int, x: ChannelHandler): Int
+
+    /** the server asked to listen ([address] null: its default): [done] told the port bound, or -1 and why; false if it can't be asked */
+    fun listen(address: String?, port: Int, done: (Int, String?) -> Unit): Boolean
+
+    /** that listen stopped */
+    fun unlisten(address: String?, port: Int)
+
+    /** data to [x]'s channel: the bytes still waiting for the server, or -1 if it's gone */
+    fun write(channel: Int, x: ChannelHandler, data: ByteArray, offset: Int, length: Int): Int
+
+    /** [x]'s channel's end of data sent */
+    fun eof(channel: Int, x: ChannelHandler)
+
+    /** [x]'s channel closed */
+    fun close(channel: Int, x: ChannelHandler)
+}
+
+/**
+ * A socket and a channel spliced, both ways: the channel's data written to
+ * the socket by a thread of its own (queued until [start]), the socket's
+ * read to the channel by another (held back while the server's window is
+ * full); each one's end passed on as the other's. [done] once the channel
+ * has closed.
+ */
+class Splice(private val link: SshChannels) : ChannelHandler {
+    @Volatile var channel = -1
+    @Volatile private var socket: Socket? = null
+    private val queue = java.util.concurrent.LinkedBlockingQueue<ByteArray>()
+    /** whether the channel opened, once it's known */
+    val open = java.util.concurrent.CompletableFuture<Boolean>()
+    /** the channel closed */
+    val done = java.util.concurrent.CountDownLatch(1)
+
+    /** opened: the socket started, if there's one ([start] does it when it comes) */
+    override fun opened(ok: Boolean, why: String?) {
+        open.complete(ok)
+    }
+
+    /** the channel's data, queued for the socket */
+    override fun data(b: ByteArray, stderr: Boolean) {
+        queue.put(b)
+    }
+
+    /** the channel's end, the socket's output shut once what's queued is written */
+    override fun eof() {
+        queue.put(END)
+    }
+
+    /** the channel gone: the socket closed */
+    override fun closed() {
+        open.complete(false)
+        queue.put(END)
+        runCatching { socket?.close() }
+        done.countDown()
+    }
+
+    /** [s] spliced to the channel: both ways, each on a thread of its own */
+    fun start(s: Socket) {
+        socket = s
+        if (done.count == 0L) {
+            runCatching { s.close() }
+            return
+        }
+        Forwards.thread("splice-down") {
+            try {
+                val o = s.getOutputStream()
+                while (true) {
+                    val b = queue.take()
+                    if (b === END) break
+                    o.write(b)
+                    o.flush()
+                }
+                runCatching { s.shutdownOutput() }
+            } catch (_: Exception) {
+                link.close(channel, this)
+            }
+        }
+        Forwards.thread("splice-up") {
+            val buf = ByteArray(32 * 1024)
+            try {
+                val i = s.getInputStream()
+                while (true) {
+                    val n = i.read(buf)
+                    if (n < 0) break
+                    var waiting = link.write(channel, this, buf, 0, n)
+                    // (the server's window full: held back until it takes more)
+                    while (waiting > HIGH_WATER) {
+                        Thread.sleep(5)
+                        waiting = link.write(channel, this, buf, 0, 0)
+                    }
+                    if (waiting < 0) break
+                }
+                link.eof(channel, this)
+            } catch (_: Exception) {
+                link.close(channel, this)
+            }
+        }
+    }
+
+    /** until the channel has closed (or [ms] have passed) */
+    fun await(ms: Long = Long.MAX_VALUE) {
+        done.await(ms, java.util.concurrent.TimeUnit.MILLISECONDS)
+    }
+
+    companion object {
+        private val END = ByteArray(0)
+        private const val HIGH_WATER = 256 * 1024
+    }
+}
+
 /**
  * An SSH connection's port forwards: local (a socket here, each connection
  * a direct-tcpip channel to host:hostport from the server), remote (the
@@ -130,7 +258,7 @@ data class ForwardState(
  * (a SOCKS 4/4a/5 proxy here, each connection to where its client asks).
  */
 class Forwards(
-    private val client: SSHClient,
+    private val link: SshChannels,
     private val _states: MutableStateFlow<List<ForwardState>> = MutableStateFlow(emptyList()),
     private val log: (String) -> Unit = {},
 ) : Closeable {
@@ -138,6 +266,8 @@ class Forwards(
     val states: StateFlow<List<ForwardState>> = _states.asStateFlow()
 
     private val running = HashMap<ForwardSpec, Closeable>()
+    /** the remote forwards by the port the server bound */
+    private val remotes = java.util.concurrent.ConcurrentHashMap<Int, ForwardSpec>()
 
     @Volatile private var closed = false
 
@@ -157,11 +287,15 @@ class Forwards(
             }
             true
         } catch (e: Exception) {
-            val why = e.message ?: e.javaClass.simpleName
-            set(spec) { it.copy(listening = false, error = why) }
-            log("forward ${spec}: $why")
+            failed(spec, e.message ?: e.javaClass.simpleName)
             false
         }
+    }
+
+    /** [spec] not listening, for [why] */
+    private fun failed(spec: ForwardSpec, why: String) {
+        set(spec) { it.copy(listening = false, error = why) }
+        log("forward ${spec}: $why")
     }
 
     /** a forward stopped and gone from [states] */
@@ -200,53 +334,92 @@ class Forwards(
         return server
     }
 
+    /** a channel from the server to [host]:[port] for [s], once it's open (null if it's refused) */
+    private fun open(host: String, port: Int, s: Socket): Splice? {
+        val sp = Splice(link)
+        sp.channel = link.direct(host, port, s.inetAddress.hostAddress ?: "127.0.0.1", s.port, sp)
+        if (sp.channel < 0) return null
+        val ok = try {
+            sp.open.get(30, java.util.concurrent.TimeUnit.SECONDS)
+        } catch (_: Exception) {
+            false
+        }
+        if (!ok) {
+            link.close(sp.channel, sp)
+            log("forward to $host:$port: refused by the server")
+            return null
+        }
+        return sp
+    }
+
     /** a connection to a local or SOCKS forward: its channel from the server (SOCKS's to where its client asks), spliced to it, counted while open */
     private fun serve(spec: ForwardSpec, s: Socket) {
         counted(spec) {
             s.use {
                 s.tcpNoDelay = true
-                val ch: Channel = try {
+                val sp = try {
                     if (spec.type == ForwardSpec.Type.DYNAMIC) {
-                        Socks.handshake(s.getInputStream(), s.getOutputStream()) { h, p ->
-                            try {
-                                client.newDirectConnection(h, p)
-                            } catch (e: IOException) {
-                                log("SOCKS to $h:$p: ${e.message}")
-                                null
-                            }
-                        } ?: return@counted
+                        Socks.handshake(s.getInputStream(), s.getOutputStream()) { h, p -> open(h, p, s) }
                     } else {
-                        client.newDirectConnection(spec.host, spec.hostPort)
+                        open(spec.host, spec.hostPort, s)
                     }
                 } catch (e: IOException) {
                     log("forward to ${spec.host}:${spec.hostPort}: ${e.message}")
-                    return@counted
-                }
-                ch.use { splice(s, it) }
+                    null
+                } ?: return@counted
+                sp.start(s)
+                sp.await()
             }
         }
     }
 
     /** the server asked to listen for a remote forward, each connection to host:hostport from here: its cancel */
     private fun remote(spec: ForwardSpec): Closeable {
-        val rpf = client.remotePortForwarder
-        val listener = ConnectListener { ch ->
-            // (in a thread sshj starts for the channel; refused if this throws)
-            val s = Socket()
-            try {
-                s.connect(InetSocketAddress(spec.host, spec.hostPort), 10_000)
-                s.tcpNoDelay = true
-            } catch (e: IOException) {
-                runCatching { s.close() }
-                log("forward from the server to ${spec.host}:${spec.hostPort}: ${e.message}")
-                throw e
+        var bound = -1
+        val asked = link.listen(spec.bind, spec.port) { port, why ->
+            if (port < 0) {
+                failed(spec, why ?: "the server refused to listen")
+            } else {
+                bound = port
+                remotes[port] = spec
+                set(spec) { it.copy(listening = true, error = null, boundPort = port) }
             }
-            ch.confirm()
-            counted(spec) { s.use { ch.use { splice(s, ch) } } }
         }
-        val bound = rpf.bind(RemotePortForwarder.Forward(spec.bind ?: "", spec.port), listener)
-        set(spec) { it.copy(listening = true, error = null, boundPort = bound.port) }
-        return Closeable { runCatching { rpf.cancel(bound) } }
+        if (!asked) throw IOException("not connected")
+        return Closeable {
+            if (bound >= 0) {
+                remotes.remove(bound)
+                link.unlisten(spec.bind, bound)
+            }
+        }
+    }
+
+    /**
+     * a connection the server took on a remote forward's [port] (on the
+     * connection's thread): its handler, the socket to host:hostport made
+     * on a thread of its own; null if it isn't one of ours
+     */
+    fun incoming(channel: Int, port: Int): ChannelHandler? {
+        val spec = remotes[port] ?: return null
+        val sp = Splice(link)
+        sp.channel = channel
+        thread("fwd-R$port") {
+            counted(spec) {
+                val s = Socket()
+                try {
+                    s.connect(InetSocketAddress(spec.host, spec.hostPort), 10_000)
+                    s.tcpNoDelay = true
+                } catch (e: IOException) {
+                    runCatching { s.close() }
+                    log("forward from the server to ${spec.host}:${spec.hostPort}: ${e.message}")
+                    link.close(channel, sp)
+                    return@counted
+                }
+                sp.start(s)
+                sp.await()
+            }
+        }
+        return sp
     }
 
     /** [body] run as one of [spec]'s connections: counted open while it runs, and in the total */
@@ -262,31 +435,6 @@ class Forwards(
     companion object {
         /** [body] run on a daemon thread named [name] */
         fun thread(name: String, body: () -> Unit) = Thread(body, name).apply { isDaemon = true }.start()
-
-        /** both ways between a socket and a channel, until either ends */
-        fun splice(s: Socket, ch: Channel) {
-            val up = Thread({
-                copy(s.getInputStream(), ch.outputStream)
-                runCatching { ch.outputStream.close() }
-            }, "splice-up").apply { isDaemon = true; start() }
-            copy(ch.inputStream, s.getOutputStream())
-            runCatching { s.shutdownOutput() }
-            up.join(30_000)
-        }
-
-        /** [i] copied to [o] until it ends (or fails) */
-        private fun copy(i: InputStream, o: OutputStream) {
-            val buf = ByteArray(32 * 1024)
-            try {
-                while (true) {
-                    val n = i.read(buf)
-                    if (n < 0) break
-                    o.write(buf, 0, n)
-                    o.flush()
-                }
-            } catch (_: IOException) {
-            }
-        }
     }
 }
 

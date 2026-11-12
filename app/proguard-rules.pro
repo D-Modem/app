@@ -7,10 +7,11 @@
     static void onExit(int);
 }
 
-# SSH: sshj and BouncyCastle find their algorithms by name (JCA providers,
-# factories) at run time: keep them whole.
--keep class net.schmizz.sshj.** { *; }
--keep class com.hierynomus.sshj.** { *; }
+# SSH: libdmodem_ssh_jni's JNI functions are named after NativeSsh's natives
+-keep class org.dmodem.app.android.ssh.NativeSsh { native <methods>; }
+
+# BouncyCastle finds its algorithms by name (JCA providers, factories) at
+# run time: keep them whole.
 -keep class org.bouncycastle.jcajce.provider.** { *; }
 -keep class org.bouncycastle.jce.provider.** { *; }
 -keep class org.bouncycastle.pqc.jcajce.provider.** { *; }
