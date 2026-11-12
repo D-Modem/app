@@ -2,10 +2,7 @@
 // Copyright (C) 2026 Neo-Desktop
 package org.dmodem.app.android.ssh
 
-import net.schmizz.sshj.common.Buffer
-import net.schmizz.sshj.transport.verification.HostKeyVerifier
 import java.io.File
-import java.security.PublicKey
 import java.util.Base64
 
 /**
@@ -14,8 +11,7 @@ import java.util.Base64
  * the one kept, is put to the user ([ask]): accepted for this connection
  * only, or kept (in place of the old key, for a changed one).
  */
-class KnownHosts(private val file: File, private val ask: (Prompt.HostKey, Any?) -> Answer) : HostKeyVerifier {
-
+class KnownHosts(private val file: File, private val ask: (Prompt.HostKey, Any?) -> Answer) {
 
     /** the host as known_hosts names it: bare on port 22, else "[host]:port" */
     private fun hostPart(host: String, port: Int) = if (port == 22) host else "[$host]:$port"
@@ -34,17 +30,16 @@ class KnownHosts(private val file: File, private val ask: (Prompt.HostKey, Any?)
         }
     }
 
-    /** [key] kept for the host, in place of a key of its type kept before */
+    /** a key ([type], in base64) kept for the host, in place of a key of its type kept before */
     @Synchronized
-    fun keep(host: String, port: Int, key: PublicKey) {
+    fun keep(host: String, port: Int, type: String, b64: String) {
         val hp = hostPart(host, port)
-        val type = KeyFormat.type(key)
         val others = lines().filterNot { l ->
             val f = l.trim().split(Regex("\\s+"))
             f.size >= 2 && f[0].split(',').contains(hp) && f[1] == type
         }
         file.parentFile?.mkdirs()
-        file.writeText((others + "$hp $type ${Base64.getEncoder().encodeToString(KeyFormat.blob(key))}").joinToString("\n", postfix = "\n"))
+        file.writeText((others + "$hp $type $b64").joinToString("\n", postfix = "\n"))
     }
 
     /** every key kept: (host part as the file has it, type, fingerprint) */
@@ -71,36 +66,54 @@ class KnownHosts(private val file: File, private val ask: (Prompt.HostKey, Any?)
             .joinToString("\n", postfix = "\n"))
     }
 
-    /** [verify] with no owner for the question */
-    override fun verify(hostname: String, port: Int, key: PublicKey): Boolean = verify(hostname, port, key, null)
-
-    /** verify(), the question (if any) asked as [owner]'s: the connection's */
-    fun verify(hostname: String, port: Int, key: PublicKey, owner: Any?): Boolean {
-        val type = KeyFormat.type(key)
-        val b64 = Base64.getEncoder().encodeToString(KeyFormat.blob(key))
+    /**
+     * the server's key (its OpenSSH line, "ssh-ed25519 AAAA...") checked:
+     * true if it's the one kept, else as the user answers (asked as
+     * [owner]'s question: the connection's), kept if they ask
+     */
+    fun verify(hostname: String, port: Int, keyLine: String, owner: Any? = null): Boolean {
+        val f = keyLine.trim().split(Regex("\\s+"))
+        if (f.size < 2) return false
+        val (type, b64) = f
         val kept = keysFor(hostname, port)
         if (kept.any { it.first == type && it.second == b64 }) return true
         val old = kept.firstOrNull { it.first == type }?.second?.let { fingerprintOf(it) }
         val a = ask(
             Prompt.HostKey(
                 if (old != null) "The host key has CHANGED" else "Unknown host",
-                hostname, port, type, KeyFormat.fingerprint(key), old,
+                hostname, port, type, fingerprintOf(b64), old,
             ),
             owner,
         )
-        if (a.accepted && a.remember) keep(hostname, port, key)
+        if (a.accepted && a.remember) keep(hostname, port, type, b64)
         return a.accepted
     }
 
-    /** the key types kept for the host, first (so the server is asked for the key we know) */
-    override fun findExistingAlgorithms(hostname: String, port: Int): List<String> =
-        keysFor(hostname, port).map { it.first }.distinct()
+    /**
+     * the host key algorithms to ask the server for, those of the keys kept
+     * for the host first (so it shows the key we know); empty when none are
+     * kept (libssh's own order)
+     */
+    fun hostKeyAlgorithms(hostname: String, port: Int): List<String> {
+        val kept = keysFor(hostname, port).map { it.first }.distinct()
+        if (kept.isEmpty()) return emptyList()
+        /** a key type's signature algorithms (an RSA key's SHA-2 ones) */
+        fun algs(t: String) = if (t == "ssh-rsa") listOf("rsa-sha2-512", "rsa-sha2-256") else listOf(t)
+        return (kept.flatMap { algs(it) } + ALL).distinct()
+    }
 
     /** the SHA256 fingerprint of a key kept in base64, or "(unreadable)" */
     private fun fingerprintOf(b64: String): String = try {
-        val key = Buffer.PlainBuffer(Base64.getDecoder().decode(b64)).readPublicKey()
-        KeyFormat.fingerprint(key)
+        KeyFormat.fingerprint(Base64.getDecoder().decode(b64))
     } catch (_: Exception) {
         "(unreadable)"
+    }
+
+    companion object {
+        /** the host key algorithms libdmodemssh takes, in libssh's order */
+        private val ALL = listOf(
+            "ssh-ed25519", "ecdsa-sha2-nistp521", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp256",
+            "rsa-sha2-512", "rsa-sha2-256",
+        )
     }
 }

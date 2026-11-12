@@ -9,6 +9,8 @@ build/
 captures/
 # host builds of native-test
 /build-host*/
+# host builds of native-ssh
+/build-ssh*/
 .kotlin/
 /build-apple/
 /build-fallback/

@@ -151,7 +151,7 @@ class SshLinkTest {
         user: String,
         ask: (Prompt, Any?) -> Answer,
         known: KnownHosts,
-        key: net.schmizz.sshj.userauth.keyprovider.KeyProvider? = null,
+        key: String? = null,
         saved: String? = null,
         kept: MutableList<String> = mutableListOf(),
     ) = SshLink("127.0.0.1", server.port, user, key, known, ask, savedPassword = saved, keepPassword = { kept.add(it) }, cols = 100, rows = 30)
@@ -265,7 +265,7 @@ class SshLinkTest {
             allowedKeys.add(keys.keyPair(k.id).public)
             val known = KnownHosts(tmp.newFile("known_hosts_${kind.name}")) { p, o -> user()(p, o) }
             prompts.clear()
-            val l = link("bob", user(), known, key = keys.provider(k.id))
+            val l = link("bob", user(), known, key = keys.privateText(k.id))
             val screen = Screen()
             l.addListener(screen)
             l.connect()
@@ -301,7 +301,7 @@ class SshLinkTest {
         // and they log in
         allowedKeys.add(pair.public)
         val known = KnownHosts(tmp.newFile("known_hosts")) { p, o -> user()(p, o) }
-        val l = link("bob", user(), known, key = keys.provider(k1.id))
+        val l = link("bob", user(), known, key = keys.privateText(k1.id))
         val screen = Screen()
         l.addListener(screen)
         l.connect()

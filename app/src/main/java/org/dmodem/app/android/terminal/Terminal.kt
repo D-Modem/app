@@ -111,7 +111,7 @@ object Terminal {
             EntryKind.SSH -> {
                 val key = if (e.auth == SshAuth.KEY) {
                     try {
-                        keys.provider(e.keyId)
+                        keys.privateText(e.keyId)
                     } catch (x: Exception) {
                         return "the key can't be opened: ${x.message}"
                     }

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <lint>
-    <!-- BouncyCastle's PKIX jar has trust managers for its own tools (EST); the app never uses them:
-         SSH checks host keys itself (known hosts) -->
+    <!-- BouncyCastle's PKIX jar (the SSH tests' PEM writer) has trust managers for its own tools
+         (EST); the app never uses them: SSH checks host keys itself (known hosts) -->
     <issue id="TrustAllX509TrustManager">
         <ignore path="**/bcpkix-jdk18on-*.jar" />
     </issue>

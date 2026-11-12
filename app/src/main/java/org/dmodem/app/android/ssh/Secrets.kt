@@ -106,14 +106,14 @@ class PasswordStore(private val file: File, private val box: SecretBox) {
 }
 
 /**
- * The full BouncyCastle as "BC": Android's own is cut down (no Ed25519,
- * no X25519 for sshj), so it goes, and sshj uses this one.
+ * The full BouncyCastle as "BC": Android's own is cut down (no Ed25519),
+ * so it goes; the keys are made, read and used for the agent with this one.
  */
 object SshSecurity {
     @Volatile
     private var done = false
 
-    /** the full BouncyCastle in place as "BC" and sshj told to use it (once) */
+    /** the full BouncyCastle in place as "BC" (once) */
     @Synchronized
     fun ensure() {
         if (done) return
@@ -122,8 +122,6 @@ object SshSecurity {
             Security.removeProvider("BC")
             Security.addProvider(org.bouncycastle.jce.provider.BouncyCastleProvider())
         }
-        net.schmizz.sshj.common.SecurityUtils.setRegisterBouncyCastle(false)
-        net.schmizz.sshj.common.SecurityUtils.setSecurityProvider("BC")
         done = true
     }
 }

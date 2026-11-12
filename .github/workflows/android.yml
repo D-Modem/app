@@ -234,10 +234,25 @@ jobs:
         env:
           DMODEM_HOST_BUILD: ${{ github.workspace }}/build-host
 
-      # the iOS app's SSH client (SwiftNIO SSH); its login tests run when
-      # DMODEM_SSH_TEST names an sshd (host:port:user:password), else skip
-      - name: DModemSSH (Swift)
-        run: swift test --package-path ios/DModemSSH
+      # the apps' SSH client (native-ssh: libdmodemssh on libssh), and the
+      # iOS app's Swift on it, against a real sshd
+      - name: SSH client
+        run: |
+          cmake -S native-ssh -B build-ssh -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-ssh
+          sudo apt-get install -y --no-install-recommends openssh-server
+          sudo useradd -m dmtest
+          echo 'dmtest:Sesame-42' | sudo chpasswd
+          ssh-keygen -q -t ed25519 -N '' -f "$RUNNER_TEMP/key"
+          sudo install -d -m 700 -o dmtest ~dmtest/.ssh
+          sudo install -m 600 -o dmtest "$RUNNER_TEMP/key.pub" ~dmtest/.ssh/authorized_keys
+          sudo mkdir -p /run/sshd
+          sudo /usr/sbin/sshd -p 2222 -o ListenAddress=127.0.0.1 -o PasswordAuthentication=yes
+          DMODEM_SSH_TEST_KEY="$RUNNER_TEMP/key" build-ssh/dmodemssh_test
+          swift test --package-path ios/DModemSSH
+        env:
+          DMODEM_SSH_TEST: 127.0.0.1:2222:dmtest:Sesame-42
+          DMODEM_SSH_HOST_BUILD: ${{ github.workspace }}/build-ssh
 
       # (Apple's ways on Linux: the portable fallbacks the iOS build has)
       - name: Engine test, Apple's fallbacks

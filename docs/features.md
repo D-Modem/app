@@ -158,10 +158,21 @@
   modem, in a terminal session of its own. On Android a directory entry
   connects by SSH, Telnet or rlogin (rlogin: the user's name sent as both
   names, the window's size when the server asks). On iOS the Terminal
-  tab's network button opens the Remote screen: SSH (a password login on
-  SwiftNIO SSH, `ios/DModemSSH`; the server's key kept the first time
-  it's trusted; Ed25519 and ECDSA host keys), Telnet or rlogin. Telnet
-  and rlogin are the shared Kotlin's (`org.dmodem.app.net`).
+  tab's network button opens the Remote screen: SSH (the server's key
+  kept the first time it's trusted), Telnet or rlogin. Telnet and rlogin
+  are the shared Kotlin's (`org.dmodem.app.net`).
+- **SSH** is the same client on every platform, the GUI's on Linux,
+  Windows and macOS too: libdmodemssh (`native-ssh`), on libssh 0.11 and
+  its own Mbed TLS (both built from their release tarballs, pinned by
+  SHA-256). Android loads it through JNI (`NativeSsh.kt`), iOS as the
+  `DModemSSHNative` XCFramework (`ios/DModemSSH`). Ed25519, ECDSA and RSA
+  keys, the host's and the user's; password, keyboard-interactive and
+  key logins; on Android the app's own keys (made here, or OpenSSH's,
+  PEM or PuTTY's .ppk imported), port forwards (-L, -R, -D: SOCKS 4/4a/5)
+  and agent forwarding (-A, each signature asked of the user when the
+  entry says). Its tests run against a real sshd: `native-ssh/test`,
+  and the app's JVM tests on a host build of the JNI library
+  (`./gradlew :app:buildHostSsh`, run by the unit tests).
 - **Log**: the modem's and SIP's log (Copy for all of it).
 - **AT commands** (Settings, AT commands, and the terminal's menu): the
   AT command reference, D-Modem's manual (`docs/at_commands.pdf`, the

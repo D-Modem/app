@@ -59,8 +59,8 @@ android {
         }
         externalNativeBuild {
             cmake {
-                // only the app's libraries (the modem's, the local shell's ptys): not dmodemd or D-Modem's other programs
-                targets += listOf("dmodem_jni", "dmodem_pty")
+                // only the app's libraries (the modem's, the local shell's ptys, the SSH client's): not dmodemd or D-Modem's other programs
+                targets += listOf("dmodem_jni", "dmodem_pty", "dmodem_ssh_jni")
                 arguments += listOf("-DANDROID_STL=c++_static")
                 // (a special build's name for the native code too: "led-probe" probes the Agere's LEDs)
                 providers.gradleProperty("dmodem.special").orNull?.let { arguments += "-DDMODEM_SPECIAL=$it" }
@@ -134,7 +134,7 @@ android {
 
     packaging {
         resources {
-            // (sshj's dependencies each carry these: one is enough, the licences are in the app's)
+            // (dependencies each carry these: one is enough, the licences are in the app's)
             excludes += setOf("META-INF/LICENSE.md", "META-INF/NOTICE.md", "META-INF/LICENSE-notice.md", "META-INF/versions/9/OSGI-INF/MANIFEST.MF")
             pickFirsts += setOf("META-INF/INDEX.LIST")
         }
@@ -162,12 +162,11 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.datastore.preferences)
-    // SSH: sshj on BouncyCastle (Android's own "BC" is cut down: the full one is registered at start)
-    implementation(libs.sshj)
     // the Linux systems' root file systems (.tar.xz)
     implementation(libs.xz)
+    // SSH keys made, read and used for the agent: BouncyCastle (Android's own "BC" is cut down:
+    // the full one is registered at start); the SSH client itself is native-ssh, on libssh
     implementation(libs.bcprov)
-    implementation(libs.bcpkix)
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.tooling.preview)
@@ -180,6 +179,7 @@ dependencies {
     testImplementation(libs.androidx.test.core)
     // an SSH server for the SSH client's tests
     testImplementation(libs.mina.sshd.core)
+    testImplementation(libs.bcpkix)
     testImplementation(platform(libs.compose.bom))
     testImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)
@@ -187,11 +187,28 @@ dependencies {
     androidTestImplementation(libs.androidx.test.ext.junit)
 }
 
+// native-ssh's JNI library for this machine, for the JVM's unit tests (cmake, a C compiler and a JDK's headers)
+val hostSshDir = layout.buildDirectory.dir("host-ssh")
+val buildHostSsh = tasks.register<Exec>("buildHostSsh") {
+    description = "Builds native-ssh's JNI library for the build host, for the unit tests"
+    inputs.dir(rootProject.file("native-ssh"))
+    outputs.file(hostSshDir.map { it.file(System.mapLibraryName("dmodem_ssh_jni")) })
+    val dir = hostSshDir.get().asFile.path
+    commandLine(
+        "sh", "-c",
+        "cmake -S \"$1\" -B \"$2\" -DDMODEM_SSH_JNI=ON -DCMAKE_BUILD_TYPE=Release && cmake --build \"$2\" --target dmodem_ssh_jni -j4",
+        "sh", rootProject.file("native-ssh").path, dir,
+    )
+}
+
 // Robolectric fetches its Android framework jars itself: -ProbolectricRepoUrl=<a Maven mirror> to fetch them elsewhere
 tasks.withType<Test>().configureEach {
     providers.gradleProperty("robolectricRepoUrl").orNull?.let {
         systemProperty("robolectric.dependency.repo.url", it)
     }
+    // the SSH client's JNI library built for the host (native-ssh), for the SSH tests
+    dependsOn(buildHostSsh)
+    systemProperty("java.library.path", hostSshDir.get().asFile.path)
     // each test named as it starts in CI's log, so a test that hangs is the last one started
     if (System.getenv("CI") != null) testLogging { events("started", "failed", "skipped") }
 }
