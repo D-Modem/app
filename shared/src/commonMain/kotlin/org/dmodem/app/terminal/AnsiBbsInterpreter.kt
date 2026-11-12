@@ -8,7 +8,8 @@ package org.dmodem.app.terminal
  * screen, ANSI music, iCE colours on request (CSI ? 33 h), the line speed
  * shown for ANSI animations (CSI * r), doorway mode for DOS doors (CSI =
  * 255 h: the keys as a PC's scan codes), and font selection (CSI SP D:
- * only code page 437 is there, so the others are taken and ignored).
+ * SyncTERM's numbers, the machines' fonts [RomFonts] has; the code pages
+ * it hasn't are taken and ignored).
  */
 open class AnsiBbsInterpreter(t: TerminalEmulator, private val bbs: AnsiBbsProfile) : VtInterpreter(t, bbs) {
     /** which CSIs start ANSI music (CSI = n M): 0 only CSI |, 1 CSI N too, 2 CSI M too (unless it has parameters: then it's DL) */
@@ -108,9 +109,27 @@ open class AnsiBbsInterpreter(t: TerminalEmulator, private val bbs: AnsiBbsProfi
                 if (param(0) <= 1) t.emulatedBps = SPEEDS.getOrElse(param(1)) { 0 }
                 return true
             }
-            marker == 0 && inter == ' '.code && c == 'D' -> return true
+            marker == 0 && inter == ' '.code && c == 'D' -> {
+                if (param(0) <= 0) selectFont(p(1, 0))
+                return true
+            }
         }
         return false
+    }
+
+    /**
+     * CSI 0 ; n SP D: SyncTERM's font [n] for the text, read in the
+     * session's set at the profile's height (the profile's own: back to
+     * it); one it hasn't got is ignored. (Fonts 1-3, the ones bright and
+     * blinking text can be drawn in, aren't kept.)
+     */
+    private fun selectFont(n: Int) {
+        if (n == bbs.syncTermFont) {
+            t.hostFont = null
+            return
+        }
+        val height = bbs.glyphs?.height ?: 16
+        MachineFonts.syncterm(n, height, t.decoder.charset)?.let { t.hostFont = it }
     }
 
     /** in doorway mode, a key as NUL and its scan code (Alt with a letter its own); otherwise the VT sequences */

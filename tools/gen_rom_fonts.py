@@ -1,0 +1,171 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Neo-Desktop
+"""
+Writes shared/.../terminal/RomFonts.kt: the machines' own character ROM
+fonts (the IBM VGA's, the Commodore 64's and 128's, the Atari 8-bit's,
+the Amiga's Topaz and the BBS scene's fonts for it, Prestel's, the
+Atari ST's), as SyncTERM draws them, from Synchronet's ciolib
+(src/conio/allfonts.c, LGPL-2.0-or-later).
+
+  python3 tools/gen_rom_fonts.py ALLFONTS_C
+
+ALLFONTS_C is https://gitlab.synchro.net/main/sbbs/-/raw/master/src/conio/allfonts.c
+(this was made from commit 7cf7f2fc, sha256 a725672f...). Each font is
+kept at the sizes its machine had: 8x8 for the home computers (the
+Amiga's, which SyncTERM keeps doubled to 8x16, halved back), 8x16 for
+the VGA and Prestel, both for the ST (its colour modes' and its mono
+mode's).
+"""
+import re
+import sys
+
+OUT = "shared/src/commonMain/kotlin/org/dmodem/app/terminal/RomFonts.kt"
+
+# (the Kotlin name, SyncTERM's font number, the sizes kept, what it is)
+FONTS = [
+    ("VGA", 0, (16, 8), "IBM VGA, code page 437 (8x16; 8x8 the VGA's 50-line font)"),
+    ("VGA_THIN", 26, (16,), "code page 437, SyncTERM's thin variant"),
+    ("C64_UPPER", 32, (8,), "Commodore 64, upper case and graphics (PETSCII order)"),
+    ("C64_LOWER", 33, (8,), "Commodore 64, lower and upper case"),
+    ("C128_UPPER", 34, (8,), "Commodore 128, upper case and graphics"),
+    ("C128_LOWER", 35, (8,), "Commodore 128, lower and upper case"),
+    ("ATARI", 36, (8,), "Atari 8-bit (ATASCII order)"),
+    ("POT_NOODLE", 37, (8,), "P0T-NOoDLE (Amiga)"),
+    ("MOSOUL", 38, (8,), "mO'sOul (Amiga)"),
+    ("MICROKNIGHT_PLUS", 39, (8,), "MicroKnight Plus (Amiga)"),
+    ("TOPAZ_PLUS", 40, (8,), "Topaz Plus (Amiga, Kickstart 2's Topaz)"),
+    ("MICROKNIGHT", 41, (8,), "MicroKnight (Amiga)"),
+    ("TOPAZ", 42, (8,), "Topaz (Amiga, Kickstart 1's)"),
+    ("PRESTEL", 43, (16,), "Prestel (the SAA5050's teletext characters, smoothed)"),
+    ("ATARI_ST", 44, (8, 16), "Atari ST (8x8 its colour modes', 8x16 its mono mode's)"),
+    ("RIPTERM", 45, (8,), "RIPterm's 8x8 (code page 437)"),
+]
+
+
+def unescape(s):
+    """a C string literal's body as its bytes"""
+    out = bytearray()
+    k = 0
+    while k < len(s):
+        c = s[k]
+        if c != "\\":
+            out.append(ord(c))
+            k += 1
+            continue
+        n = s[k + 1]
+        if n == "x":
+            m = re.match(r"[0-9a-fA-F]{1,2}", s[k + 2:])
+            out.append(int(m.group(), 16))
+            k += 2 + len(m.group())
+        elif n in "01234567":
+            m = re.match(r"[0-7]{1,3}", s[k + 1:])
+            out.append(int(m.group(), 8))
+            k += 1 + len(m.group())
+        else:
+            out.append({"n": 10, "t": 9, "r": 13, "\\": 92, '"': 34, "'": 39, "a": 7, "b": 8,
+                        "f": 12, "v": 11, "?": 63}[n])
+            k += 2
+    return bytes(out)
+
+
+def entries(path):
+    """conio_fontdata's entries (the build with fonts): each field bytes, or a name"""
+    src = open(path, encoding="latin-1").read()
+    body = src[src.index("#else"):]
+    head = "conio_fontdata[257] = {"
+    body = body[body.index(head) + len(head):]
+    tok = re.compile(r'"((?:[^"\\]|\\.)*)"|(\w+)|([{},])|(//[^\n]*|/\*.*?\*/)|(\s+)', re.S)
+    out, cur, field, pos = [], None, None, 0
+    while pos < len(body):
+        m = tok.match(body, pos)
+        pos = m.end()
+        if m.group(4) or m.group(5):
+            continue
+        if m.group(1) is not None:
+            b = unescape(m.group(1))
+            field = field + b if isinstance(field, bytes) else b
+            continue
+        t = m.group(2) or m.group(3)
+        if t == "{":
+            cur, field = [], None
+        elif t in (",", "}"):
+            if cur is not None and field is not None:
+                cur.append(field)
+                field = None
+            if t == "}":
+                if cur is None:
+                    break
+                out.append(cur)
+                cur = None
+        else:
+            field = t
+    return out
+
+
+def halve(d16):
+    """an 8x16 font that doubles 8x8 rows, as 8x8: each pair of rows as one (both's pixels)"""
+    return bytes(d16[g * 16 + 2 * r] | d16[g * 16 + 2 * r + 1] for g in range(256) for r in range(8))
+
+
+def size(e, h):
+    """an entry's glyphs [h] rows high: its own, or (8) its 8x16 halved"""
+    own = {16: e[0], 14: e[1], 8: e[2]}[h]
+    if isinstance(own, bytes):
+        return own
+    if h == 8 and isinstance(e[0], bytes):
+        return halve(e[0])
+    raise SystemExit(f"no {h}-row glyphs for {e[4]!r}")
+
+
+def chunks(s, n):
+    """[s] in pieces of [n] characters"""
+    return [s[i:i + n] for i in range(0, len(s), n)]
+
+
+def main():
+    """the Kotlin file from allfonts.c"""
+    if len(sys.argv) != 2:
+        raise SystemExit(__doc__)
+    es = entries(sys.argv[1])
+    w = []
+    w.append("// SPDX-License-Identifier: AGPL-3.0-only")
+    w.append("// Copyright (C) 2026 Neo-Desktop")
+    w.append("// Generated by tools/gen_rom_fonts.py: don't edit by hand.")
+    w.append("// The glyphs are Synchronet ciolib's (src/conio/allfonts.c), LGPL-2.0-or-later,")
+    w.append("// copyright Rob Swindell and its contributors; used here under the AGPL as that allows.")
+    w.append("package org.dmodem.app.terminal")
+    w.append("")
+    w.append("/**")
+    w.append(" * The machines' own character ROM fonts as SyncTERM draws them, each")
+    w.append(" * 256 glyphs in its machine's code order (hex, two digits a row), at")
+    w.append(" * the sizes the machine had; [syncterm] by SyncTERM's font numbers")
+    w.append(" * (CSI SP D's).")
+    w.append(" */")
+    w.append("internal object RomFonts {")
+    for name, n, heights, what in FONTS:
+        e = es[n]
+        args = []
+        for h in heights:
+            hexs = size(e, h).hex()
+            parts = " +\n            ".join(f'"{c}"' for c in chunks(hexs, 128))
+            args.append(f"        h{h} =\n            {parts},")
+        w.append(f"    /** {what} */")
+        w.append(f"    val {name}: RomFont = RomFont(")
+        w.extend(args)
+        w.append("    )")
+        w.append("")
+    w.append("    /** SyncTERM's font numbers (CSI SP D's) and the fonts here */")
+    w.append("    val syncterm: Map<Int, RomFont> by lazy {")
+    w.append("        mapOf(")
+    for name, n, _, _ in FONTS:
+        if name != "RIPTERM":
+            w.append(f"            {n} to {name},")
+    w.append("        )")
+    w.append("    }")
+    w.append("}")
+    open(OUT, "w").write("\n".join(w) + "\n")
+
+
+if __name__ == "__main__":
+    main()

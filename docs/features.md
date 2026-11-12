@@ -76,8 +76,10 @@
   comma, period, Enter, in numeric or application mode), and on a VT220
   or VT320 the LK201's F6-F20, Find and Select and a page of the
   user-defined keys; a hardware numpad sends the keypad's keys. ANSI-BBS is
-  the PC's 80x25 drawn in a VGA's 8x16 code page 437 (Unscii's, public
-  domain), with SyncTERM's additions: ANSI music (`ESC [ |`, and a bare
+  the PC's 80x25 drawn in the IBM VGA's own 8x16 code page 437, with
+  SyncTERM's additions: font selection (`ESC [ 0 ; n SP D`, SyncTERM's
+  font numbers: the C64's, C128's, Atari's, Amiga's, Prestel's and ST's
+  fonts), ANSI music (`ESC [ |`, and a bare
   `ESC [ M` when a PLAY string follows it) played as a PC speaker would,
   iCE colours when the BBS asks (`ESC [ ? 33 h`), the line speed it asks
   to be shown at for ANSI animations (`ESC [ 0 ; n * r`), and doorway
@@ -92,13 +94,13 @@
   palette, viewport and text window, the clipboard, and mouse regions
   and buttons that send their text when tapped; it answers `ESC [ !`
   with its version. Amiga ANSI is
-  ANSI-BBS in Latin-1, the Amiga's set, drawn 8x8 as Topaz is (Unscii's
-  glyphs) in colours from the Amiga's palette. The
+  ANSI-BBS in Latin-1, the Amiga's set, in Topaz (the Amiga's own 8x8),
+  in colours from the Amiga's palette. The
   Commodore types (C64, C128 in 40 or 80 columns, Plus/4, VIC-20, PET in
   40 or 80 columns) speak PETSCII as CCGMS and Novaterm do: the screen
   becomes the machine's (40x25, the VIC-20's 22x23) in its palette, drawn
-  in square cells from 8x8 glyphs (Unscii's, public domain, not
-  Commodore's ROMs), with both character sets, the colour and cursor
+  in square cells from the machine's own 8x8 character ROM (the C64's,
+  or the C128's), with both character sets, the colour and cursor
   codes, reverse, and the C128's ESC sequences, line feed, underline and
   flash. Typing and pasting are turned into PETSCII (CTRL and C= with a
   digit set colours, C= with a letter types its graphic), and the key bar

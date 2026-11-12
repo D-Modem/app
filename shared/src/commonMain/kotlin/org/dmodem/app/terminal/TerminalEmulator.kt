@@ -233,6 +233,7 @@ class TerminalEmulator(
             if (v === field) return
             field = v
             interpreter.detach()
+            hostFont = null
             interpreter = v.interpreter(this)
             homeOnClear = v.homeOnClear
             softReset()
@@ -270,8 +271,12 @@ class TerminalEmulator(
     /** whether the remote's octets are read as they come, in the terminal's own set (a Commodore's), not the user's */
     val readsOctets: Boolean get() = interpreter.readsOctets
 
-    /** the glyphs its cells are drawn with, a bitmap font the profile's machine had (null: the view's font) */
-    val glyphs: BitmapFont? get() = profile.glyphs
+    /** the glyphs its cells are drawn with: the font the host chose, else the profile's machine's (null: the view's font) */
+    val glyphs: BitmapFont? get() = hostFont ?: profile.glyphs
+
+    /** the font the host chose (CSI SP D) in place of the profile's; null: the profile's */
+    var hostFont: BitmapFont? = null
+        internal set
 
     /** the soft characters the host loaded (DECDLD), their code points [SoftFont.BASE]'s; null for none */
     var softGlyphs: BitmapFont? = null
@@ -841,6 +846,7 @@ class TerminalEmulator(
         statusType = 0
         statusLine.clear()
         softGlyphs = null
+        hostFont = null
         screen = main
         for (l in main) { l.blank(Style.NORMAL) }
         for (l in alt) { l.blank(Style.NORMAL) }
