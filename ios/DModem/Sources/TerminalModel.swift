@@ -22,6 +22,8 @@ final class TerminalModel: ObservableObject {
 
     /// to the modem
     var send: ((Data) -> Void)?
+    /// the screen's new size (a remote login tells its server)
+    var onResize: ((Int, Int) -> Void)?
 
     /// the emulator set up for BBSes: CP437, bold as bright, the VGA colours
     init() {
@@ -133,6 +135,7 @@ final class TerminalModel: ObservableObject {
         guard cols > 0, rows > 0, cols != self.cols || rows != self.rows else { return }
         bridge.resize(cols: Int32(cols), rows: Int32(rows))
         revision = bridge.revision
+        onResize?(cols, rows)
     }
 
     /// a row's runs

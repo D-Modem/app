@@ -72,7 +72,7 @@ fun DirectoryScreen(modifier: Modifier = Modifier, onDialed: () -> Unit) {
             Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
                 Text("No systems yet", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "Add a BBS, a host or an ISP: by the modem (its number or SIP user and the AT commands it needs), SSH or Telnet.",
+                    "Add a BBS, a host or an ISP: by the modem (its number or SIP user and the AT commands it needs), SSH, Telnet or rlogin.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
@@ -174,14 +174,17 @@ internal fun EntryDialog(entry: DialEntry, onSave: (DialEntry) -> Unit, onDismis
                             label = { Text("AT commands before dialling (; between)") }, singleLine = true,
                         )
                     }
-                    EntryKind.SSH, EntryKind.TELNET -> {
+                    EntryKind.SSH, EntryKind.TELNET, EntryKind.RLOGIN -> {
                         OutlinedTextField(e.host, { e = e.copy(host = it.trim()) }, label = { Text("Host") }, singleLine = true)
                         OutlinedTextField(
                             if (e.port > 0) e.port.toString() else "",
                             { v -> e = e.copy(port = v.filter { it.isDigit() }.take(5).toIntOrNull() ?: 0) },
-                            label = { Text("Port (${if (e.kind == EntryKind.SSH) 22 else 23})") }, singleLine = true,
+                            label = { Text("Port (${DialEntry.defaultPort(e.kind)})") }, singleLine = true,
                             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                         )
+                        if (e.kind == EntryKind.RLOGIN) {
+                            OutlinedTextField(e.user, { e = e.copy(user = it.trim()) }, label = { Text("User") }, singleLine = true)
+                        }
                         if (e.kind == EntryKind.SSH) {
                             OutlinedTextField(e.user, { e = e.copy(user = it.trim()) }, label = { Text("User") }, singleLine = true)
                             Choice("Log in with", e.auth.label, SshAuth.entries.map { it.label to it }) { e = e.copy(auth = it) }

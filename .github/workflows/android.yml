@@ -234,6 +234,11 @@ jobs:
         env:
           DMODEM_HOST_BUILD: ${{ github.workspace }}/build-host
 
+      # the iOS app's SSH client (SwiftNIO SSH); its login tests run when
+      # DMODEM_SSH_TEST names an sshd (host:port:user:password), else skip
+      - name: DModemSSH (Swift)
+        run: swift test --package-path ios/DModemSSH
+
       # (Apple's ways on Linux: the portable fallbacks the iOS build has)
       - name: Engine test, Apple's fallbacks
         run: |

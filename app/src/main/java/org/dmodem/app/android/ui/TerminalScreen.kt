@@ -424,7 +424,11 @@ private fun linkText(s: TerminalSession, st: TerminalLink.State, title: String):
         }
         return if (title.isNotBlank() && st == TerminalLink.State.Open) "$state — $title" else state
     }
-    val what = if (s.kind == TerminalSession.Kind.SSH) "SSH" else "Telnet"
+    val what = when (s.kind) {
+        TerminalSession.Kind.SSH -> "SSH"
+        TerminalSession.Kind.RLOGIN -> "rlogin"
+        else -> "Telnet"
+    }
     val where = s.entry?.address ?: s.label
     val state = when (st) {
         TerminalLink.State.Connecting -> "Connecting to $where…"
