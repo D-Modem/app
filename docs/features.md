@@ -159,7 +159,8 @@
   connects by SSH, Telnet or rlogin (rlogin: the user's name sent as both
   names, the window's size when the server asks). On iOS the Terminal
   tab's network button opens the Remote screen: SSH (the server's key
-  kept the first time it's trusted), Telnet or rlogin. Telnet and rlogin
+  kept the first time it's trusted; a password or the app's private key),
+  Telnet or rlogin. Telnet and rlogin
   are the shared Kotlin's (`org.dmodem.app.net`).
 - **SSH** is the same client on every platform, the GUI's on Linux,
   Windows and macOS too: libdmodemssh (`native-ssh`), on libssh 0.11 and
@@ -167,8 +168,12 @@
   SHA-256). Android loads it through JNI (`NativeSsh.kt`), iOS as the
   `DModemSSHNative` XCFramework (`ios/DModemSSH`). Ed25519, ECDSA and RSA
   keys, the host's and the user's; password, keyboard-interactive and
-  key logins; on Android the app's own keys (made here, or OpenSSH's,
-  PEM or PuTTY's .ppk imported), port forwards (-L, -R, -D: SOCKS 4/4a/5)
+  key logins, the key OpenSSH's, PEM or PuTTY's .ppk (read by the engine
+  itself, `native-ssh/src/ppk.c`); an agent's keys (on the desktops an
+  ssh-agent's socket, or on Windows Pageant or OpenSSH's agent:
+  `native-ssh/src/agent.c`); on Android and iOS the app's own keys (made here, or OpenSSH's,
+  PEM or PuTTY's .ppk imported; iOS keeps one, from Files, a .ppk turned
+  into OpenSSH's form with its passphrase, its public key to copy); on Android port forwards (-L, -R, -D: SOCKS 4/4a/5)
   and agent forwarding (-A, each signature asked of the user when the
   entry says). Its tests run against a real sshd: `native-ssh/test`,
   and the app's JVM tests on a host build of the JNI library

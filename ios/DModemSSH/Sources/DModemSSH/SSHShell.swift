@@ -34,8 +34,8 @@ public final class SSHShell: @unchecked Sendable {
     /// the answers, or nil to give up. Unset: passwords are asked by
     /// [askPassword] instead
     public var askQuestions: ((String, [(String, Bool)], @escaping ([String]?) -> Void) -> Void)?
-    /// a private key's text (OpenSSH's or PEM) to log in with first, and
-    /// its passphrase
+    /// a private key's text (OpenSSH's, PEM or PuTTY's .ppk) to log in
+    /// with first, and its passphrase
     public var privateKey: (key: String, passphrase: String?)?
 
     private var cols: Int
@@ -192,6 +192,46 @@ public final class SSHShell: @unchecked Sendable {
             return shell
         }
         if let ch, ch > 0 { dmc_ssh_resize(s, ch, Int32(cols), Int32(rows)) }
+    }
+
+    // MARK: - private keys
+
+    /// whether a private key's text (OpenSSH's, PEM or PuTTY's .ppk) needs
+    /// a passphrase
+    public static func keyEncrypted(_ key: String) -> Bool {
+        dmc_ssh_key_encrypted(key) == 1
+    }
+
+    /// a private key's public line ("ssh-ed25519 AAAA..."), or nil when it
+    /// can't be read with that passphrase (or isn't a key)
+    public static func publicKey(_ key: String, passphrase: String? = nil) -> String? {
+        var out: UnsafeMutablePointer<CChar>?
+        guard dmc_ssh_key_public(key, passphrase, &out) == 0, let out else { return nil }
+        defer { dmc_ssh_free_string(out) }
+        return String(cString: out).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// a private key written again in OpenSSH's form (a .ppk turned into
+    /// one), with a new passphrase (nil or "": none); nil when it can't be
+    /// read with that passphrase
+    public static func exportKey(_ key: String, passphrase: String?, newPassphrase: String?) -> String? {
+        var out: UnsafeMutablePointer<CChar>?
+        guard dmc_ssh_key_export(key, passphrase, newPassphrase, &out) == 0, let out else { return nil }
+        defer { dmc_ssh_free_string(out) }
+        return String(cString: out)
+    }
+
+    /// a new Ed25519 key with no passphrase: its private text and public
+    /// line, or nil
+    public static func newKey() -> (key: String, publicKey: String)? {
+        var key: UnsafeMutablePointer<CChar>?
+        var pub: UnsafeMutablePointer<CChar>?
+        guard dmc_ssh_keygen("ed25519", 0, nil, &key, &pub) == 0, let key, let pub else { return nil }
+        defer {
+            dmc_ssh_free_string(key)
+            dmc_ssh_free_string(pub)
+        }
+        return (String(cString: key), String(cString: pub).trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     /// the connection closed by the user
