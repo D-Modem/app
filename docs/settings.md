@@ -13,6 +13,7 @@ Every setting the apps keep, from their code. [The app, screen by screen](featur
 | `user` | `user` | text | (empty) | The SIP account: user, password, registrar or proxy (host[:port]). |
 | `password` | `password` | text | (empty) | As above. |
 | `domain` | `domain` | text | (empty) | As above. |
+| `anonymous` | `sip_anonymous` | on/off | `false` | SIP with no account (anonymous): nothing registered, calls dialled to a SIP address as it is (sip:user@host, or user@host) from "Anonymous" &lt;sip:anonymous@anonymous.invalid&gt;, and calls that come straight to the phone's address taken; the account's fields are kept but not used. |
 | `sipPort` | `sip_port` | number | `5060` | The local SIP port. |
 | `listen` | `listen` | on/off | `false` | Register, and answer calls (RING on the DTE, ATA or ATS0=n). |
 | `t38` | `t38` | on/off | `true` | Fax calls may go over to T.38. |
@@ -50,6 +51,7 @@ Every setting the apps keep, from their code. [The app, screen by screen](featur
 | `user` |  | text | (empty) | The SIP account. |
 | `password` | `sip-password` | text | (empty) | As above. |
 | `domain` |  | text | (empty) | The registrar's or proxy's host[:port]. |
+| `anonymous` |  | on/off | `false` | SIP with no account (anonymous): nothing registered, calls dialled to a SIP address as it is (sip:user@host, or user@host) from "Anonymous" &lt;sip:anonymous@anonymous.invalid&gt;, calls that come straight to the phone's address taken; the account's fields kept, not used. |
 | `sipPort` |  | number | `5060` | The local SIP port. |
 | `listen` |  | on/off | `false` | Register and take calls (on Wi-Fi: take the other phone's). |
 | `t38` |  | on/off | `true` | Fax calls may go over to T.38. |
