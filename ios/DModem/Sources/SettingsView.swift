@@ -49,25 +49,30 @@ struct SettingsView: View {
 
     @ViewBuilder private var sipSection: some View {
         Section {
-            TextField("User", text: $model.settings.user)
-                .textInputAutocapitalization(.never).autocorrectionDisabled()
-            SecureField("Password", text: $model.settings.password)
-            TextField("Server (host[:port])", text: $model.settings.domain)
-                .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
-            TextField("Or paste user:password@host", text: $login)
-                .textInputAutocapitalization(.never).autocorrectionDisabled()
-                .onSubmit {
-                    if let l = ModemSettings.parseLogin(login) {
-                        model.settings.user = l.user
-                        model.settings.password = l.password
-                        model.settings.domain = l.domain
-                        login = ""
+            Toggle("No account: anonymous SIP", isOn: $model.settings.anonymous)
+            if !model.settings.anonymous {
+                TextField("User", text: $model.settings.user)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                SecureField("Password", text: $model.settings.password)
+                TextField("Server (host[:port])", text: $model.settings.domain)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+                TextField("Or paste user:password@host", text: $login)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    .onSubmit {
+                        if let l = ModemSettings.parseLogin(login) {
+                            model.settings.user = l.user
+                            model.settings.password = l.password
+                            model.settings.domain = l.domain
+                            login = ""
+                        }
                     }
-                }
+            }
         } header: {
             Text("SIP account")
         } footer: {
-            Text("The provider must carry G.711 (PCMU/PCMA) to the phone network.")
+            Text(model.settings.anonymous
+                 ? "Calls go straight to a SIP address from \"Anonymous\": in the Terminal, ATDsip:user@host (or ATDuser@host); voice calls too. Nothing is registered, and numbers can't be dialled without an account."
+                 : "The provider must carry G.711 (PCMU/PCMA) to the phone network. A SIP address (ATDsip:user@host) is dialled as it is with an account too; the password only goes to the account's own server.")
         }
     }
 

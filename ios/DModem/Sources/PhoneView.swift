@@ -16,6 +16,7 @@ struct PhoneView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var jobs: JobsModel
     @State private var number = ""
+    @State private var sipAddress = ""
     @State private var error: String?
     @State private var messages: [URL] = []
     @State private var keypad = false
@@ -34,6 +35,22 @@ struct PhoneView: View {
                 Text("Call")
             } footer: {
                 Text("A voice call through the modem's line, on this phone's speaker and microphone.")
+            }
+            if model.settings.line == .sip {
+                Section {
+                    TextField("sip:user@host", text: $sipAddress)
+                        .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    Button("Call the SIP address") {
+                        ask { error = jobs.voiceDial(ModemSettings.sipAddress(sipAddress)) }
+                    }
+                    .disabled(sipAddress.trimmingCharacters(in: .whitespaces).isEmpty || jobs.running || model.run != .running)
+                } header: {
+                    Text("Call a SIP address")
+                } footer: {
+                    Text(model.settings.anonymous
+                         ? "Straight to that address, from \"Anonymous\": no account needed."
+                         : "Straight to that address, dialled as it is (the account's password only goes to its own server).")
+                }
             }
             Section("Ringing call") {
                 Button("Answer to talk") { ask { error = model.answerVoice() } }

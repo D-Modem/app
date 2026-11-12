@@ -54,6 +54,7 @@ import kotlinx.coroutines.withContext
 import org.dmodem.app.android.modem.ModemState
 import org.dmodem.app.android.ppp.DialIn
 import org.dmodem.app.android.settings.FaxSettingsStore
+import org.dmodem.app.android.settings.SettingsStore
 import org.dmodem.app.android.settings.VoiceSettingsStore
 import org.dmodem.app.android.voice.Voice
 import org.dmodem.app.io.monotonicMs
@@ -96,15 +97,23 @@ fun PhoneSection(onOpenSettings: () -> Unit) {
     val messages by Voice.messages.collectAsStateWithLifecycle()
     val store = remember { VoiceSettingsStore(context.applicationContext) }
     val settings by store.settings.collectAsStateWithLifecycle(initialValue = null)
+    val modem by remember { SettingsStore(context.applicationContext) }.settings.collectAsStateWithLifecycle(initialValue = null)
     val mic = rememberMicrophone()
     var callDialog by remember { mutableStateOf(false) }
+    var sipDialog by remember { mutableStateOf(false) }
     val on = run == ModemState.Run.RUNNING
     val free = on && state?.running != true
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         state?.let { VoiceCallCard(it) }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { callDialog = true }, enabled = free) { Text("Call a number…") }
+            // (anonymous SIP has no number to call: a SIP address alone)
+            if (modem?.let { it.sip && it.anonymous } != true) {
+                Button(onClick = { callDialog = true }, enabled = free) { Text("Call a number…") }
+            }
+            if (modem?.sip == true) {
+                Button(onClick = { sipDialog = true }, enabled = free) { Text("Call a SIP address…") }
+            }
             if (ringing != null && free) {
                 OutlinedButton(onClick = { mic { toast(context, Voice.answer(context)) } }) { Text("Answer") }
                 OutlinedButton(onClick = { toast(context, Voice.takeMessage(context)) }) { Text("Take a message") }
@@ -130,6 +139,12 @@ fun PhoneSection(onOpenSettings: () -> Unit) {
         CallDialog(onDismiss = { callDialog = false }) { number ->
             callDialog = false
             mic { toast(context, Voice.dial(context, number)) }
+        }
+    }
+    if (sipDialog) {
+        CallDialog(sip = true, onDismiss = { sipDialog = false }) { address ->
+            sipDialog = false
+            mic { toast(context, Voice.dial(context, sipAddress(address))) }
         }
     }
 }
@@ -249,17 +264,28 @@ private fun MessageRow(m: Voice.Message) {
     }
 }
 
-/** the number to call */
+/** [address] as D-Modem dials a SIP address as it is: with sip: before it when it has no scheme */
+internal fun sipAddress(address: String): String {
+    val a = address.trim()
+    return if (a.startsWith("sip:", ignoreCase = true) || a.startsWith("sips:", ignoreCase = true)) a else "sip:$a"
+}
+
+/** the number to call, or ([sip]) the SIP address (user@host), dialled as it is with no account too */
 @Composable
-private fun CallDialog(onDismiss: () -> Unit, onCall: (String) -> Unit) {
+private fun CallDialog(sip: Boolean = false, onDismiss: () -> Unit, onCall: (String) -> Unit) {
     var number by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Call a number") },
+        title = { Text(if (sip) "Call a SIP address" else "Call a number") },
         text = {
             OutlinedTextField(
-                value = number, onValueChange = { number = it }, label = { Text("Number") }, singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth(),
+                value = number, onValueChange = { number = it },
+                label = { Text(if (sip) "SIP address" else "Number") },
+                placeholder = if (sip) ({ Text("sip:user@host") }) else null,
+                supportingText = if (sip) ({ Text("Dialled as it is: user@host, or sip:user@host") }) else null,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = if (sip) KeyboardType.Uri else KeyboardType.Phone),
+                modifier = Modifier.fillMaxWidth(),
             )
         },
         confirmButton = { Button(onClick = { onCall(number) }, enabled = number.isNotBlank()) { Text("Call") } },

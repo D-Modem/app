@@ -168,7 +168,10 @@ internal fun EntryDialog(entry: DialEntry, onSave: (DialEntry) -> Unit, onDismis
                 Choice("Connect by", e.kind.label, EntryKind.entries.map { it.label to it }) { e = e.copy(kind = it) }
                 when (e.kind) {
                     EntryKind.MODEM -> {
-                        OutlinedTextField(e.number, { e = e.copy(number = it) }, label = { Text("Number or SIP user") }, singleLine = true)
+                        OutlinedTextField(e.number, { e = e.copy(number = it) }, label = { Text("Number, SIP user, or SIP address") },
+                            supportingText = { Text("A SIP address (sip:bbs@example.com) is dialled as it is, with no account too") },
+                            singleLine = true,
+                        )
                         OutlinedTextField(
                             e.initCommands, { e = e.copy(initCommands = it) },
                             label = { Text("AT commands before dialling (; between)") }, singleLine = true,

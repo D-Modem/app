@@ -254,10 +254,12 @@ class ModemService : Service() {
         netKey = if (net != null && lp != null) keyOf(net, lp) else null
         NativeModem.listener = nativeListener
         stopping = false
+        // (anonymous: no account, D-Modem's SIP then registers nothing and dials SIP addresses as they are)
+        val (sipUser, sipPassword, sipDomain) = settings.sipAccount
         val config = NativeModem.Config(
-            user = settings.user,
-            password = settings.password,
-            domain = settings.domain,
+            user = sipUser,
+            password = sipPassword,
+            domain = sipDomain,
             sipPort = settings.sipPort,
             listen = settings.listen,
             t38 = settings.t38,
