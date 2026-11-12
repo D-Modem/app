@@ -14,19 +14,19 @@ import java.io.File
 import java.util.UUID
 
 /** How an entry is reached. */
-enum class EntryKind(val label: String) { MODEM("Modem (dial)"), SSH("SSH"), TELNET("Telnet") }
+enum class EntryKind(val label: String) { MODEM("Modem (dial)"), SSH("SSH"), TELNET("Telnet"), RLOGIN("rlogin") }
 
 /** How an SSH entry logs in. */
 enum class SshAuth(val label: String) { PASSWORD("Password"), KEY("Key") }
 
-/** A system to reach: a BBS, a host, an ISP; by the modem, SSH or Telnet. */
+/** A system to reach: a BBS, a host, an ISP; by the modem, SSH, Telnet or rlogin. */
 data class DialEntry(
     val id: String = UUID.randomUUID().toString(),
     val name: String = "",
     val kind: EntryKind = EntryKind.MODEM,
     /** what ATD dials: a number, or a SIP user (MODEM) */
     val number: String = "",
-    /** the host, its port and the user (SSH, TELNET) */
+    /** the host, its port and the user (SSH, TELNET, RLOGIN) */
     val host: String = "",
     val port: Int = 0,
     val user: String = "",
@@ -52,13 +52,14 @@ data class DialEntry(
     val agentConfirm: Boolean = true,
 ) {
     /** the port to connect to: the entry's, or its kind's */
-    val portOrDefault: Int get() = if (port > 0) port else if (kind == EntryKind.TELNET) 23 else 22
+    val portOrDefault: Int get() = if (port > 0) port else defaultPort(kind)
 
     /** what it is reached at, as one line */
     val address: String get() = when (kind) {
         EntryKind.MODEM -> number
         EntryKind.SSH -> (if (user.isNotEmpty()) "$user@" else "") + host + (if (port > 0 && port != 22) ":$port" else "")
         EntryKind.TELNET -> host + (if (port > 0 && port != 23) ":$port" else "")
+        EntryKind.RLOGIN -> (if (user.isNotEmpty()) "$user@" else "") + host + (if (port > 0 && port != 513) ":$port" else "")
     }
 
     /** enough to reach it */
@@ -66,6 +67,7 @@ data class DialEntry(
         EntryKind.MODEM -> number.isNotBlank()
         EntryKind.SSH -> host.isNotBlank() && user.isNotBlank() && (auth == SshAuth.PASSWORD || keyId.isNotEmpty())
         EntryKind.TELNET -> host.isNotBlank()
+        EntryKind.RLOGIN -> host.isNotBlank() && user.isNotBlank()
     }
 
     /** the entry as stored in directory.json */
@@ -78,6 +80,13 @@ data class DialEntry(
         .put("forwards", org.json.JSONArray(forwards)).put("agent", agentForwarding).put("agentConfirm", agentConfirm)
 
     companion object {
+        /** [kind]'s port: SSH's 22, Telnet's 23, rlogin's 513 */
+        fun defaultPort(kind: EntryKind): Int = when (kind) {
+            EntryKind.TELNET -> 23
+            EntryKind.RLOGIN -> 513
+            else -> 22
+        }
+
         /** an entry from its JSON, defaults for what's missing or unknown (a new id if it has none) */
         fun fromJson(o: JSONObject) = DialEntry(
             id = o.optString("id").ifEmpty { UUID.randomUUID().toString() },

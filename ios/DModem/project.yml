@@ -13,6 +13,8 @@ options:
 packages:
   DModemKit:
     path: ../DModemKit
+  DModemSSH:
+    path: ../DModemSSH
 targets:
   DModem:
     type: application
@@ -20,6 +22,7 @@ targets:
     sources: [Sources]
     dependencies:
       - package: DModemKit
+      - package: DModemSSH
       - framework: ../../shared/build/XCFrameworks/release/DModemShared.xcframework
         embed: false
       # the dial-up link's VPN (embedded in the app's PlugIns)

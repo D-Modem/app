@@ -42,7 +42,7 @@ class TerminalSession(
     /** where captures go */
     private val captureDir: () -> File?,
 ) {
-    enum class Kind { MODEM, SSH, TELNET, LOCAL, LINUX }
+    enum class Kind { MODEM, SSH, TELNET, RLOGIN, LOCAL, LINUX }
 
     /** a program on this phone (Android's shell, or the Linux system's): not a connection */
     val isLocal: Boolean get() = kind == Kind.LOCAL || kind == Kind.LINUX

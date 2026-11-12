@@ -25,6 +25,8 @@ final class AppModel: ObservableObject {
 
     let session = ModemSession()
     let terminal = TerminalModel()
+    /// a login to a server by SSH, Telnet or rlogin, in a terminal of its own
+    let remote = RemoteModel()
     /// the fax calls, transfers and dial-up the modem is lent to
     let jobs: JobsModel
     private let store = SettingsStore()

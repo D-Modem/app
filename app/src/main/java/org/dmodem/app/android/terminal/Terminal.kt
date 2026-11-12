@@ -27,6 +27,7 @@ import org.dmodem.app.android.ssh.PromptBroker
 import org.dmodem.app.android.ssh.SecretBox
 import org.dmodem.app.android.ssh.SshKeys
 import org.dmodem.app.android.ssh.SshLink
+import org.dmodem.app.android.rlogin.RloginLink
 import org.dmodem.app.android.telnet.TelnetLink
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -96,7 +97,7 @@ object Terminal {
     }
 
     /**
-     * An SSH or Telnet entry opened in a new session (on the screen from
+     * An SSH, Telnet or rlogin entry opened in a new session (on the screen from
      * now): null when it is on its way, else why it can't be.
      */
     suspend fun open(context: Context, e: DialEntry): String? {
@@ -135,12 +136,21 @@ object Terminal {
                 termType = telnetType(profile, charset),
                 cols = cols, rows = rows,
             ).also { it.connect() }
+            EntryKind.RLOGIN -> RloginLink(
+                e.host.trim(), e.portOrDefault, e.user.trim(),
+                term = profile.term,
+                cols = cols, rows = rows,
+            ).also { it.connect() }
             EntryKind.MODEM -> return "a modem entry is dialled, not opened"
         }
         val s = TerminalSession(
             link,
             label = e.name.ifBlank { e.address },
-            kind = if (e.kind == EntryKind.SSH) TerminalSession.Kind.SSH else TerminalSession.Kind.TELNET,
+            kind = when (e.kind) {
+                EntryKind.SSH -> TerminalSession.Kind.SSH
+                EntryKind.RLOGIN -> TerminalSession.Kind.RLOGIN
+                else -> TerminalSession.Kind.TELNET
+            },
             entry = e,
         ) { app.getExternalFilesDir("captures") }
         s.profile = profile

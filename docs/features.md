@@ -152,6 +152,14 @@
 - **Dial**: the dialing directory: each system's number (or SIP user), the
   AT commands it needs before ATD, its terminal type, character set and backspace; one
   tap starts the modem if it is off and dials.
+- **Remote logins**: a server reached over the internet instead of the
+  modem, in a terminal session of its own. On Android a directory entry
+  connects by SSH, Telnet or rlogin (rlogin: the user's name sent as both
+  names, the window's size when the server asks). On iOS the Terminal
+  tab's network button opens the Remote screen: SSH (a password login on
+  SwiftNIO SSH, `ios/DModemSSH`; the server's key kept the first time
+  it's trusted; Ed25519 and ECDSA host keys), Telnet or rlogin. Telnet
+  and rlogin are the shared Kotlin's (`org.dmodem.app.net`).
 - **Log**: the modem's and SIP's log (Copy for all of it).
 - **AT commands** (Settings, AT commands, and the terminal's menu): the
   AT command reference, D-Modem's manual (`docs/at_commands.pdf`, the

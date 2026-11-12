@@ -38,6 +38,10 @@ private struct TerminalTab: View {
     var body: some View {
         TerminalScreen(model: model.terminal)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    NavigationLink { RemoteView(model: model.remote) } label: { Image(systemName: "network") }
+                        .accessibilityLabel("Connect to a server by SSH, Telnet or rlogin")
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button { transfers = true } label: { Image(systemName: "arrow.up.arrow.down.circle") }
                         .accessibilityLabel("File transfer")
