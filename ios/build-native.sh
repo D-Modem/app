@@ -115,24 +115,29 @@ ssh_arch() {
 ssh_slice() {
 	name=$1 system=$2 sdk=$3 min=$4
 	shift 4
-	objs=
+	libs=
 	for arch in "$@"; do
 		ssh_arch "$name" "$system" "$sdk" "$arch" "$min"
-		objs="$objs $OUT/$name/ssh-$arch.o"
+		rm -f "$OUT/$name/ssh-$arch.a"
+		libtool -static -o "$OUT/$name/ssh-$arch.a" "$OUT/$name/ssh-$arch.o"
+		libs="$libs $OUT/$name/ssh-$arch.a"
 	done
+	# (one archive per arch, then one universal one of them)
 	rm -f "$OUT/$name/libDModemSSHNative.a"
-	libtool -static -o "$OUT/$name/libDModemSSHNative.a" $objs
+	lipo -create $libs -output "$OUT/$name/libDModemSSHNative.a"
 }
 
 ssh_slice ios iOS iphoneos "$IOS_MIN" arm64
 ssh_slice ios-simulator iOS iphonesimulator "$IOS_MIN" arm64 x86_64
 ssh_slice macos Darwin macosx "$MACOS_MIN" arm64 x86_64
 
+# (in a directory of its own: an app's XCFrameworks' headers all land in
+# one include/, and the engine's module.modulemap is there already)
 sinc=$OUT/include-ssh
 rm -rf "$sinc"
-mkdir -p "$sinc"
-cp "$ROOT/native-ssh/include/dmodemssh.h" "$sinc/"
-cat > "$sinc/module.modulemap" <<MAP
+mkdir -p "$sinc/CDModemSSH"
+cp "$ROOT/native-ssh/include/dmodemssh.h" "$sinc/CDModemSSH/"
+cat > "$sinc/CDModemSSH/module.modulemap" <<MAP
 module CDModemSSH {
     header "dmodemssh.h"
     export *
