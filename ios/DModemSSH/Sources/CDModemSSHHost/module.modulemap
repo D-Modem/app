@@ -1,0 +1,4 @@
+module CDModemSSH [system] {
+    header "../../../../native-ssh/include/dmodemssh.h"
+    export *
+}
