@@ -24,7 +24,7 @@ data class DialEntry(
     val id: String = UUID.randomUUID().toString(),
     val name: String = "",
     val kind: EntryKind = EntryKind.MODEM,
-    /** what ATD dials: a number, or a SIP user (MODEM) */
+    /** what ATD dials: a number, a SIP user, or a SIP address as it is (sip:user@host, user@host) (MODEM) */
     val number: String = "",
     /** the host, its port and the user (SSH, TELNET, RLOGIN) */
     val host: String = "",

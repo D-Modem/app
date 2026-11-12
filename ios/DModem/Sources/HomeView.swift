@@ -53,7 +53,7 @@ struct HomeView: View {
                         Text(e).foregroundStyle(.red).font(.callout)
                     }
                 } else {
-                    LabeledContent("SIP account", value: model.settings.complete ? "\(model.settings.user)@\(model.settings.domain)" : "not set up")
+                    LabeledContent("SIP account", value: model.settings.sipSummary)
                     LabeledContent("Fax", value: model.settings.t38 ? "audio or T.38" : "audio")
                 }
                 if !model.settings.noLine {

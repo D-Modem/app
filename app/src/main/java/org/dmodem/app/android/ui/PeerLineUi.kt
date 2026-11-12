@@ -61,7 +61,7 @@ fun LineChoice(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
         if (BluetoothBridge.hasPermission(context)) onChange(s.copy(line = ModemSettings.LINE_BT_MODEM))
     }
     val lines = listOf(
-        ModemSettings.LINE_SIP to "A SIP account (calls over the internet)",
+        ModemSettings.LINE_SIP to "SIP: an account, or anonymous (calls over the internet)",
         ModemSettings.LINE_WIFI to "Another phone with D-Modem, on Wi-Fi",
         ModemSettings.LINE_BLUETOOTH to "Another phone with D-Modem, on Bluetooth",
         ModemSettings.LINE_CELL to "This phone's mobile calls (slow; root)",

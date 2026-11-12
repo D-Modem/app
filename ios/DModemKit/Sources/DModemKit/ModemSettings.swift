@@ -15,6 +15,10 @@ public struct ModemSettings: Codable, Equatable, Sendable {
     public var password = ""
     /// the registrar's or proxy's host[:port]
     public var domain = ""
+    /// SIP with no account (anonymous): nothing registered, calls dialled to a SIP address as it is
+    /// (sip:user@host, or user@host) from "Anonymous" <sip:anonymous@anonymous.invalid>, calls that come
+    /// straight to the phone's address taken; the account's fields kept, not used
+    public var anonymous = false
     /// the local SIP port
     public var sipPort = 5060
     /// register and take calls (on Wi-Fi: take the other phone's)
@@ -73,7 +77,20 @@ public struct ModemSettings: Codable, Equatable, Sendable {
     public var noLine: Bool { line == .none }
 
     /// enough to start: an account (or the line another phone's)
-    public var complete: Bool { peer || (!user.isEmpty && !domain.isEmpty) }
+    public var complete: Bool { peer || anonymous || (!user.isEmpty && !domain.isEmpty) }
+
+    /// the SIP line, in a line: the account, or anonymous
+    public var sipSummary: String {
+        if anonymous { return "anonymous (no account)" }
+        return complete ? "\(user)@\(domain)" : "not set up"
+    }
+
+    /// [address] as D-Modem dials a SIP address as it is: with sip: before it when it has no scheme
+    public static func sipAddress(_ address: String) -> String {
+        let a = address.trimmingCharacters(in: .whitespaces)
+        let l = a.lowercased()
+        return l.hasPrefix("sip:") || l.hasPrefix("sips:") ? a : "sip:" + a
+    }
 
     /// the commands sent as the modem starts (empty: none)
     public func startCommands() -> String {
@@ -83,9 +100,10 @@ public struct ModemSettings: Codable, Equatable, Sendable {
     /// the engine's configuration for these, with the DNS servers the network has
     public func engineConfig(dns: [String] = [], dataFile: String = "") -> EngineConfig {
         var c = EngineConfig()
-        c.user = user
-        c.password = password
-        c.domain = domain
+        // (anonymous: no account, D-Modem's SIP then registers nothing and dials SIP addresses as they are)
+        c.user = anonymous ? "" : user
+        c.password = anonymous ? "" : password
+        c.domain = anonymous ? "" : domain
         c.sipPort = sipPort
         c.listen = listen
         c.t38 = t38
@@ -117,6 +135,7 @@ public struct ModemSettings: Codable, Equatable, Sendable {
         user = try c.decodeIfPresent(String.self, forKey: .user) ?? d.user
         password = try c.decodeIfPresent(String.self, forKey: .password) ?? d.password
         domain = try c.decodeIfPresent(String.self, forKey: .domain) ?? d.domain
+        anonymous = try c.decodeIfPresent(Bool.self, forKey: .anonymous) ?? d.anonymous
         sipPort = try c.decodeIfPresent(Int.self, forKey: .sipPort) ?? d.sipPort
         listen = try c.decodeIfPresent(Bool.self, forKey: .listen) ?? d.listen
         t38 = try c.decodeIfPresent(Bool.self, forKey: .t38) ?? d.t38

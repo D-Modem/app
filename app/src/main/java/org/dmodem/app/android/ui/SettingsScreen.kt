@@ -184,31 +184,46 @@ fun SettingsScreen(modifier: Modifier = Modifier, onOpenTerminal: () -> Unit = {
                             SerialModemFields(s) { s = it }
                         } else {
                             Text("SIP account", style = MaterialTheme.typography.titleSmall)
-                            OutlinedTextField(
-                                value = login,
-                                onValueChange = { v ->
-                                    login = v
-                                    ModemSettings.parseLogin(v.trim())?.let { (u, pw, d) ->
-                                        s = s.copy(user = u, password = pw, domain = d)
-                                    }
+                            Toggle("No account: anonymous SIP", s.anonymous) { s = s.copy(anonymous = it) }
+                            Text(
+                                if (s.anonymous) {
+                                    "Calls go straight to a SIP address, from \"Anonymous\": dial sip:user@host or user@host " +
+                                        "(ATDsip:bbs@example.com, or as a directory entry's number); voice calls too. " +
+                                        "Nothing is registered, and numbers can't be dialled without an account. " +
+                                        "Calls that come straight to this phone's address and SIP port are taken."
+                                } else {
+                                    "A SIP address (ATDsip:user@host, or user@host) is dialled as it is with an account too; " +
+                                        "the account's password only ever goes to its own server."
                                 },
-                                label = { Text("Paste user:password@host (optional)") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
+                                style = MaterialTheme.typography.bodySmall,
                             )
-                            Field("User", s.user) { s = s.copy(user = it) }
-                            OutlinedTextField(
-                                value = s.password,
-                                onValueChange = { s = s.copy(password = it) },
-                                label = { Text("Password") },
-                                singleLine = true,
-                                visualTransformation = PasswordVisualTransformation(),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                            Field("Server (host[:port])", s.domain) { s = s.copy(domain = it) }
+                            if (!s.anonymous) {
+                                OutlinedTextField(
+                                    value = login,
+                                    onValueChange = { v ->
+                                        login = v
+                                        ModemSettings.parseLogin(v.trim())?.let { (u, pw, d) ->
+                                            s = s.copy(user = u, password = pw, domain = d)
+                                        }
+                                    },
+                                    label = { Text("Paste user:password@host (optional)") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                Field("User", s.user) { s = s.copy(user = it) }
+                                OutlinedTextField(
+                                    value = s.password,
+                                    onValueChange = { s = s.copy(password = it) },
+                                    label = { Text("Password") },
+                                    singleLine = true,
+                                    visualTransformation = PasswordVisualTransformation(),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                Field("Server (host[:port])", s.domain) { s = s.copy(domain = it) }
+                            }
                             NumberField("Local SIP port", s.sipPort) { s = s.copy(sipPort = it) }
-                            Toggle("Take incoming calls (register)", s.listen) { s = s.copy(listen = it) }
+                            Toggle(if (s.anonymous) "Take incoming calls" else "Take incoming calls (register)", s.listen) { s = s.copy(listen = it) }
                             Toggle("Fax over T.38", s.t38) { s = s.copy(t38 = it) }
                             NumberField("SIP log level (0-4)", s.sipLogLevel) { s = s.copy(sipLogLevel = it.coerceIn(0, 4)) }
                         }
@@ -363,7 +378,11 @@ private fun lineSummary(s: ModemSettings): String = when (s.line) {
     ModemSettings.LINE_USB -> "A phone line, through a USB modem"
     ModemSettings.LINE_BT_MODEM -> "A Bluetooth modem" + s.btModemName.let { if (it.isBlank()) "" else ": $it" }
     ModemSettings.LINE_SERIAL_MODEM -> "A modem on a USB serial adapter, ${s.serialModemBaud} bit/s"
-    else -> if (s.complete) "SIP: ${s.user}@${s.domain}" + (if (s.listen) ", taking calls" else "") else "SIP: no account set up yet"
+    else -> when {
+        s.anonymous -> "SIP: anonymous, no account" + (if (s.listen) ", taking calls" else "")
+        s.complete -> "SIP: ${s.user}@${s.domain}" + (if (s.listen) ", taking calls" else "")
+        else -> "SIP: no account set up yet"
+    }
 }
 
 /** a one-line text field */

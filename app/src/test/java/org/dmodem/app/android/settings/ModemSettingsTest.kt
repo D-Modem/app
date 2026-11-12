@@ -30,6 +30,28 @@ class ModemSettingsTest {
         assertTrue(ModemSettings(user = "u", domain = "h").complete)
     }
 
+    /** anonymous SIP: complete with no account, the engine given none (the account kept), said so */
+    @Test
+    fun anonymousSipNeedsNoAccount() {
+        val s = ModemSettings(anonymous = true)
+        assertTrue(s.complete)
+        assertTrue(s.sip)
+        assertEquals(Triple("", "", ""), s.sipAccount)
+        val kept = ModemSettings(user = "u", password = "p", domain = "h", anonymous = true)
+        assertEquals(Triple("", "", ""), kept.sipAccount)
+        assertEquals(Triple("u", "p", "h"), kept.copy(anonymous = false).sipAccount)
+        assertTrue(s.sipSummary.startsWith("anonymous"))
+        assertEquals("u@h", kept.copy(anonymous = false).sipSummary)
+    }
+
+    /** a SIP address as D-Modem dials it: sip: before it when it has no scheme */
+    @Test
+    fun sipAddressesGetTheirScheme() {
+        assertEquals("sip:bbs@example.com", org.dmodem.app.android.ui.sipAddress(" bbs@example.com "))
+        assertEquals("sip:bbs@example.com", org.dmodem.app.android.ui.sipAddress("sip:bbs@example.com"))
+        assertEquals("SIPS:bbs@example.com", org.dmodem.app.android.ui.sipAddress("SIPS:bbs@example.com"))
+    }
+
     /** a USB modem needs no SIP account and is no peer line; the other lines as they were */
     @Test
     fun aUsbModemNeedsNoAccountAndIsNoPeer() {

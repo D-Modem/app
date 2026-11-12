@@ -21,6 +21,12 @@ data class ModemSettings(
     val user: String = "",
     val password: String = "",
     val domain: String = "",
+    /**
+     * SIP with no account (anonymous): nothing registered, calls dialled to a SIP address as it is
+     * (sip:user@host, or user@host) from "Anonymous" <sip:anonymous@anonymous.invalid>, and calls that
+     * come straight to the phone's address taken; the account's fields are kept but not used
+     */
+    val anonymous: Boolean = false,
     /** the local SIP port */
     val sipPort: Int = 5060,
     /** register, and answer calls (RING on the DTE, ATA or ATS0=n) */
@@ -102,8 +108,20 @@ data class ModemSettings(
     /** no line at all: the modem on its own (AT commands, the terminal, the bridges); a dial gets NO DIALTONE */
     val noLine: Boolean get() = line == LINE_NONE
 
-    /** Enough to start: an account (or the line another phone's). */
-    val complete: Boolean get() = !sip || (user.isNotBlank() && domain.isNotBlank())
+    /** Enough to start: an account, or SIP with none (anonymous), or the line another phone's. */
+    val complete: Boolean get() = !sip || anonymous || (user.isNotBlank() && domain.isNotBlank())
+
+    /** the account the modem's SIP runs with: user, password, domain; all empty with none (anonymous) */
+    val sipAccount: Triple<String, String, String>
+        get() = if (anonymous) Triple("", "", "") else Triple(user, password, domain)
+
+    /** the SIP line, in a line: the account, or anonymous */
+    val sipSummary: String
+        get() = when {
+            anonymous -> "anonymous (no account): dials SIP addresses"
+            complete -> "$user@$domain"
+            else -> "not set up"
+        }
 
     /** the commands sent as the modem starts: the init commands, on mobile calls the modulation first */
     fun startCommands(): String {
@@ -158,6 +176,7 @@ class SettingsStore(private val context: Context) {
         val password = stringPreferencesKey("password")
         val domain = stringPreferencesKey("domain")
         val sipPort = intPreferencesKey("sip_port")
+        val anonymous = booleanPreferencesKey("sip_anonymous")
         val listen = booleanPreferencesKey("listen")
         val t38 = booleanPreferencesKey("t38")
         val country = stringPreferencesKey("country")
@@ -191,6 +210,7 @@ class SettingsStore(private val context: Context) {
             password = p[Keys.password] ?: d.password,
             domain = p[Keys.domain] ?: d.domain,
             sipPort = p[Keys.sipPort] ?: d.sipPort,
+            anonymous = p[Keys.anonymous] ?: d.anonymous,
             listen = p[Keys.listen] ?: d.listen,
             t38 = p[Keys.t38] ?: d.t38,
             country = p[Keys.country] ?: d.country,
@@ -229,6 +249,7 @@ class SettingsStore(private val context: Context) {
             p[Keys.password] = s.password
             p[Keys.domain] = s.domain.trim()
             p[Keys.sipPort] = s.sipPort
+            p[Keys.anonymous] = s.anonymous
             p[Keys.listen] = s.listen
             p[Keys.t38] = s.t38
             p[Keys.country] = s.country.trim()

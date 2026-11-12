@@ -337,7 +337,7 @@ private fun LineCard(s: ModemSettings, run: ModemState.Run, network: String?, on
                 }
                 return@Column
             }
-            InfoRow("SIP", if (s.complete) "${s.user}@${s.domain}" else "not set up")
+            InfoRow("SIP", s.sipSummary)
             InfoRow("Calls in", if (s.listen) "answered (registered)" else "off")
             InfoRow("Network", network ?: "none")
             InfoRow("Fax", if (s.t38) "audio or T.38" else "audio")
