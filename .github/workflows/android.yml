@@ -259,7 +259,7 @@ jobs:
           sudo /usr/sbin/sshd -p 2222 -o ListenAddress=127.0.0.1 -o PasswordAuthentication=yes
           DMODEM_SSH_TEST_KEY="$RUNNER_TEMP/key" DMODEM_SSH_TEST_PPK="$RUNNER_TEMP/key.ppk" \
             DMODEM_SSH_TEST_AGENT="$RUNNER_TEMP/agent.sock" build-ssh/dmodemssh_test
-          swift test --package-path ios/DModemSSH
+          DMODEM_SSH_TEST_PPK="$RUNNER_TEMP/key.ppk" swift test --package-path ios/DModemSSH
         env:
           DMODEM_SSH_TEST: 127.0.0.1:2222:dmtest:Sesame-42
           DMODEM_SSH_HOST_BUILD: ${{ github.workspace }}/build-ssh
