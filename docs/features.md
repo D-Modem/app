@@ -167,7 +167,10 @@
   SHA-256). Android loads it through JNI (`NativeSsh.kt`), iOS as the
   `DModemSSHNative` XCFramework (`ios/DModemSSH`). Ed25519, ECDSA and RSA
   keys, the host's and the user's; password, keyboard-interactive and
-  key logins; on Android the app's own keys (made here, or OpenSSH's,
+  key logins, the key OpenSSH's, PEM or PuTTY's .ppk (read by the engine
+  itself, `native-ssh/src/ppk.c`); an agent's keys (on the desktops an
+  ssh-agent's socket, or on Windows Pageant or OpenSSH's agent:
+  `native-ssh/src/agent.c`); on Android the app's own keys (made here, or OpenSSH's,
   PEM or PuTTY's .ppk imported), port forwards (-L, -R, -D: SOCKS 4/4a/5)
   and agent forwarding (-A, each signature asked of the user when the
   entry says). Its tests run against a real sshd: `native-ssh/test`,
