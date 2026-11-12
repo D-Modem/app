@@ -12,7 +12,8 @@ package org.dmodem.app.terminal
 abstract class CommodoreProfile : TerminalProfile(), ByteMachine {
     override val term get() = "petscii"
     override val telnetType get() = "PETSCII"
-    override val glyphs: BitmapFont? get() = LegacyCharsets.GLYPHS
+    /** its character ROM's (a C64's) */
+    override val glyphs: BitmapFont? get() = MachineFonts.C64
     override val captureExtension: String? get() = ".seq"
 
     override val columns get() = 40
@@ -108,6 +109,8 @@ open class C128Profile : C64Profile() {
     override val label get() = "Commodore 128 (40 col.)"
     override val escapes get() = true
     override val tabAndLineFeed get() = true
+    /** its own character ROM's */
+    override val glyphs: BitmapFont? get() = MachineFonts.C128
 }
 
 /** Commodore 128 in 80 columns (the VDC): RGBI colours, underline and flash */

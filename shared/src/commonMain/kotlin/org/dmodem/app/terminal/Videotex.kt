@@ -91,6 +91,8 @@ open class ViewdataProfile : VideotexProfile() {
     override val term get() = "viewdata"
     override val telnetType get() = "VIEWDATA"
     override val rows get() = 24
+    /** Prestel's teletext characters */
+    override val glyphs: BitmapFont? get() = MachineFonts.PRESTEL
 
     override val keyBar: List<KeyBarPage> get() = listOf(KeyBars.VIEWDATA)
 
@@ -226,7 +228,7 @@ open class ViewdataInterpreter(t: TerminalEmulator, private val m: ViewdataProfi
 
     companion object {
         /** teletext's English set, 0x20-0x7f: £ for #, arrows, fractions, # for _, a dash, ‖, ÷ and a block */
-        private val G0 = IntArray(0x60) { 0x20 + it }.also {
+        internal val G0 = IntArray(0x60) { 0x20 + it }.also {
             for ((c, u) in listOf(0x23 to '£', 0x5b to '←', 0x5c to '½', 0x5d to '→', 0x5e to '↑', 0x5f to '#',
                 0x60 to '—', 0x7b to '¼', 0x7c to '‖', 0x7d to '¾', 0x7e to '÷', 0x7f to '■')) it[c - 0x20] = u.code
         }

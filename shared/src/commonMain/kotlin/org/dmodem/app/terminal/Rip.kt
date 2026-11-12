@@ -18,6 +18,9 @@ open class RipProfile : AnsiBbsProfile() {
     override val term get() = "rip"
     // (BBSes find ANSI by it, then ask for RIP with ESC [ !)
     override val telnetType get() = "ANSI"
+    /** RIPterm's 8x8, for its 80x43 text */
+    override val glyphs: BitmapFont? get() = MachineFonts.RIPTERM
+    override val syncTermFont get() = 45
 
     /** a [RipInterpreter] */
     override fun interpreter(t: TerminalEmulator): TerminalInterpreter = RipInterpreter(t, this)
@@ -429,7 +432,7 @@ open class RipInterpreter(t: TerminalEmulator, profile: RipProfile) : AnsiBbsInt
         val cw = if (font == 0) 8 * fontSize else 6 * fontSize
         val ch = cellHeight()
         for (c in s) {
-            raster.text(x, y, c.toString(), LegacyCharsets.VGA, cw, ch)
+            raster.text(x, y, c.toString(), MachineFonts.RIPTERM, cw, ch)
             if (vertical) y += ch else x += cw
         }
     }

@@ -24,7 +24,7 @@ abstract class TerminalProfile {
     /** ESC[2J homes the cursor, as ANSI.SYS did (BBS screens expect it) */
     open val homeOnClear: Boolean get() = false
 
-    /** the bitmap glyphs its cells are drawn with (its machine's character ROM, as Unscii draws it); null: the view's font */
+    /** the bitmap glyphs its cells are drawn with (its machine's character ROM); null: the view's font */
     open val glyphs: BitmapFont? get() = null
 
     /** a capture's file extension, where its machine's files had their own (a Commodore's .seq); null: the app's */
@@ -228,8 +228,10 @@ open class AnsiBbsProfile : XtermProfile() {
     override val term get() = "ansi"
     override val telnetType get() = "ANSI"
     override val charset: TermCharset? get() = TermCharset.CP437
-    /** a VGA's 8x16 code page 437 */
-    override val glyphs: BitmapFont? get() = LegacyCharsets.VGA
+    /** a VGA's 8x16 code page 437 (its ROM's) */
+    override val glyphs: BitmapFont? get() = MachineFonts.VGA
+    /** SyncTERM's number for [glyphs] (CSI SP D's), what font 0 of the four goes back to */
+    open val syncTermFont: Int get() = 0
     /** its machine's sixteen colours (ARGB, ANSI's order), over the theme's; null: the theme's */
     open val colors: IntArray? get() = null
 
@@ -239,7 +241,7 @@ open class AnsiBbsProfile : XtermProfile() {
 
 /**
  * An Amiga's BBS terminal (as NComm and Term are): ANSI in Latin-1, the
- * Amiga's own set, drawn 8x8 as Topaz is (Unscii's glyphs), in colours
+ * Amiga's own set, in its Topaz font, in colours
  * from the Amiga's 12-bit palette
  */
 open class AmigaAnsiProfile : AnsiBbsProfile() {
@@ -249,8 +251,9 @@ open class AmigaAnsiProfile : AnsiBbsProfile() {
     // (BBSes find ANSI by it)
     override val telnetType get() = "ANSI"
     override val charset: TermCharset? get() = TermCharset.LATIN1
-    /** 8x8, Topaz's size */
-    override val glyphs: BitmapFont? get() = LegacyCharsets.GLYPHS
+    /** Topaz, the Amiga's own 8x8 */
+    override val glyphs: BitmapFont? get() = MachineFonts.TOPAZ
+    override val syncTermFont get() = 42
     override val colors: IntArray? get() = AMIGA
 
     companion object {

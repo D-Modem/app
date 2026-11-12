@@ -13,7 +13,8 @@ open class AtariProfile : TerminalProfile(), ByteMachine {
     override val label get() = "Atari 8-bit"
     override val term get() = "atascii"
     override val telnetType get() = "ATASCII"
-    override val glyphs: BitmapFont? get() = LegacyCharsets.GLYPHS
+    /** its character ROM's */
+    override val glyphs: BitmapFont? get() = MachineFonts.ATARI
 
     override val columns get() = 40
     override val rows get() = 24

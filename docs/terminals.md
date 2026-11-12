@@ -20,7 +20,7 @@ graphics terminals draw through `Raster.kt`.
 | ANSI-BBS (PC) | `ansi-bbs` | `ansi` / `ANSI` | 80x25 | A PC's BBS terminal, as SyncTERM is: CP437 in a VGA font, iCE colours, ANSI music, doorway mode |
 | RIPscrip | `rip` | `rip` / `ANSI` | 80x43 text over 640x350 graphics | RIPscrip 1.54 over ANSI-BBS: `!|` lines draw (lines, shapes, fills, text, the clipboard), mouse regions and buttons send their text when tapped, `ESC [ !` answers RIP's version |
 | Avatar (AVT/0+) | `avatar` | `avatar` / `ANSI` | 80x25 | ANSI-BBS with FidoNet's Avatar codes: ^L, ^Y repeat, ^V's attributes, moves and AVT/0+'s area scrolls, clears, fills and pattern repeat |
-| Amiga ANSI | `amiga` | `amiga` / `ANSI` | 80x25 | ANSI-BBS in Latin-1 with 8x8 glyphs (Topaz's size, Unscii's drawing) and colours from the Amiga's 12-bit palette |
+| Amiga ANSI | `amiga` | `amiga` / `ANSI` | 80x25 | ANSI-BBS in Latin-1 in Topaz, with colours from the Amiga's 12-bit palette |
 | DEC VT52 | `vt52` | `vt52` / `DEC-VT52` | 80x24 | The VT52's own escape codes and graphics |
 | DEC VT100 | `vt100` | `vt100` / `DEC-VT100` | 80/132x24 | ANSI codes at level 1: no colour; double-size lines; VT52 mode |
 | DEC VT102 | `vt102` | `vt102` / `DEC-VT102` | 80/132x24 | Adds character and line insert and delete, and a printer port |
@@ -36,6 +36,47 @@ graphics terminals draw through `Raster.kt`.
 | Viewdata (Prestel) | `viewdata` | `viewdata` / `VIEWDATA` | 40x24 | Teletext Level 1 attributes and mosaics; # sends |
 | Minitel | `minitel` | `minitel` / `MINITEL` | 40x25 | Teletel videotex with the status row, the protocol commands, Mixte (80 columns) and Téléinformatique (a VT100) |
 | Tektronix 4014 | `tek4014` | `tek4014` / `TEK4014` | 4096x3120 tube | Vectors, points, incremental plots and alpha text on a storage tube |
+
+## Fonts
+
+Each retro type draws with its machine's own character ROM font,
+SyncTERM's copies of them (`RomFonts.kt`, written by
+`tools/gen_rom_fonts.py`), read in the machine's own character set
+(`MachineFonts.kt`):
+
+| Types | Font |
+|---|---|
+| ANSI-BBS, Avatar | IBM VGA 8x16, code page 437 |
+| RIPscrip | RIPterm's 8x8, code page 437 |
+| Amiga ANSI | Topaz (Kickstart 1's), 8x8 |
+| C64, Plus/4, VIC-20, PET | The C64's character ROM, both sets |
+| C128 (40 and 80) | The C128's character ROM, both sets |
+| Atari 8-bit | The Atari's character ROM (the XL's international letters from Unscii) |
+| Atari ST | The ST's 8x8 (its colour modes') |
+| Viewdata | Prestel's teletext characters, 8x16 |
+
+A BBS can change the ANSI-BBS types' font with SyncTERM's
+`ESC [ 0 ; n SP D`. The font is drawn at the profile's height and read
+as the session's octets, as SyncTERM does. These are here:
+
+| n | Font |
+|---|---|
+| 0 | IBM VGA (code page 437) |
+| 26 | Code page 437, thin |
+| 32, 33 | Commodore 64, upper and lower case |
+| 34, 35 | Commodore 128, upper and lower case |
+| 36 | Atari 8-bit |
+| 37 | P0T-NOoDLE (Amiga) |
+| 38 | mO'sOul (Amiga) |
+| 39 | MicroKnight Plus (Amiga) |
+| 40 | Topaz Plus (Amiga) |
+| 41 | MicroKnight (Amiga) |
+| 42 | Topaz (Amiga) |
+| 43 | Prestel |
+| 44 | Atari ST (its mono mode's 8x16) |
+
+Its own number, RIS or another terminal type puts the profile's font
+back. The other code page fonts (1-31) aren't here, and are ignored.
 
 A VT510's and later screen size can change at the host's request
 (DECSNLS, DECSLPP, DECSCPP). xterm and ANSI-BBS fit the view.
@@ -120,6 +161,15 @@ table when they are.
 
 **Viewdata and Minitel**
 - Double height and double size are drawn single.
+- The Minitel draws its text in the app's font, not its own ROM's.
+
+**Fonts**
+- Fonts 1-3 of `ESC [ Ps1 ; n SP D` (the ones SyncTERM draws bright and
+  blinking text in) aren't kept: only font 0 changes.
+- The DEC types, the Tektronix and the Minitel use the app's font: no
+  ROM fonts of theirs are here.
+- The VIC-20, Plus/4 and PET draw with the C64's ROM, which is nearly
+  theirs.
 
 **DEC**
 - No locator (DECELR), and no answerback message.

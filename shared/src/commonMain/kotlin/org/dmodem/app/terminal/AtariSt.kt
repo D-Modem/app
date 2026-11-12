@@ -23,6 +23,8 @@ open class AtariStProfile : TerminalProfile(), ByteMachine {
     /** the highest pen on the first (white) */
     override val defaultColor get() = palette.size - 1
     override val background get() = 0
+    /** the ST's own 8x8 */
+    override val glyphs: BitmapFont? get() = MachineFonts.ATARI_ST
 
     /** the standard keys and the keypad */
     override val keyBar: List<KeyBarPage> get() = KeyBars.DEC
@@ -78,7 +80,7 @@ open class AtariStInterpreter(t: TerminalEmulator, private val m: AtariStProfile
     }
 
     /** an octet in the ST's set */
-    override fun charOf(cp: Int): Int = if (cp in 0x80..0xff) HIGH[cp - 0x80].code else cp
+    override fun charOf(cp: Int): Int = stChar(cp)
 
     /** the ST's own after ESC: E clear, d erase above, e and f the cursor, j and k its place saved, l and o line erases, p and q reverse, v and w wrap, L and M lines, b and c the colours */
     override fun esc(cp: Int) {
@@ -136,6 +138,9 @@ open class AtariStInterpreter(t: TerminalEmulator, private val m: AtariStProfile
     }
 
     companion object {
+        /** an octet in the ST's set as its code point */
+        internal fun stChar(b: Int): Int = if (b in 0x80..0xff) HIGH[b - 0x80].code else b
+
         /** the ST's set from 0x80: Latin letters, Hebrew, Greek and mathematics */
         private const val HIGH =
             "ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥ßƒáíóúñÑªº¿⌐¬½¼¡«»ãõØøœŒÀÃÕ¨´†¶©®™" +
