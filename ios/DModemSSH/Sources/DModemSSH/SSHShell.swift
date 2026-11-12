@@ -41,6 +41,7 @@ public final class SSHShell: @unchecked Sendable {
     private var closing = false
     private var exitStatus: Int?
 
+    /// a shell to log in to: nothing is done until [connect]
     public init(host: String, port: Int = 22, user: String, term: String = "xterm-256color", cols: Int = 80, rows: Int = 24) {
         self.host = host
         self.port = port
@@ -133,20 +134,25 @@ public final class SSHShell: @unchecked Sendable {
         }
     }
 
+    /// the server's data, to [onData]
     fileprivate func received(_ data: Data) { onData(data) }
 
+    /// the shell's exit status, kept for [onClose]
     fileprivate func exited(_ status: Int) { lock.withLock { exitStatus = status } }
 
+    /// the shell's channel closed: the connection is closed too
     fileprivate func shellClosed() {
         // (the shell's over: so is the connection)
         lock.withLock { channel }?.close(promise: nil)
     }
 
+    /// an error: [onClose] told why, the connection closed
     fileprivate func failed(_ e: Error) {
         finish(Self.describe(e))
         lock.withLock { channel }?.close(promise: nil)
     }
 
+    /// [onClose] called, once, with why
     private func finish(_ why: String?) {
         let (first, asked, status): (Bool, Bool, Int?) = lock.withLock {
             defer { closed = true }
@@ -164,6 +170,7 @@ public final class SSHShell: @unchecked Sendable {
         }
     }
 
+    /// an error in words for the user
     static func describe(_ e: Error) -> String {
         switch e {
         case SSHShellError.hostKeyRefused: return "the host's key was not accepted"
@@ -194,11 +201,13 @@ private final class PasswordAuth: NIOSSHClientUserAuthenticationDelegate {
     let ask: (String, @escaping (String?) -> Void) -> Void
     var tries = 0
 
+    /// asks [ask] for the password for [user]
     init(user: String, ask: @escaping (String, @escaping (String?) -> Void) -> Void) {
         self.user = user
         self.ask = ask
     }
 
+    /// the next password offered, or a failure once there are none
     func nextAuthenticationType(
         availableMethods: NIOSSHAvailableUserAuthenticationMethods,
         nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>
@@ -228,10 +237,12 @@ private final class PasswordAuth: NIOSSHClientUserAuthenticationDelegate {
 private final class HostKeyCheck: NIOSSHClientServerAuthenticationDelegate {
     let verify: (String, @escaping (Bool) -> Void) -> Void
 
+    /// asks [verify] about each host key
     init(verify: @escaping (String, @escaping (Bool) -> Void) -> Void) {
         self.verify = verify
     }
 
+    /// the host's key, to the caller to accept or refuse
     func validateHostKey(hostKey: NIOSSHPublicKey, validationCompletePromise: EventLoopPromise<Void>) {
         verify(String(openSSHPublicKey: hostKey)) { ok in
             if ok {
@@ -249,16 +260,19 @@ private final class ShellHandler: ChannelInboundHandler {
 
     private weak var owner: SSHShell?
 
+    /// for [owner]'s shell
     init(owner: SSHShell) {
         self.owner = owner
     }
 
+    /// the server's data, to the owner
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         let d = unwrapInboundIn(data)
         guard case .byteBuffer(var b) = d.data, let bytes = b.readBytes(length: b.readableBytes) else { return }
         owner?.received(Data(bytes))
     }
 
+    /// the exit status kept; the shell closed when the server's output ends
     func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
         if let s = event as? SSHChannelRequestEvent.ExitStatus {
             owner?.exited(s.exitStatus)
@@ -268,11 +282,13 @@ private final class ShellHandler: ChannelInboundHandler {
         context.fireUserInboundEventTriggered(event)
     }
 
+    /// the shell's channel gone: the owner told
     func channelInactive(context: ChannelHandlerContext) {
         owner?.shellClosed()
         context.fireChannelInactive()
     }
 
+    /// the error to the owner, the channel closed
     func errorCaught(context: ChannelHandlerContext, error: Error) {
         owner?.failed(error)
         context.close(promise: nil)
@@ -284,10 +300,12 @@ private final class ErrorCatcher: ChannelInboundHandler {
     typealias InboundIn = Any
     let caught: (Error) -> Void
 
+    /// [caught] told of each error
     init(caught: @escaping (Error) -> Void) {
         self.caught = caught
     }
 
+    /// the error to the owner, the connection closed
     func errorCaught(context: ChannelHandlerContext, error: Error) {
         caught(error)
         context.close(promise: nil)

@@ -7,6 +7,7 @@ import XCTest
 /// A login to a real sshd, when DMODEM_SSH_TEST names one as
 /// host:port:user:password (else skipped).
 final class SSHShellTests: XCTestCase {
+    /// DMODEM_SSH_TEST's host, port, user and password, or the test skipped
     private func server() throws -> (String, Int, String, String) {
         guard let spec = ProcessInfo.processInfo.environment["DMODEM_SSH_TEST"] else {
             throw XCTSkip("DMODEM_SSH_TEST is not set")
@@ -15,6 +16,7 @@ final class SSHShellTests: XCTestCase {
         return (p[0], Int(p[1]) ?? 22, p[2], p[3])
     }
 
+    /// a login, a command's output read, a resize seen, the exit status told
     func testShell() throws {
         let (host, port, user, password) = try server()
         let shell = SSHShell(host: host, port: port, user: user, term: "vt100", cols: 100, rows: 30)
@@ -56,6 +58,7 @@ final class SSHShellTests: XCTestCase {
         XCTAssertEqual(why, "the shell exited with status 3")
     }
 
+    /// a refused host key closes the connection, saying so
     func testRefusedHostKey() throws {
         let (host, port, user, _) = try server()
         let shell = SSHShell(host: host, port: port, user: user)
@@ -71,6 +74,7 @@ final class SSHShellTests: XCTestCase {
         XCTAssertEqual(why, "the host's key was not accepted")
     }
 
+    /// a close by the user is told as nil
     func testCloseByUser() throws {
         let (host, port, user, password) = try server()
         let shell = SSHShell(host: host, port: port, user: user)

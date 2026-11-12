@@ -54,6 +54,7 @@ final class RemoteModel: ObservableObject {
     private var cols = 80, rows = 24
     private let defaults = UserDefaults.standard
 
+    /// the last server's settings, from the defaults
     init() {
         proto = Proto(rawValue: defaults.string(forKey: "remoteProtocol") ?? "") ?? .ssh
         host = defaults.string(forKey: "remoteHost") ?? ""
@@ -63,6 +64,7 @@ final class RemoteModel: ObservableObject {
         terminal.onResize = { [weak self] c, r in self?.resized(c, r) }
     }
 
+    /// the settings kept in the defaults for next time
     private func save() {
         defaults.set(proto.rawValue, forKey: "remoteProtocol")
         defaults.set(host, forKey: "remoteHost")
@@ -80,6 +82,7 @@ final class RemoteModel: ObservableObject {
 
     // MARK: - connecting
 
+    /// connect to the server on the screen, by its protocol
     func connect() {
         guard !running, complete else { return }
         let h = host.trimmingCharacters(in: .whitespaces)
@@ -100,8 +103,10 @@ final class RemoteModel: ObservableObject {
         }
     }
 
+    /// the connection closed by the user
     func disconnect() { ended(nil) }
 
+    /// an SSH login: its host key checked, its password asked
     private func startSSH(host: String, port: Int, user: String) {
         let s = SSHShell(host: host, port: port, user: user, term: "xterm-256color", cols: cols, rows: rows)
         s.onData = { [weak self] d in Task { @MainActor in self?.terminal.feed(d) } }
@@ -160,6 +165,7 @@ final class RemoteModel: ObservableObject {
         return "\(parts[0]) SHA256:\(b64)"
     }
 
+    /// a question to the user; one asked before is answered no
     private func ask(_ q: Question, _ answer: @escaping (String?) -> Void) {
         answerQuestion?(nil)
         answerQuestion = answer
@@ -174,6 +180,7 @@ final class RemoteModel: ObservableObject {
         f?(a)
     }
 
+    /// a Telnet or rlogin connection, its protocol in a LoginBridge
     private func startSocket(host: String, port: Int, user: String) {
         let kind = proto == .rlogin ? "rlogin" : "telnet"
         // (Network can't read urgent data apart: rlogin's comes in the stream)
@@ -202,6 +209,7 @@ final class RemoteModel: ObservableObject {
         c.start(queue: .main)
     }
 
+    /// the socket's next data, to the protocol and on to the screen
     private func receive(_ c: NWConnection) {
         c.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, done, error in
             Task { @MainActor in
@@ -230,6 +238,7 @@ final class RemoteModel: ObservableObject {
 
     // MARK: - the terminal
 
+    /// what's typed, to the server
     private func send(_ d: Data) {
         guard running else { return }
         if let ssh {
@@ -240,6 +249,7 @@ final class RemoteModel: ObservableObject {
         }
     }
 
+    /// the screen's new size, told to the server
     private func resized(_ c: Int, _ r: Int) {
         cols = c
         rows = r
@@ -251,10 +261,12 @@ final class RemoteModel: ObservableObject {
         }
     }
 
+    /// a note of ours on the screen
     private func show(_ s: String) {
         terminal.feed(Data(s.utf8))
     }
 
+    /// the connection over, with why (nil when the user asked)
     private func ended(_ why: String?) {
         guard running else { return }
         running = false

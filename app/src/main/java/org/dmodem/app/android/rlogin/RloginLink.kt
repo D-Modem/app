@@ -37,10 +37,12 @@ class RloginLink(
     @Volatile private var out: OutputStream? = null
     @Volatile private var closing = false
 
+    /** a listener added, for the server's data */
     override fun addListener(l: TerminalLink.Listener) {
         listeners.add(l)
     }
 
+    /** a listener taken off */
     override fun removeListener(l: TerminalLink.Listener) {
         listeners.remove(l)
     }
@@ -50,6 +52,7 @@ class RloginLink(
         Thread({ run() }, "rlogin-$host").apply { isDaemon = true }.start()
     }
 
+    /** connect, log in and read until the connection closes (on the link's thread) */
     private fun run() {
         try {
             val s = Socket()
@@ -96,6 +99,7 @@ class RloginLink(
         }
     }
 
+    /** what's typed, to the server */
     override fun write(data: ByteArray, offset: Int, length: Int): Boolean {
         if (_state.value !is TerminalLink.State.Open) return false
         synchronized(codec) { codec.type(data.copyOfRange(offset, offset + length)) }
@@ -108,6 +112,7 @@ class RloginLink(
         Thread({ flush() }, "rlogin-size").start()
     }
 
+    /** the link closed, with why (null when asked to) */
     private fun closed(reason: String?) {
         if (_state.value is TerminalLink.State.Closed) return
         _state.value = TerminalLink.State.Closed(reason)
@@ -117,6 +122,7 @@ class RloginLink(
         }
     }
 
+    /** the connection closed by the user */
     override fun close() {
         closing = true
         closed(null)

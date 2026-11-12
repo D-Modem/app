@@ -6,10 +6,14 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class RemoteLoginTest {
+    /** octets from ints */
     private fun b(vararg v: Int) = ByteArray(v.size) { v[it].toByte() }
+    /** a string's octets */
     private fun s(t: String) = t.encodeToByteArray()
+    /** octets as unsigned ints */
     private fun ints(a: ByteArray) = a.map { it.toInt() and 0xff }
 
+    /** options answered once, IAC doubled, CR NUL both ways, NAWS on resize */
     @Test
     fun telnetNegotiates() {
         val t = TelnetCodec("ANSI", 80, 24)
@@ -38,6 +42,7 @@ class RemoteLoginTest {
         assertEquals(0, t.output().size)
     }
 
+    /** the handshake, the server's NUL taken, the window sent once asked */
     @Test
     fun rloginHandshakeAndWindow() {
         val r = RloginCodec("alice", "xterm", 80, 24)
@@ -53,6 +58,7 @@ class RemoteLoginTest {
         assertEquals("\r", r.output().decodeToString())
     }
 
+    /** an inline 0x80 straight after the NUL taken as the window request */
     @Test
     fun rloginInlineUrgent() {
         val r = RloginCodec("bob", "ansi", 80, 24, inlineUrgent = true)
@@ -66,6 +72,7 @@ class RemoteLoginTest {
         assertEquals(listOf(0x80), ints(r.screen()))
     }
 
+    /** the bridge's strings are Latin-1; the default ports */
     @Test
     fun bridgeIsLatin1() {
         val l = LoginBridge("telnet", "", "ANSI", 80, 24, false)

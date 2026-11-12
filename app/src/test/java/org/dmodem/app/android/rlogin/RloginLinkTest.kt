@@ -13,6 +13,7 @@ import java.util.concurrent.TimeUnit
 
 /** An rlogin login against a server on the loopback: the handshake, its urgent window request, data both ways. */
 class RloginLinkTest {
+    /** the handshake sent, the server's NUL and 0x80 taken, the window's size sent, data both ways */
     @Test
     fun logsInAndAnswersTheWindowRequest() {
         val server = ServerSocket(0)

@@ -30,17 +30,22 @@ private class Octets {
     var size = 0
         private set
 
+    /** an octet added */
     fun add(v: Int) {
         if (size == b.size) b = b.copyOf(b.size * 2)
         b[size++] = v.toByte()
     }
 
+    /** the first [n] octets of [v] added */
     fun add(v: ByteArray, n: Int = v.size) {
         for (i in 0 until n) add(v[i].toInt() and 0xff)
     }
 
+    /** the octets, taken (and the buffer emptied) */
     fun take(): ByteArray = b.copyOf(size).also { size = 0 }
+    /** the octets dropped */
     fun clear() { size = 0 }
+    /** a copy of the octets, left in place */
     fun bytes(): ByteArray = b.copyOf(size)
 }
 
@@ -67,6 +72,7 @@ class TelnetCodec(
     private var verb = 0
     private var lastCr = false
 
+    /** our first offers: TERMINAL-TYPE, NAWS and SUPPRESS-GO-AHEAD */
     override fun connected() {
         put(IAC, WILL, TTYPE)
         put(IAC, WILL, NAWS)
@@ -77,8 +83,10 @@ class TelnetCodec(
         remote[SGA] = true
     }
 
+    /** octets for the socket */
     private fun put(vararg v: Int) = v.forEach { out.add(it) }
 
+    /** the window's size, as NAWS's subnegotiation (0xff doubled) */
     private fun sendNaws() {
         put(IAC, SB, NAWS)
         for (v in intArrayOf(cols, rows)) {
@@ -91,6 +99,7 @@ class TelnetCodec(
         put(IAC, SE)
     }
 
+    /** the server's WILL, WONT, DO or DONT for [opt] answered, once per change */
     private fun option(verb: Int, opt: Int) {
         when (verb) {
             WILL -> {
@@ -125,6 +134,7 @@ class TelnetCodec(
         }
     }
 
+    /** a subnegotiation answered: TERMINAL-TYPE's SEND with our type */
     private fun subnegotiation() {
         val b = sb.bytes()
         if (b.size >= 2 && (b[0].toInt() and 0xff) == TTYPE && b[1].toInt() == 1) {
@@ -134,6 +144,7 @@ class TelnetCodec(
         }
     }
 
+    /** the server's octets: commands answered, data for the screen */
     override fun feed(data: ByteArray, length: Int) {
         for (i in 0 until length) {
             val b = data[i].toInt() and 0xff
@@ -161,6 +172,7 @@ class TelnetCodec(
         }
     }
 
+    /** typed octets: IAC doubled, a lone CR as CR NUL outside binary */
     override fun type(data: ByteArray, length: Int) {
         for (i in 0 until length) {
             val b = data[i].toInt() and 0xff
@@ -170,6 +182,7 @@ class TelnetCodec(
         }
     }
 
+    /** the new size, sent by NAWS when the server took it */
     override fun resize(cols: Int, rows: Int) {
         if (cols == this.cols && rows == this.rows) return
         this.cols = cols
@@ -177,7 +190,9 @@ class TelnetCodec(
         if (naws) sendNaws()
     }
 
+    /** the octets for the terminal, taken */
     override fun screen() = scr.take()
+    /** the octets for the socket, taken */
     override fun output() = out.take()
 
     companion object {
@@ -224,6 +239,7 @@ class RloginCodec(
     private var sawData = false
     private var wantSize = false
 
+    /** the handshake: NUL, the user twice, and term/speed */
     override fun connected() {
         out.add(0)
         repeat(2) {
@@ -234,6 +250,7 @@ class RloginCodec(
         out.add(0)
     }
 
+    /** the window's size: 0xff 0xff s s, then rows, columns, x and y pixels */
     private fun window() {
         out.add("ÿÿss".map { it.code.toByte() }.toByteArray())
         for (v in intArrayOf(rows, cols, cols * 8, rows * 16)) {
@@ -243,6 +260,7 @@ class RloginCodec(
         }
     }
 
+    /** the server's octets: its first NUL and (inline) its urgent byte taken off */
     override fun feed(data: ByteArray, length: Int) {
         var i = 0
         if (!ready && length > 0) {
@@ -260,6 +278,7 @@ class RloginCodec(
         }
     }
 
+    /** the server's urgent byte: 0x80 asks for the window's size, 0x02 flushes */
     override fun urgent(b: Int) {
         if (b and 0x80 != 0) {
             wantSize = true
@@ -268,8 +287,10 @@ class RloginCodec(
         if (b and 0x02 != 0) scr.clear()
     }
 
+    /** typed octets, as they are */
     override fun type(data: ByteArray, length: Int) = out.add(data, length)
 
+    /** the new size, sent if the server asked for sizes */
     override fun resize(cols: Int, rows: Int) {
         if (cols == this.cols && rows == this.rows) return
         this.cols = cols
@@ -277,7 +298,9 @@ class RloginCodec(
         if (wantSize) window()
     }
 
+    /** the octets for the terminal, taken */
     override fun screen() = scr.take()
+    /** the octets for the socket, taken */
     override fun output() = out.take()
 }
 
@@ -289,15 +312,24 @@ class LoginBridge(kind: String, user: String, term: String, cols: Int, rows: Int
     private val codec: LoginCodec =
         if (kind == "rlogin") RloginCodec(user, term, cols, rows, inlineUrgent) else TelnetCodec(term, cols, rows)
 
+    /** the connection made: the handshake or first offers */
     fun connected() = codec.connected()
+    /** octets the socket read, as Latin-1 */
     fun feed(latin1: String) = codec.feed(octets(latin1))
+    /** an urgent octet the socket read */
     fun urgent(b: Int) = codec.urgent(b)
+    /** octets typed, as Latin-1 */
     fun type(latin1: String) = codec.type(octets(latin1))
+    /** the screen's new size */
     fun resize(cols: Int, rows: Int) = codec.resize(cols, rows)
+    /** the octets for the terminal, taken, as Latin-1 */
     fun screen(): String = latin1(codec.screen())
+    /** the octets for the socket, taken, as Latin-1 */
     fun output(): String = latin1(codec.output())
 
+    /** a Latin-1 string's octets */
     private fun octets(s: String) = ByteArray(s.length) { s[it].code.toByte() }
+    /** octets as a Latin-1 string */
     private fun latin1(b: ByteArray): String {
         val sb = StringBuilder(b.size)
         for (x in b) sb.append((x.toInt() and 0xff).toChar())
