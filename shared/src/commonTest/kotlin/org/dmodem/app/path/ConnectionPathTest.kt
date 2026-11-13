@@ -15,9 +15,12 @@ import kotlin.test.assertTrue
 
 /** The connection path: each line's steps, idle as set up, and in a call as it is. */
 class ConnectionPathTest {
+    /** the path's steps' kinds */
     private fun kinds(p: ConnectionPath.Path) = p.steps.map { it.kind }
+    /** the path's steps' states */
     private fun states(p: ConnectionPath.Path) = p.steps.map { it.state }
 
+    /** an account taking calls registers: every step ready, the roles above them */
     @Test
     fun sipWithAnAccountRegisters() {
         val p = ConnectionPath.of(Config(Line.SIP, sipUser = "alice", sipDomain = "sip.example.com", listen = true))
@@ -28,6 +31,7 @@ class ConnectionPathTest {
         assertEquals(listOf("Program", "Modem", "Line", "Reaches"), p.steps.map { it.role })
     }
 
+    /** no account: SIP and the phone network to set, their link too, and the headline says so */
     @Test
     fun sipWithNoAccountNeedsSettingUp() {
         val p = ConnectionPath.of(Config(Line.SIP))
@@ -36,6 +40,7 @@ class ConnectionPathTest {
         assertEquals("Not ready: SIP (no account set up)", p.headline)
     }
 
+    /** anonymous SIP reaches SIP addresses, ready with no account */
     @Test
     fun anonymousSipReachesSipAddresses() {
         val p = ConnectionPath.of(Config(Line.SIP, sipAnonymous = true))
@@ -44,6 +49,7 @@ class ConnectionPathTest {
         assertTrue(p.steps[2].detail.startsWith("Anonymous"))
     }
 
+    /** another phone: to pair and choose, or chosen, or none needed to take its calls */
     @Test
     fun peersNeedPairingAndChoosing() {
         val none = ConnectionPath.of(Config(Line.BLUETOOTH))
@@ -57,6 +63,7 @@ class ConnectionPathTest {
         assertEquals(State.READY, ConnectionPath.of(Config(Line.WIFI, listen = true)).steps[3].state)
     }
 
+    /** a modem of its own: its adapter (to plug in) or Bluetooth, then the modem and its line */
     @Test
     fun aModemOfItsOwnIsReachedByItsAdapter() {
         val p = ConnectionPath.of(Config(Line.SERIAL_MODEM, serialBaud = 57600, usbDevice = "FT232R"))
@@ -70,6 +77,7 @@ class ConnectionPathTest {
         assertEquals("Courier", bt.steps[2].detail)
     }
 
+    /** no line: the line and beyond are off */
     @Test
     fun noLineIsOff() {
         val p = ConnectionPath.of(Config(Line.NONE))
@@ -78,12 +86,14 @@ class ConnectionPathTest {
         assertEquals(State.READY, p.link(0))
     }
 
+    /** dial-up internet, dial-in and the bridges are said on the terminal's step */
     @Test
     fun whatSharesTheModemIsOnTheTerminal() {
         val p = ConnectionPath.of(Config(Line.SIP, sipAnonymous = true, isp = true, dialIn = true, bridges = listOf("TCP")))
         assertEquals("Also dial-up internet, dial-in, TCP bridge", p.steps[0].detail)
     }
 
+    /** dialling and online light the steps; dial-up internet shows as PPP; starting, the modem's step works */
     @Test
     fun aCallLightsThePath() {
         val c = Config(Line.SIP, sipUser = "alice", sipDomain = "example.com")

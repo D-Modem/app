@@ -244,6 +244,7 @@ object ConnectionPath {
 
     /** the lesser of two states: OFF, then SETUP, then WORKING, READY, ACTIVE */
     fun lesser(a: State, b: State): State {
+        /** [s]'s place, least first */
         fun rank(s: State) = when (s) {
             State.OFF -> 0; State.SETUP -> 1; State.WORKING -> 2; State.READY -> 3; State.ACTIVE -> 4
         }
