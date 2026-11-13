@@ -17,7 +17,16 @@
   answer is off; Answer as a voice call, or Take a message (the
   answering machine). Gone when the modem
   answers (here, a computer on a bridge, S0) or the caller gives up.
-- **Settings**: the SIP account (or paste `user:password@host`, as
+- **Settings**: at the top, the connection path, as PCOMM's "Connection
+  Overview" draws its link: the terminal, the modem, the line and what it
+  reaches (for a modem of its own, the USB serial adapter or Bluetooth it's
+  reached by, the modem and its line), each step's role above its icon and
+  what it is below, one line joining them. Idle it shows the settings as
+  they are: a step still to set (no SIP account, no phone or modem chosen,
+  no USB modem plugged in) in red with its line dashed, and a line saying
+  what; dialling and online it lights as the call goes. On Android a step
+  opens its settings page. The shared Kotlin's `ConnectionPath` has the steps and their
+  words, for Android and iOS alike. Then the SIP account (or paste `user:password@host`, as
   dmodemd's `SIP_LOGIN`), taking incoming calls, T.38, the AT commands
   sent at start (`ATX3` by default: SIP has no dial tone), the log levels;
   the country, from the ITU's list of 192 (D-Modem's, after E.180):

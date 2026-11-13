@@ -310,7 +310,7 @@ private fun settingsTransition(back: Boolean): ContentTransform {
     }
 }
 
-/** Settings' menu: a row for each page, what it's set to beneath */
+/** Settings' menu: the connection path, then a row for each page, what it's set to beneath */
 @Composable
 private fun SettingsMenu(modifier: Modifier, s: ModemSettings) {
     val rows = listOf(
@@ -336,6 +336,8 @@ private fun SettingsMenu(modifier: Modifier, s: ModemSettings) {
             "Settings", style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.heightIn(min = 48.dp).padding(start = 4.dp).wrapContentHeight(Alignment.CenterVertically),
         )
+        // (how a call is made, step by step: as set up when idle, as it is in a call)
+        ConnectionPathCard(s)
         for ((page, summary) in rows) SettingsCard(page, summary)
     }
 }
