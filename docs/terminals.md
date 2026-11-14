@@ -1,17 +1,21 @@
 # Terminal types
 
-The terminal (Android and iOS) can be any of the terminals below. Pick one
-in Settings, or give a directory entry its own. The choice sets what the
-screen understands, how it answers the remote's identity requests, what
-SSH sends as `TERM` and Telnet as TERMINAL-TYPE, the screen's size, its
-character set and glyphs, and the key bar.
+The terminal (Android and iOS) can be each of the terminals below. Select one
+in Settings, or give a directory entry its own type. The type sets these
+items:
 
-All of them live in `shared/src/commonMain/kotlin/org/dmodem/app/terminal/`:
-a `TerminalProfile` subclass for each type (`TerminalProfile.kt`,
-`Commodore.kt`, `Atari.kt`, `Videotex.kt`, `Minitel.kt`, `Tektronix.kt`)
-and the interpreter it makes (`VtInterpreter`, `Vt420Interpreter`,
+- The codes that the screen accepts.
+- The answers to the identity requests of the remote.
+- The `TERM` that SSH sends and the TERMINAL-TYPE that Telnet sends.
+- The size of the screen, its character set and its glyphs.
+- The key bar.
+
+All the types are in `shared/src/commonMain/kotlin/org/dmodem/app/terminal/`.
+There is a `TerminalProfile` subclass for each type (`TerminalProfile.kt`,
+`Commodore.kt`, `Atari.kt`, `Videotex.kt`, `Minitel.kt`, `Tektronix.kt`).
+Each subclass makes an interpreter (`VtInterpreter`, `Vt420Interpreter`,
 `AnsiBbsInterpreter`, `ByteControlInterpreter` and its subclasses,
-`TektronixInterpreter`). ReGIS is `Regis.kt`, sixel `Sixel.kt`, and both
+`TektronixInterpreter`). ReGIS is `Regis.kt` and sixel is `Sixel.kt`. The two
 graphics terminals draw through `Raster.kt`.
 
 | Type | Id | TERM / Telnet type | Screen | What it is |
@@ -39,10 +43,10 @@ graphics terminals draw through `Raster.kt`.
 
 ## Fonts
 
-Each retro type draws with its machine's own character ROM font,
-SyncTERM's copies of them (`RomFonts.kt`, written by
-`tools/gen_rom_fonts.py`), read in the machine's own character set
-(`MachineFonts.kt`):
+Each retro type draws with the character ROM font of its machine. The fonts
+are the copies of SyncTERM (`RomFonts.kt`, written by
+`tools/gen_rom_fonts.py`). The app reads them in the character set of the
+machine (`MachineFonts.kt`):
 
 | Types | Font |
 |---|---|
@@ -55,9 +59,10 @@ SyncTERM's copies of them (`RomFonts.kt`, written by
 | Atari ST | The ST's 8x8 (its colour modes') |
 | Viewdata | Prestel's teletext characters, 8x16 |
 
-A BBS can change the ANSI-BBS types' font with SyncTERM's
-`ESC [ 0 ; n SP D`. The font is drawn at the profile's height and read
-as the session's octets, as SyncTERM does. These are here:
+A BBS can change the font of the ANSI-BBS types with the SyncTERM sequence
+`ESC [ 0 ; n SP D`. The app draws the font at the height of the profile, and
+reads it as the octets of the session, as SyncTERM does. These fonts are
+available:
 
 | n | Font |
 |---|---|
@@ -75,105 +80,109 @@ as the session's octets, as SyncTERM does. These are here:
 | 43 | Prestel |
 | 44 | Atari ST (its mono mode's 8x16) |
 
-Its own number, RIS or another terminal type puts the profile's font
-back. The other code page fonts (1-31) aren't here, and are ignored.
+The number of the profile font, RIS or another terminal type sets the font of
+the profile again. The other code page fonts (1-31) are not available, and
+the app ignores them.
 
-A VT510's and later screen size can change at the host's request
-(DECSNLS, DECSLPP, DECSCPP). xterm and ANSI-BBS fit the view.
+On a VT510 and later, the host can change the size of the screen (DECSNLS,
+DECSLPP, DECSCPP). xterm and ANSI-BBS fit the view.
 
 ## Graphics
 
-Sixel images are cells of an image that scroll with the text. ReGIS and
-the Tektronix draw a picture over the whole screen instead. It is kept
-the screen's size in pixels, and only the cells it has drawn in show it.
-Resizing the screen starts the picture again, as on a storage tube.
+Sixel images are cells of an image that scroll with the text. But ReGIS and
+the Tektronix draw a picture over the full screen. The picture has the size
+of the screen in pixels. Only the cells that it drew in show it. If the size
+of the screen changes, the picture starts again, as on a storage tube.
 
-- **Sixel**: xterm, ANSI-BBS and the VT340. On the VT340 the images
-  share ReGIS's 16 colour registers.
+- **Sixel**: xterm, ANSI-BBS and the VT340. On the VT340, the images
+  share the 16 colour registers of ReGIS.
 - **ReGIS** (`ESC P p … ESC \`, VT340 only):
   - The screen is 800x480. Positions can be absolute or relative, and
     use the position stack and pixel vectors.
   - Commands: P, V, C (circles, arcs, closed and open curves), F, T, W,
     S, R, L and macrographs (@).
-  - Commands are run as they become whole, so a drawing sent over many
-    reads shows as it comes. `ESC P 1 p` starts afresh, and `ESC P p`
-    carries on from where the last one left off.
+  - The app runs each command when it is complete. Thus a drawing that comes
+    in many reads shows while it comes. `ESC P 1 p` starts again from
+    zero, and `ESC P p` continues from the end of the last drawing.
 - **Tektronix 4014**: its own terminal type, and Tek mode on xterm and
   the VT340.
-  - `ESC [ ? 38 h` switches to the alternate screen, and `ESC ETX` goes
+  - `ESC [ ? 38 h` changes to the alternate screen, and `ESC ETX` goes
     back to the text.
 
-## Testing
+## Tests
 
 Each sequence has unit tests in `shared/src/commonTest`. Run them with
 `./gradlew :shared:jvmTest :shared:linuxX64Test`.
 
-`ProfileRenderTest` in `app/src/test` draws a screen on every terminal
-type through the real Android view and keeps it as
+`ProfileRenderTest` in `app/src/test` draws a screen on each terminal
+type through the real Android view. It keeps each screen as
 `app/build/profiles/<id>.png`. Run it with
-`./gradlew :app:testDebugUnitTest --tests '*ProfileRenderTest*'` and look
-at the pictures after a change to drawing.
+`./gradlew :app:testDebugUnitTest --tests '*ProfileRenderTest*'`. After a
+change to the drawing code, look at the pictures.
 
 ### vttest
 
-To run vttest, open the app's Linux shell and install it
-(`apk add vttest`, or the distro's equivalent). Set the terminal type in
-Settings, then run `vttest`.
+To run vttest, do these steps:
 
-What to expect, menu by menu, from the unit tests and the code. These
-haven't yet been checked against a vttest run on a device: update the
-table when they are.
+1. Open the Linux shell of the app.
+2. Install vttest (`apk add vttest`, or the equivalent command of the distro).
+3. Set the terminal type in Settings.
+4. Run `vttest`.
+
+The table gives the expected results, menu by menu, from the unit tests and
+the code. We did not compare these results with a vttest run on a device
+yet. When you do this, update the table.
 
 | vttest menu | Profiles | Expect |
 |---|---|---|
 | 1 Cursor movements | all DEC, xterm | passes |
-| 2 Screen features (132 columns, scrolling regions, origin mode) | all DEC, xterm | passes. Smooth scrolling (DECSCLM) is drawn as jump scrolling |
+| 2 Screen features (132 columns, scrolling regions, origin mode) | all DEC, xterm | passes. The app draws smooth scrolling (DECSCLM) as jump scrolling |
 | 3 Character sets | VT100 and later | passes. NRCS needs a VT220 or later |
 | 4 Double-sized characters | VT100 and later | passes |
-| 5 Keyboard | all | the LEDs and auto-repeat can't be checked on a phone. Use the key bar for the keypad and function keys |
+| 5 Keyboard | all | you cannot examine the LEDs and auto-repeat on a phone. Use the key bar for the keypad and function keys |
 | 6 Terminal reports | all | passes. The answerback message is empty |
 | 7 VT52 mode | VT100 and later | passes |
 | 8 VT102 features | VT102 and later | passes |
 | 9 Known bugs | all | n/a |
 | 10 Reset and self-test | all | the self-test (DECTST) does nothing |
-| 11 Non-VT100 terminals | by level | VT220: passes. VT320: passes. VT420: passes except the locator (no mouse reports on a DEC type). VT520: passes except the keyboard's own settings (bell volumes and key click are accepted and ignored). xterm: its own menus |
+| 11 Non-VT100 terminals | by level | VT220: passes. VT320: passes. VT420: passes except the locator (no mouse reports on a DEC type). VT520: passes except the keyboard's own settings (the app accepts and ignores bell volumes and key click). xterm: its own menus |
 
-## What isn't done
+## What is not done
 
 **ReGIS**
-- Text is drawn upright in any direction: the string moves the way it's
-  told, but the glyphs don't turn.
-- Italics (T(I)) and the hard copy and scrolling of S are accepted and
-  ignored.
-- R(M) (macrograph storage) isn't answered.
-- A colour register changed after drawing doesn't recolour what's
-  already drawn.
+- The app draws text upright in all directions. The string moves in the
+  direction that the command gives, but the glyphs do not turn.
+- The app accepts and ignores italics (T(I)), and the hard copy and
+  scrolling of S.
+- The app does not answer R(M) (macrograph storage).
+- If a colour register changes after the app draws, the app does not change
+  the colour of the items that it drew before.
 
 **RIPscrip**
-- Icons (1I, 1W) and scenes (1R) from the host's files aren't loaded.
-- Text variables ($…$) aren't expanded.
-- The stroke fonts are drawn with the PC's bitmap font at their size.
-- Vertical text runs down, but its glyphs don't turn.
+- The app does not load icons (1I, 1W) and scenes (1R) from the files of the host.
+- The app does not expand text variables ($…$).
+- The app draws the stroke fonts with the bitmap font of the PC at their size.
+- Vertical text goes down, but its glyphs do not turn.
 
 **Tektronix**
 - No graphic input (GIN) cross-hair.
 - No write-through or defocused modes.
 
 **Viewdata and Minitel**
-- Double height and double size are drawn single.
-- The Minitel draws its text in the app's font, not its own ROM's.
+- The app draws double height and double size as single size.
+- The Minitel draws its text in the font of the app, not in the font of its own ROM.
 
 **Fonts**
-- Fonts 1-3 of `ESC [ Ps1 ; n SP D` (the ones SyncTERM draws bright and
-  blinking text in) aren't kept: only font 0 changes.
-- The DEC types, the Tektronix and the Minitel use the app's font: no
-  ROM fonts of theirs are here.
-- The VIC-20, Plus/4 and PET draw with the C64's ROM, which is nearly
-  theirs.
+- The app does not keep fonts 1-3 of `ESC [ Ps1 ; n SP D` (SyncTERM uses
+  them for bright and blinking text). Only font 0 changes.
+- The DEC types, the Tektronix and the Minitel use the font of the app. Their
+  ROM fonts are not available.
+- The VIC-20, Plus/4 and PET draw with the ROM of the C64, which is almost
+  the same as their ROM.
 
 **DEC**
 - No locator (DECELR), and no answerback message.
 
 **iOS**
-- The picture and image drawing is built but not yet compiled in Xcode
-  (the bridge's `imageRuns` and `imagePixels`).
+- The code that draws pictures and images is written, but we did not
+  compile it in Xcode yet (`imageRuns` and `imagePixels` of the bridge).

@@ -13,21 +13,23 @@
 | DroidSansMono.ttf | Droid Sans Mono | Apache 2.0 | AOSP `platform/frameworks/base/data/fonts` |
 
 The retro terminal types (ANSI-BBS, RIPscrip, Amiga ANSI, the Commodores,
-the Atari 8-bit and ST, Viewdata) draw their characters from their machines'
-own character ROM fonts, in the shared code (`shared/.../terminal/RomFonts.kt`,
-written by `tools/gen_rom_fonts.py`), not from a font file here. The glyphs
-are SyncTERM's, from Synchronet's ciolib (`src/conio/allfonts.c`,
-LGPL-2.0-or-later, copyright Rob Swindell and contributors;
-`licenses/syncterm-fonts-LGPL-2.0.txt`): the IBM VGA's code page 437,
-RIPterm's 8x8, the Commodore 64's and 128's, the Atari 8-bit's, the Amiga's
-Topaz, Topaz Plus, MicroKnight, MicroKnight Plus, P0T-NOoDLE and mO'sOul,
-Prestel's and the Atari ST's.
+the Atari 8-bit and ST, Viewdata) do not use a font file from this folder.
+They draw their characters from the character ROM fonts of their machines,
+in the shared code (`shared/.../terminal/RomFonts.kt`, written by
+`tools/gen_rom_fonts.py`). The glyphs come from SyncTERM, from the ciolib of
+Synchronet (`src/conio/allfonts.c`, LGPL-2.0-or-later, copyright Rob Swindell
+and contributors; `licenses/syncterm-fonts-LGPL-2.0.txt`). These are the
+fonts: the code page 437 of the IBM VGA, the 8x8 of RIPterm, the fonts of the
+Commodore 64 and 128, the font of the Atari 8-bit, the Topaz, Topaz Plus,
+MicroKnight, MicroKnight Plus, P0T-NOoDLE and mO'sOul of the Amiga, and the
+fonts of Prestel and the Atari ST.
 
-Which character each code is comes from Rebecca Bettencourt's Legacy
-Computing mappings (`mappings/legacy` in kreativekorp/charset), in
+The character for each code comes from the Legacy Computing mappings of
+Rebecca Bettencourt (`mappings/legacy` in kreativekorp/charset), in
 `LegacyCharsets.kt` (written by `tools/gen_legacy_charsets.py`). That file
-also has Unscii 2.1's `unscii-8` and `unscii-16` (public domain,
-http://viznut.fi/unscii/), for the characters a machine's ROM hasn't got
-(another model's, such as the Atari XL's international set).
+also has `unscii-8` and `unscii-16` of Unscii 2.1 (public domain,
+http://viznut.fi/unscii/). These give the characters that the ROM of a
+machine does not have (the characters of another model, for example the
+international set of the Atari XL).
 
-The licence texts are in `licenses/`; the app shows them (Settings, Font licences).
+The licence texts are in `licenses/`. The app shows them (Settings, Font licences).

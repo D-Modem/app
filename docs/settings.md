@@ -2,11 +2,11 @@
 
 # Settings reference
 
-Every setting the apps keep, from their code. [The app, screen by screen](features.md) shows where each is set, and [The modem's line](lines.md) what the lines are.
+This page lists each setting that the apps keep, from their code. [The app, screen by screen](features.md) shows where you set each one. [The modem's line](lines.md) tells what the lines are.
 
 ## Android
 
-`ModemSettings` ([`ModemSettings.kt`](../app/src/main/java/org/dmodem/app/android/settings/ModemSettings.kt)), kept in the app's private DataStore `modem` under the key beside each.
+`ModemSettings` ([`ModemSettings.kt`](../app/src/main/java/org/dmodem/app/android/settings/ModemSettings.kt)). The app keeps each setting in its private DataStore `modem`, under the key in the table.
 
 | setting | key | kind | default | what it is |
 |---|---|---|---|---|
@@ -40,11 +40,11 @@ Every setting the apps keep, from their code. [The app, screen by screen](featur
 | `usbTxGain` | `usb_tx_gain` | number | `0` | A USB modem's line: the modem's sound to it louder or softer, dB (-20 to 20; D-Modem's DMODEM_USB_TX_GAIN). |
 | `usbTxAuto` | `usb_tx_auto` | on/off | `true` | A USB modem's line: its transmit level set for each call from the remote's answer tone (DMODEM_USB_TX_GAIN=auto), not [usbTxGain]. |
 
-`line` is one of: `bluetooth`, `bt_modem`, `cell`, `none`, `serial_modem`, `sip`, `usb`, `wifi`.
+`line` is one of these values: `bluetooth`, `bt_modem`, `cell`, `none`, `serial_modem`, `sip`, `usb`, `wifi`.
 
 ## iOS
 
-`ModemSettings` ([`ModemSettings.swift`](../ios/DModemKit/Sources/DModemKit/ModemSettings.swift)), kept as JSON under each setting's own name; the secrets go in the Keychain instead, under the name beside them.
+`ModemSettings` ([`ModemSettings.swift`](../ios/DModemKit/Sources/DModemKit/ModemSettings.swift)). The app keeps each setting as JSON, under the name of the setting. But the app keeps the secrets in the Keychain, under the name in the table.
 
 | setting | Keychain | kind | default | what it is |
 |---|---|---|---|---|
@@ -78,4 +78,4 @@ Every setting the apps keep, from their code. [The app, screen by screen](featur
 | `ispScript` |  | text | (empty) | As above. |
 | `ispInit` |  | text | (empty) | As above. |
 
-`line` is one of: `sip`, `wifi`, `none`.
+`line` is one of these values: `sip`, `wifi`, `none`.
