@@ -152,6 +152,16 @@ class TiSerialTest {
         assertEquals(13769 - 215 * 64, p.last().size)
     }
 
+    /** the app's own copy of MultiTech's file: known, and a firmware the boot ROM takes */
+    @Test
+    fun builtInFirmware() {
+        val f = java.io.File("src/main/assets/firmware/mts_mt9234mu.fw")
+        val bytes = f.readBytes()
+        assertEquals("MultiTech's mts_mt9234mu.fw", TiFirmware.describe(bytes))
+        assertNull(TiFirmware.problem(bytes))
+        assertEquals(13766, TiFirmware.image(bytes).let { (it[0].toInt() and 0xff) or ((it[1].toInt() and 0xff) shl 8) })
+    }
+
     /** an unknown file is described by its size */
     @Test
     fun describe() {

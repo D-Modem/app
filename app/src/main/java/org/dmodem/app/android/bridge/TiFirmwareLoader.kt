@@ -15,8 +15,8 @@ import java.io.IOException
 
 /**
  * The firmware file of the MultiTech modems with a TUSB3410 (MT9234MU,
- * MT9234ZBA-USB), as the user imported it. The app has no copy of its own:
- * MultiTech gave no licence that lets others distribute it.
+ * MT9234ZBA-USB): one the user imported, else the app's own copy of
+ * MultiTech's (assets/firmware, with its notice: its licence is unknown).
  */
 object TiFirmwareStore {
     private const val PATH = "firmware/mts_mt9234mu.fw"
@@ -25,7 +25,13 @@ object TiFirmwareStore {
     fun file(context: Context): File = File(context.filesDir, PATH)
 
     /** the imported file, or null if there is none */
-    fun read(context: Context): ByteArray? = file(context).takeIf { it.isFile }?.readBytes()
+    fun imported(context: Context): ByteArray? = file(context).takeIf { it.isFile }?.readBytes()
+
+    /** the app's own copy of MultiTech's file, or null if the build has none */
+    fun builtIn(context: Context): ByteArray? = runCatching { context.assets.open(PATH).use { it.readBytes() } }.getOrNull()
+
+    /** the file to download: the imported one, else the app's own */
+    fun read(context: Context): ByteArray? = imported(context) ?: builtIn(context)
 
     /** [bytes] kept as the firmware: null, or why they can't be */
     fun import(context: Context, bytes: ByteArray): String? {
@@ -46,8 +52,9 @@ object TiFirmwareStore {
         file(context).delete()
     }
 
-    /** what the imported file is, for the user, or null if there is none */
-    fun describe(context: Context): String? = read(context)?.let { TiFirmware.describe(it) }
+    /** what the file to download is, for the user, or null if there is none */
+    fun describe(context: Context): String? = imported(context)?.let { "imported: " + TiFirmware.describe(it) }
+        ?: builtIn(context)?.let { "built in: " + TiFirmware.describe(it) }
 }
 
 /**

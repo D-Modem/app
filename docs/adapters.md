@@ -91,14 +91,18 @@ RTS/CTS on. The factory setting of the modem is `&K3`.
 
 The TUSB3410 has no firmware of its own. Each time you connect the modem,
 the modem shows only the boot ROM of the chip. The app must download the
-firmware into the RAM of the chip before it can use the modem. The app does
-not include the firmware file, because MultiTech gave no license that lets
-other persons distribute it. For the same reason, linux-firmware removed the
-file in 2026. Get the file `mts_mt9234mu.fw` from the Linux driver of
-MultiTech or from a linux-firmware package of a Linux distribution from
-before June 2026 (`/lib/firmware/mts_mt9234mu.fw`). The file
-`mts_mt9234zba.fw` has the same code. Then, in Settings, Line, select
-"Import the firmware file".
+firmware into the RAM of the chip before it can use the modem. The app
+includes the firmware file of MultiTech, `mts_mt9234mu.fw`
+(`app/src/main/assets/firmware`). Thus the modem operates without more
+steps. The license of this file is unknown: MultiTech did not publish one,
+and linux-firmware removed the file in 2026 for this reason. The
+`README.md` file in that folder gives the source and the notice. The AGPL-3.0
+license of D-Modem does not apply to the firmware file.
+
+To use a different firmware file, select Settings, Line, "Import another
+firmware file". "Use the built-in file" goes back to the file of MultiTech.
+TI's generic `ti_3410.fw` is possibly not sufficient. It does not set the
+control pin (P3.0) of the modem, and its USB descriptor gives only 100 mA.
 
 When the line starts, the app does these steps:
 

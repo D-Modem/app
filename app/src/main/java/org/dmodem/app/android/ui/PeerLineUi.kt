@@ -429,8 +429,8 @@ fun SerialModemFields(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
 }
 
 /**
- * The firmware of a MultiTech MT9234MU (or MT9234ZBA-USB): which file is imported, and a button to import
- * one. The app has no copy of its own; the modem gets it each time it is plugged in and the line starts.
+ * The firmware of a MultiTech MT9234MU (or MT9234ZBA-USB): the file the modem gets each time the line starts
+ * (MultiTech's, built in, unless one is imported), a button to import another, and one to go back to the built-in one.
  */
 @Composable
 private fun MultiTechFirmwareRow() {
@@ -450,7 +450,16 @@ private fun MultiTechFirmwareRow() {
         style = MaterialTheme.typography.bodySmall,
     )
     problem?.let { Text("Not imported: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
-    OutlinedButton(onClick = { pick.launch(arrayOf("*/*")) }) { Text(if (have == null) "Import the firmware file" else "Import another firmware file") }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = { pick.launch(arrayOf("*/*")) }) { Text(if (have == null) "Import the firmware file" else "Import another firmware file") }
+        if (org.dmodem.app.android.bridge.TiFirmwareStore.file(context).isFile) {
+            TextButton(onClick = {
+                org.dmodem.app.android.bridge.TiFirmwareStore.remove(context)
+                problem = null
+                have = org.dmodem.app.android.bridge.TiFirmwareStore.describe(context)
+            }) { Text("Use the built-in file") }
+        }
+    }
 }
 
 /** a labelled radio button, the whole row tappable */
