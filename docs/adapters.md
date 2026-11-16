@@ -76,6 +76,60 @@ can use the adapter. `SerialAdapters` does this. It also prevents conflicts
 between the line of the modem, the `/dev/ttyUSB0` of the Linux and the USB
 bridge on an adapter. `SerialModemTest`.
 
+## A real phone line: a MultiTech MT9234MU USB modem
+
+
+The MultiTech MultiMobile MT9234MU (USB 06E0:F114) is a V.92 data and fax
+modem with a USB connector. The MT9234ZBA-USB (06E0:F115, and 06E0:0319 on
+older units) is the same modem in a desktop case. These modems have a TI
+TUSB3410 USB UART between USB and the modem. The app uses its own driver for
+this chip (`TiSerialDriver`). Connect the modem to the phone (USB OTG), and
+select Settings, Line, "A phone line, through a modem on a USB serial
+adapter". After this step, the modem operates as an external modem on a
+serial adapter (see the section above). Set the speed to 115200 and set
+RTS/CTS on. The factory setting of the modem is `&K3`.
+
+The TUSB3410 has no firmware of its own. Each time you connect the modem,
+the modem shows only the boot ROM of the chip. The app must download the
+firmware into the RAM of the chip before it can use the modem. The app does
+not include the firmware file, because MultiTech gave no license that lets
+other persons distribute it. For the same reason, linux-firmware removed the
+file in 2026. Get the file `mts_mt9234mu.fw` from the Linux driver of
+MultiTech or from a linux-firmware package of a Linux distribution from
+before June 2026 (`/lib/firmware/mts_mt9234mu.fw`). The file
+`mts_mt9234zba.fw` has the same code. Then, in Settings, Line, select
+"Import the firmware file".
+
+When the line starts, the app does these steps:
+
+1. It sends the firmware to the boot ROM in packets of 64 octets.
+2. It resets the modem (`USBDEVFS_RESET`). The modem connects again as a
+   new USB device, with the configuration of the firmware.
+3. Android asks again if D-Modem can use the modem.
+4. The app selects configuration 2 and opens the UART.
+
+The app reads DCD, CTS, DSR and RI from the port status of the chip. The
+firmware of the chip stays in its RAM until you disconnect the modem.
+
+The modem has its own AT commands (the MultiTech MT9234 AT Commands
+Reference Guide, S000434). These items are important:
+
+- Set the country of the line with `AT%T19,0,<code>` (hexadecimal), then
+  `AT&F&W`. `ATI9` shows the country. `AT%T19,0,34` is the default (North
+  America and Europe).
+- `ATI11` shows the last call on two pages. After the first page, the modem
+  waits for a key. Push a key in the terminal to see the second page.
+- Commands for the serial port of the modem (`$SB`, `$EB`, `%DC` and other
+  commands) do not operate on the USB models.
+
+The MT9234MU-CDC and the MT9234MU-CDC-XR are CDC-ACM models. They do not
+need a firmware file. The CDC-ACM driver of the app operates them.
+
+We wrote the driver from the data sheet of the TUSB3410 and from the
+ti_usb_3410_5052 driver of Linux. The unit tests (`TiSerialTest`) examine the
+requests to a simulated chip. We did not test the driver yet on a phone with
+a real MT9234MU.
+
 ## A real phone line: a Bluetooth modem
 
 

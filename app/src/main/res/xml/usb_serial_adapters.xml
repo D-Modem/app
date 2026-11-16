@@ -20,6 +20,10 @@
     <!-- Apple's USB Modem (05AC:1401, 05AC:8220) -->
     <usb-device vendor-id="1452" product-id="5121" />
     <usb-device vendor-id="1452" product-id="33312" />
+    <!-- MultiTech's USB fax modems with a TUSB3410 (TiSerialDriver): MT9234MU (06E0:F114), MT9234ZBA-USB (06E0:F115, 06E0:0319) -->
+    <usb-device vendor-id="1760" product-id="61716" />
+    <usb-device vendor-id="1760" product-id="61717" />
+    <usb-device vendor-id="1760" product-id="793" />
     <!-- any CDC-ACM (communications class) device -->
     <usb-device class="2" />
     <!-- generated (tools/usb-serial-ids/generate.py): -->
