@@ -3,7 +3,7 @@
 - [The modem's line](lines.md): SIP, the mobile calls of the phone, no line, two phones as the line for each other
 - [Fax](fax.md)
 - [Voice calls and the answering machine](voice.md)
-- [Serial adapters and real phone lines](adapters.md): pico-serial, USB modems, a modem on a USB serial adapter, a Bluetooth modem
+- [Serial adapters and real phone lines](adapters.md): pico-serial, USB modems, a modem on a USB serial adapter, a MultiTech MT9234MU, a Bluetooth modem
 - [The app, screen by screen](features.md)
 - [Terminal types](terminals.md): the DEC line, PETSCII, ATASCII, videotex, ANSI-BBS and the graphics terminals, and how to test them
 - [Settings reference](settings.md): each setting, with its key and default, made from the code (`tools/settings_ref.py`)

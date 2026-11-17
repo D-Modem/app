@@ -11,7 +11,10 @@
  */
 
 #include <jni.h>
+#include <linux/usbdevice_fs.h>
+#include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <errno.h>
 #include <unistd.h>
 
 #include <string>
@@ -230,6 +233,13 @@ jboolean native_running(JNIEnv *, jclass)
 	return Engine::instance().running();
 }
 
+/* NativeModem.nativeUsbReset(): the USB device open on fd reset
+   (usbfs): 0, or -errno */
+jint native_usb_reset(JNIEnv *, jclass, jint fd)
+{
+	return ioctl(fd, USBDEVFS_RESET, 0) < 0 ? -errno : 0;
+}
+
 const JNINativeMethod methods[] = {
 	{ "nativeStart", "(Ljava/lang/String;Ljava/lang/String;"
 	  "Ljava/lang/String;IZZLjava/lang/String;Ljava/lang/String;"
@@ -240,6 +250,7 @@ const JNINativeMethod methods[] = {
 	{ "nativeSpeakerFd", "()I", reinterpret_cast<void *>(native_speaker_fd) },
 	{ "nativePeerEvent", "(Ljava/lang/String;)V",
 	  reinterpret_cast<void *>(native_peer_event) },
+	{ "nativeUsbReset", "(I)I", reinterpret_cast<void *>(native_usb_reset) },
 };
 
 } // namespace

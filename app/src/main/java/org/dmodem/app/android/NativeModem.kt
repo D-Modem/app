@@ -109,6 +109,9 @@ object NativeModem {
      */
     fun speakerSound(): ParcelFileDescriptor? = nativeSpeakerFd().takeIf { it >= 0 }?.let { ParcelFileDescriptor.adoptFd(it) }
 
+    /** The USB device open on [fd] reset, as if plugged in again (a TUSB3410 then runs its firmware): whether it was. */
+    fun usbReset(fd: Int): Boolean = nativeUsbReset(fd) == 0
+
     /** A peer line's event to the modem: RING, CANCEL, ANSWERED, FAILED <SIP status>, DROPPED. */
     fun peerEvent(line: String) = nativePeerEvent(line)
 
@@ -124,6 +127,10 @@ object NativeModem {
     /** a peer line's event to the engine */
     @JvmStatic
     private external fun nativePeerEvent(line: String)
+
+    /** the USB device open on [fd] reset (usbfs's USBDEVFS_RESET): 0, or -errno */
+    @JvmStatic
+    private external fun nativeUsbReset(fd: Int): Int
 
     /** the speaker sound's socket, -1 after the first call */
     @JvmStatic

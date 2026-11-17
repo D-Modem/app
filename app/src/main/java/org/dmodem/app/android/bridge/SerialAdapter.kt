@@ -145,7 +145,11 @@ object SerialAdapters {
      * The first USB serial adapter plugged in that no one else has, opened for [who] at [format]:
      * Android asked first if the app may use it (the user has [askMs] to say), unless it has said so.
      */
-    suspend fun open(context: Context, who: String, format: SerialFormat, askMs: Long = 60_000): Opened {
+    suspend fun open(context: Context, who: String, format: SerialFormat, askMs: Long = 60_000): Opened =
+        openAdapter(context, who, format, askMs, loaded = false)
+
+    /** as [open]; [loaded]: a MultiTech modem's firmware was just loaded (not again) */
+    private suspend fun openAdapter(context: Context, who: String, format: SerialFormat, askMs: Long, loaded: Boolean): Opened {
         val m = context.getSystemService(UsbManager::class.java) ?: return Opened.Failed("this phone has no USB host")
         val drivers = UsbSerialAdapters.prober.findAllDrivers(m)
         if (drivers.isEmpty()) return Opened.Failed("no USB serial adapter plugged in")
@@ -156,6 +160,12 @@ object SerialAdapters {
         if (!m.hasPermission(dev)) {
             val allowed = withTimeoutOrNull(askMs) { ask(context, m, dev) } ?: false
             if (!allowed) return Opened.Failed("$label wasn't allowed: allow D-Modem to use it, then try again")
+        }
+        // (a MultiTech modem with a TUSB3410: its firmware first, then the modem that comes back opened)
+        if (driver is TiSerialDriver && TiFirmware.needsFirmware(dev)) {
+            if (loaded) return Opened.Failed("$label: its firmware did not start")
+            TiFirmwareLoader.load(context, m, dev, who, label)?.let { return Opened.Failed(it) }
+            return openAdapter(context, who, format, askMs, loaded = true)
         }
         if (!take(dev.deviceName, who)) return Opened.Failed("$label is in use (${holder(dev.deviceName)})")
         val conn = m.openDevice(dev)

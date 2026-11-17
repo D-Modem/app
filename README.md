@@ -16,7 +16,7 @@ modem, it uses V.91 at up to 62667 bit/s in the two directions.
 - Class 1 fax at up to 14400 bit/s: the app sends PDFs and images, and receives faxes as PDFs. T.38 is also available
 - Voice calls through the modem on the speaker and microphone of the phone, and an answering machine that keeps messages on the phone (disabled until you enable it)
 - The external modem of a vintage computer, on a USB serial adapter, [pico-serial](https://github.com/D-Modem/hardware), Bluetooth serial or TCP
-- Real phone lines through USB modems (for example, the pico-serial Line stick), a Hayes modem on a serial adapter, or a Bluetooth modem
+- Real phone lines through USB modems (for example, the pico-serial Line stick), a Hayes modem on a serial adapter, a MultiTech MT9234MU USB modem, or a Bluetooth modem
 - Two phones as the line for each other, through Wi-Fi or Bluetooth, without a SIP account
 - The mobile calls of the phone as a slow line, where Android permits it
 

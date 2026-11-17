@@ -388,7 +388,7 @@ fun SerialModemFields(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
     val free = remember { org.dmodem.app.android.bridge.SerialAdapters.free(context) }
     Text(
         "An external modem (a US Robotics, a Zoom, any Hayes modem) on a USB serial adapter (Prolific PL2303, FTDI, " +
-            "CP210x, CH34x, CDC-ACM) plugged into the phone: it dials and answers, and the terminal, the internet, fax " +
+            "CP210x, CH34x, CDC-ACM), or a MultiTech MT9234MU USB modem, plugged into the phone: it dials and answers, and the terminal, the internet, fax " +
             "and the Linux's /dev/ttyDM0 talk to it in place of D-Modem's own modem (its own AT commands). DTR is held " +
             "up while the modem runs; stopping it drops DTR. Android asks once whether D-Modem may use the adapter.",
         style = MaterialTheme.typography.bodySmall,
@@ -397,6 +397,7 @@ fun SerialModemFields(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
         "Adapter: " + if (free.isEmpty()) "none plugged in (or in use)" else free.joinToString(", "),
         style = MaterialTheme.typography.bodyMedium,
     )
+    MultiTechFirmwareRow()
     var open by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded = open, onExpandedChange = { open = it }) {
         OutlinedTextField(
@@ -424,6 +425,40 @@ fun SerialModemFields(s: ModemSettings, onChange: (ModemSettings) -> Unit) {
     Row(Modifier.fillMaxWidth().clickable { onChange(s.copy(serialModemRtsCts = !s.serialModemRtsCts)) }, verticalAlignment = Alignment.CenterVertically) {
         Text("RTS/CTS flow control (the modem's &K3)", Modifier.weight(1f))
         Switch(checked = s.serialModemRtsCts, onCheckedChange = { onChange(s.copy(serialModemRtsCts = it)) })
+    }
+}
+
+/**
+ * The firmware of a MultiTech MT9234MU (or MT9234ZBA-USB): the file the modem gets each time the line starts
+ * (MultiTech's, built in, unless one is imported), a button to import another, and one to go back to the built-in one.
+ */
+@Composable
+private fun MultiTechFirmwareRow() {
+    val context = LocalContext.current
+    var have by remember { mutableStateOf(org.dmodem.app.android.bridge.TiFirmwareStore.describe(context)) }
+    var problem by remember { mutableStateOf<String?>(null) }
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val bytes = runCatching {
+            context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        }.getOrNull()
+        problem = if (bytes == null) "The file could not be read." else org.dmodem.app.android.bridge.TiFirmwareStore.import(context, bytes)
+        have = org.dmodem.app.android.bridge.TiFirmwareStore.describe(context)
+    }
+    Text(
+        "MultiTech MT9234MU firmware: " + (have ?: "none. The modem needs mts_mt9234mu.fw (from MultiTech's Linux driver or an older linux-firmware package)."),
+        style = MaterialTheme.typography.bodySmall,
+    )
+    problem?.let { Text("Not imported: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = { pick.launch(arrayOf("*/*")) }) { Text(if (have == null) "Import the firmware file" else "Import another firmware file") }
+        if (org.dmodem.app.android.bridge.TiFirmwareStore.file(context).isFile) {
+            TextButton(onClick = {
+                org.dmodem.app.android.bridge.TiFirmwareStore.remove(context)
+                problem = null
+                have = org.dmodem.app.android.bridge.TiFirmwareStore.describe(context)
+            }) { Text("Use the built-in file") }
+        }
     }
 }
 
