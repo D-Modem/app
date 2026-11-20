@@ -12,6 +12,7 @@ import kotlin.test.assertContentEquals
  * installed): what it makes we decode, what we make it decodes.
  */
 class ZstdReferenceTest {
+    // the zstd command's output for input; null if it isn't there or fails
     private fun zstd(vararg args: String, input: ByteArray): ByteArray? {
         val p = try {
             ProcessBuilder(listOf("zstd") + args).redirectError(ProcessBuilder.Redirect.DISCARD).start()
@@ -24,6 +25,7 @@ class ZstdReferenceTest {
         return if (p.waitFor() == 0) result else null
     }
 
+    // its frames we decode, ours it decodes
     @Test
     fun bothWays() {
         val r = Random(11)

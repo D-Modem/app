@@ -22,6 +22,7 @@ object Zstd {
     /** a frame that is not Zstandard, or that breaks one of [decode]'s limits */
     class FormatException(msg: String) : IOException(msg)
 
+    // the index of v's highest set bit (-1 for 0)
     private fun hbit(v: Int): Int = 31 - v.countLeadingZeroBits()
 
     private val LL_BASE = intArrayOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18,
@@ -40,6 +41,7 @@ object Zstd {
     private val OF_DEF = intArrayOf(1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         1, 1, -1, -1, -1, -1, -1)
 
+    // b[i] unsigned
     private fun u8(b: ByteArray, i: Int) = b[i].toInt() and 0xff
 
     // ------------------------------------------------------------------
@@ -49,6 +51,7 @@ object Zstd {
     private class FwdBits(val p: ByteArray, val start: Int, val n: Int) {
         var pos = 0L
         var bad = false
+        // the next nb bits, not taken (0 past the end)
         fun peek(nb: Int): Int {
             var v = 0
             for (k in 0 until nb) {
@@ -57,23 +60,27 @@ object Zstd {
             }
             return v
         }
+        // the next nb bits, taken; bad set past the end
         fun read(nb: Int): Int {
             val v = peek(nb)
             pos += nb
             if (pos > 8L * n) bad = true
             return v
         }
+        // the bytes read so far, a partial last one counted
         fun bytes(): Int = ((pos + 7) / 8).toInt()
     }
 
     /** a backward bit stream (Huffman and FSE coded data): from under the last byte's marker toward the start */
     private class BackBits(val p: ByteArray, val start: Int, val n: Int) {
         var off = 0L
+        // at the last byte's marker bit; false if there is none
         fun init(): Boolean {
             if (n <= 0 || p[start + n - 1].toInt() == 0) return false
             off = 8L * (n - 1) + hbit(u8(p, start + n - 1))
             return true
         }
+        // the next nb bits, from the high end down (0 past the start)
         fun read(nb: Int): Long {
             var v = 0L
             off -= nb
@@ -83,6 +90,7 @@ object Zstd {
             }
             return v
         }
+        // whether more bits were read than there are
         fun over() = off < 0
     }
 
@@ -91,6 +99,7 @@ object Zstd {
         val b = Bytes()
         var acc = 0
         var n = 0
+        // the low nb bits of v
         fun put(v: Long, nb: Int) {
             for (k in 0 until nb) {
                 acc = acc or (((v shr k) and 1L).toInt() shl n)
@@ -101,7 +110,9 @@ object Zstd {
                 }
             }
         }
+        // the low nb bits of v (an Int)
         fun put(v: Int, nb: Int) = put(v.toLong() and 0xffffffffL, nb)
+        // the end marker bit, and zeros to the byte's end
         fun close() {
             put(1, 1)
             if (n != 0) put(0, 8 - n)
@@ -288,6 +299,7 @@ object Zstd {
         return inb.off + h.maxBits == 0L
     }
 
+    // the code of length v: the last base not over it
     private fun lenCode(v: Int, base: IntArray): Int {
         var c = 0
         while (c + 1 < base.size && base[c + 1] <= v) c++
@@ -323,7 +335,9 @@ object Zstd {
             for (i in 0 until (1 shl al)) lists[t.sym[i]].add(i)
             states = Array(c.size) { lists[it].toIntArray() }
         }
+        // a symbol's first state, where the stream starts
         fun start(s: Int) = states[s][0]
+        // the state after symbol s from st: its low bits written
         fun step(st: Int, s: Int, w: BitW): Int {
             val c = if (cnt[s] < 0) 1 else cnt[s]
             val x = st + (1 shl al)
@@ -397,6 +411,7 @@ object Zstd {
         return code
     }
 
+    // lit[from..to) Huffman coded, backward, as one stream
     private fun hufEncode(lit: ByteArray, from: Int, to: Int, bits: IntArray, code: IntArray): ByteArray {
         val w = BitW()
         for (k in to - 1 downTo from) {
@@ -407,6 +422,7 @@ object Zstd {
         return w.b.toByteArray()
     }
 
+    // a literals section header: its type, sizes and streams
     private fun litHeader(o: Bytes, type: Int, regen: Int, comp: Int, oneStream: Boolean) {
         if (type < 2) {
             when {
@@ -445,6 +461,7 @@ object Zstd {
         return o.toByteArray()
     }
 
+    // counts f made an FSE table's of accuracy log al: summing to 1 shl al, none of a used symbol 0
     private fun fseNormalize(f: IntArray, nsym: Int, al: Int): IntArray {
         var total = 0L
         for (s in 0 until nsym) total += f[s]
@@ -471,6 +488,7 @@ object Zstd {
         return c
     }
 
+    // an FSE table description of counts c (4.1.1), into o
     private fun fseDescWrite(c: IntArray, al: Int, o: Bytes) {
         val w = BitW()
         w.put(al - 5, 4)
@@ -501,6 +519,7 @@ object Zstd {
         o.write(w.b.toByteArray())
     }
 
+    // the bits sym costs with the table of counts cnt; -1 if one can't be coded
     private fun fseCost(cnt: IntArray, al: Int, sym: IntArray): Double {
         var bits = 0.0
         for (x in sym) {
@@ -528,9 +547,11 @@ object Zstd {
         var encBits: IntArray? = null
         val out = Bytes()
 
+        // the hash of the 3 bytes at i (14 bits)
         fun hash3(i: Int): Int =
             (((u8(hist, i) shl 16) or (u8(hist, i + 1) shl 8) or u8(hist, i + 2)) * -1640531535) ushr 18
 
+        // position i put in the hash chain
         fun insert(i: Int) {
             if (i + 2 >= n) return
             val h = hash3(i)
@@ -540,9 +561,11 @@ object Zstd {
 
         var matchOff = 0
 
+        // the longest match at i before end (matchOff its offset); 0 if under 3
         fun bestMatch(i: Int, end: Int): Int {
             val lim = minOf(end - i, 65536)
             var best = 0
+            // the match length at i with offset d
             fun lenAt(d: Int): Int {
                 var l = 0
                 while (l < lim && hist[i - d + l] == hist[i + l]) l++
@@ -573,6 +596,7 @@ object Zstd {
             return if (best >= 3) best else 0
         }
 
+        // the whole frame: header, blocks and checksum
         fun frame(): ByteArray {
             // the header: single segment, the checksum, the content size
             val fcsFlag = when {
@@ -599,12 +623,14 @@ object Zstd {
             return out.toByteArray()
         }
 
+        // a block header and its body
         fun putBlock(body: ByteArray, type: Int, size: Int, last: Boolean) {
             val h = (if (last) 1 else 0) or (type shl 1) or (size shl 3)
             out.write(h and 0xff); out.write((h shr 8) and 0xff); out.write((h shr 16) and 0xff)
             out.write(body)
         }
 
+        // hist[start..end) as one block: compressed, RLE or raw, whichever is smallest
         fun block(start: Int, end: Int, last: Boolean) {
             val nb = end - start
             val repSaved = rep.copyOf()
@@ -614,6 +640,7 @@ object Zstd {
             val lit = Bytes()
             var i = start
             var litAt = start
+            // the hash chain up to upto
             fun catchUp(upto: Int) { while (ins < upto) insert(ins++) }
             if (ins < start) ins = start
             while (i + 3 <= end) {
@@ -739,6 +766,7 @@ object Zstd {
                 val fo = enc[1]!!
                 val fm = enc[2]!!
                 val w = BitW()
+                // sequence k's extra bits: literal length, match length, offset
                 fun extras(k: Int) {
                     w.put(seqLl[k] - LL_BASE[llc[k]], LL_BITS[llc[k]])
                     w.put(seqMl[k] - ML_BASE[mlc[k]], ML_BITS[mlc[k]])
@@ -801,14 +829,17 @@ object Zstd {
         val have = BooleanArray(3)
         var window = 0
 
+        // refused, with why
         fun bad(why: String): Nothing = throw FormatException("zstd: $why")
 
+        // one byte of content
         fun emit(c: Byte) {
             if (hn >= maxSize) bad("more than $maxSize bytes")
             if (hn == hist.size) hist = hist.copyOf(minOf(maxSize, hist.size * 2))
             hist[hn++] = c
         }
 
+        // the frame decoded: its content
         fun run(): ByteArray {
             val n = p.size
             if (n < 6) bad("too short")
@@ -872,6 +903,7 @@ object Zstd {
             return hist.copyOf(hn)
         }
 
+        // the literals section at p[at..at+n) into lit: its bytes
         fun literals(at: Int, n: Int, lit: Bytes): Int {
             if (n < 1) bad("no literals")
             val b0 = u8(p, at)
@@ -937,6 +969,7 @@ object Zstd {
             return hs + comp
         }
 
+        // the sequences section at p[start..start+n), with lit, into the content
         fun sequences(start: Int, n: Int, lit: ByteArray) {
             if (n < 1) bad("no sequences")
             var at = start
@@ -1016,20 +1049,24 @@ object XxHash64 {
     private const val P4 = -8796714831421723037L // 0x85EBCA77C2B2AE63
     private const val P5 = 2870177450012600261L  // 0x27D4EB2F165667C5
 
+    // 8 bytes at i, little-endian
     private fun le64(b: ByteArray, i: Int): Long {
         var v = 0L
         for (k in 0 until 8) v = v or ((b[i + k].toLong() and 0xff) shl (8 * k))
         return v
     }
 
+    // 4 bytes at i, little-endian
     private fun le32(b: ByteArray, i: Int): Long {
         var v = 0L
         for (k in 0 until 4) v = v or ((b[i + k].toLong() and 0xff) shl (8 * k))
         return v
     }
 
+    // one XXH64 round
     private fun round(acc: Long, input: Long): Long = (acc + input * P2).rotateLeft(31) * P1
 
+    // an accumulator merged into the hash
     private fun merge(acc: Long, v: Long): Long = (acc xor round(0, v)) * P1 + P4
 
     /** XXH64 of b[off..off+len) */

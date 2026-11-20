@@ -495,6 +495,7 @@ class ZModem(
     private fun zstdFrameLen(b: ByteArray, at: Int): Int {
         val left = b.size - at
         if (left < 5) return 0
+        // the byte at i of the frame, unsigned
         fun u(i: Int) = b[at + i].toInt() and 0xff
         if ((u(0) or (u(1) shl 8) or (u(2) shl 16) or (u(3) shl 24)) != Zstd.MAGIC) throw Zstd.FormatException("not a zstd frame")
         val fhd = u(4)

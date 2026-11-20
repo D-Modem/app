@@ -35,6 +35,7 @@ class ZstdTest {
         return b.toByteArray().copyOf(n)
     }
 
+    // XXH64's known values
     @Test
     fun xxHash64() {
         assertEquals(0xEF46DB3751D8E999uL.toLong(), XxHash64.hash(ByteArray(0), 0, 0))
@@ -59,6 +60,7 @@ class ZstdTest {
         assertFailsWith<Zstd.FormatException> { Zstd.decode(frame, 100) }
     }
 
+    // there and back: empty, short, random, text, around the header's size limits
     @Test
     fun roundTrip() {
         val r = Random(3)
@@ -82,8 +84,11 @@ class ZstdTest {
     private class Memory : Incoming {
         val files = LinkedHashMap<String, Bytes>()
         var had: ByteArray? = null
+        // a new file, in memory
         override fun create(name: String, size: Long): Pair<Sink, String> = Bytes().let { b -> files[name] = b; b to name }
+        // a file dropped
         override fun abandon(name: String) { files.remove(name) }
+        // the part in had, if any, to continue
         override fun resume(name: String, size: Long): Resumed? {
             val h = had ?: return null
             val b = Bytes().also { it.write(h) }
@@ -92,9 +97,11 @@ class ZstdTest {
         }
     }
 
+    // data, offered as the file name
     private fun outgoing(name: String, data: ByteArray) = Outgoing(name, data.size.toLong(), 1_700_000_000) {
         object : Source {
             var at = 0
+            // up to len bytes of data
             override fun read(b: ByteArray, off: Int, len: Int): Int {
                 if (at >= data.size) return -1
                 val n = minOf(len, data.size - at)
@@ -125,6 +132,7 @@ class ZstdTest {
         r.await()
     }
 
+    // files of text, compressed: whole, and less than half on the line
     @Test
     fun zmodemZstd() {
         val m = Memory()
@@ -135,6 +143,7 @@ class ZstdTest {
         assertTrue(sent * 2 < total, "$sent bytes on the line for $total")
     }
 
+    // plain where the receiver doesn't take zstd, or the file is a .zip
     @Test
     fun zmodemZstdOff() {
         val d = text(100_000, 6)
@@ -146,6 +155,7 @@ class ZstdTest {
         }
     }
 
+    // whole on a line that damages bytes
     @Test
     fun zmodemZstdNoisy() {
         val m = Memory()
@@ -154,6 +164,7 @@ class ZstdTest {
         assertContentEquals(d, m.files.getValue("noisy.txt").toByteArray())
     }
 
+    // a part continued, with and without zstd
     @Test
     fun zmodemResume() {
         for (name in listOf("resume.txt", "resume.zip")) {
