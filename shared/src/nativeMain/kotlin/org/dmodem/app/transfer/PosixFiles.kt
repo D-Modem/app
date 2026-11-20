@@ -24,6 +24,7 @@ import platform.posix.fseek
 import platform.posix.ftell
 import platform.posix.fwrite
 import platform.posix.mkdir
+import platform.posix.rename
 import platform.posix.unlink
 import platform.posix.utimbuf
 import platform.posix.utime
@@ -64,6 +65,12 @@ object PosixFiles {
     /** the file at [path] to write, made or emptied; an error when it can't be */
     fun sink(path: String): Sink {
         val f = fopen(path, "wb") ?: throw IOException("can't write $path")
+        return FileSink(f)
+    }
+
+    /** the file at [path] to write after what it has (made if it isn't there) */
+    fun appendSink(path: String): Sink {
+        val f = fopen(path, "ab") ?: throw IOException("can't write $path")
         return FileSink(f)
     }
 
@@ -147,5 +154,23 @@ class PosixFolderIncoming(private val dir: String) : Incoming {
     /** the unfinished file deleted */
     override fun abandon(name: String) {
         unlink("$dir/$name")
+    }
+
+    /** where a file of [name] and [size] cut short is kept */
+    private fun partPath(name: String, size: Long) = "$dir/.${PosixFiles.safeName(name)}.$size.part"
+
+    /** the file cut short kept (hidden) for [resume] */
+    override fun interrupted(name: String, size: Long) {
+        if (size <= 0 || PosixFiles.size("$dir/$name") <= 0 || rename("$dir/$name", partPath(name, size)) != 0) abandon(name)
+    }
+
+    /** what a transfer of [name] and [size] cut short left, to go on from */
+    override fun resume(name: String, size: Long): Resumed? {
+        val part = partPath(name, size)
+        val have = PosixFiles.size(part)
+        if (have <= 0 || have >= size) return null
+        val actual = PosixFiles.unique(dir, PosixFiles.safeName(name))
+        if (rename(part, "$dir/$actual") != 0) return null
+        return Resumed(PosixFiles.appendSink("$dir/$actual"), actual, have)
     }
 }

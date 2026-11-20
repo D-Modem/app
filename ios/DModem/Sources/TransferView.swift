@@ -92,6 +92,7 @@ struct TransferView: View {
                 }
             }
             if p.files > 0 { Text("\(p.files) file\(p.files == 1 ? "" : "s") done") }
+            if p.zstd { Text("Compressed with zstd").foregroundStyle(.secondary) }
             if p.errors > 0 { Text("\(p.errors) block\(p.errors == 1 ? "" : "s") sent again").foregroundStyle(.secondary) }
             if let r = t.result, !r.isEmpty { Text(r).foregroundStyle(.red) }
             if t.running {

@@ -16,6 +16,8 @@ class ZModem(
     private val io: TransferIo,
     private val progress: (Progress) -> Unit = {},
     private val timeoutMs: Long = 10_000,
+    /** zstd (D-Modem's docs/zmodem-zstd.md): offered as a receiver, used as a sender, where the other side can too */
+    private val zstd: Boolean = true,
 ) {
     private var p = Progress()
 
@@ -281,8 +283,8 @@ class ZModem(
     fun receive(into: Incoming): List<String> {
         val names = ArrayList<String>()
         var errors = 0
-        /** our ZRINIT: full duplex, overlapped I/O, CRC-32 */
-        fun zrinit() = sendHex(Header.flags(ZRINIT, CANFDX or CANOVIO or CANFC32))
+        /** our ZRINIT: full duplex, overlapped I/O, CRC-32, and zstd if we take it */
+        fun zrinit() = sendHex(Header.flags(ZRINIT, CANFDX or CANOVIO or CANFC32, if (zstd) CANZSTD else 0))
         zrinit()
         var lastHeaderAt = monotonicMs()
         while (true) {
@@ -313,7 +315,7 @@ class ZModem(
                         sendHex(Header(ZNAK))
                         continue
                     }
-                    val name = receiveFile(d.first, into) ?: continue
+                    val name = receiveFile(d.first, into, h.p[1].toInt() and 0xff) ?: continue
                     names.add(name)
                     report { it.copy(files = it.files + 1) }
                     zrinit()
@@ -336,16 +338,28 @@ class ZModem(
         }
     }
 
-    /** a file's data received after its ZFILE: its name, or null when it was skipped */
-    private fun receiveFile(info: ByteArray, into: Incoming): String? {
+    /**
+     * a file's data received after its ZFILE ([zf2]: its transport option,
+     * ZTZSTD for zstd frames): its name, or null when it was skipped
+     */
+    private fun receiveFile(info: ByteArray, into: Incoming, zf2: Int): String? {
         val nul = info.indexOf(0.toByte()).takeIf { it >= 0 } ?: info.size
         val name = info.decodeToString(0, 0 + nul)
         val meta = if (nul + 1 < info.size) latin1String(info, nul + 1, info.size - nul - 1).trimEnd('\u0000').trim().split(' ') else emptyList()
         val size = meta.getOrNull(0)?.toLongOrNull() ?: -1
         val mtime = meta.getOrNull(1)?.toLongOrNull(8) ?: 0
-        val (out, actual) = into.create(name, size)
-        report { it.copy(file = actual, bytes = 0, size = size) }
-        var pos = 0L
+        val packed = zf2 == ZTZSTD
+        if (packed && !zstd) {
+            // zstd, though we didn't say we take it
+            sendHex(Header(ZSKIP))
+            return null
+        }
+        val resumed = if (size > 0) into.resume(name, size) else null
+        val (out, actual) = if (resumed != null) resumed.sink to resumed.name else into.create(name, size)
+        var pos = resumed?.have ?: 0L
+        report { it.copy(file = actual, bytes = pos, size = size, zstd = packed) }
+        // (zstd: a frame's bytes until all of it has come)
+        val frames = Bytes()
         var errors = 0
         var ok = false
         // (when we last asked for [pos]: until the sender has had time to hear it, what still
@@ -354,6 +368,7 @@ class ZModem(
         var rposAt = 0L
         /** a ZRPOS for [pos] sent, and when noted */
         fun rpos() {
+            frames.reset()
             sendHex(Header.pos(ZRPOS, pos))
             rposAt = monotonicMs()
         }
@@ -380,6 +395,7 @@ class ZModem(
                                 rpos()
                                 continue@loop
                             }
+                            frames.reset()
                             while (true) {
                                 val d = readData(8192)
                                 if (d == null) {
@@ -389,8 +405,17 @@ class ZModem(
                                     rpos()
                                     continue@loop
                                 }
-                                o.write(d.first)
-                                pos += d.first.size
+                                val content = if (packed) unpack(frames, d.first, d.second) else d.first
+                                if (content == null) {
+                                    if (++errors > MAX_ERRORS) throw IOException("too many errors on the line")
+                                    report { it.copy(errors = it.errors + 1) }
+                                    io.purge()
+                                    rpos()
+                                    continue@loop
+                                }
+                                if (size >= 0 && pos + content.size > size) throw IOException("more data than the file's size")
+                                o.write(content)
+                                pos += content.size
                                 errors = 0
                                 report { it.copy(bytes = pos) }
                                 when (d.second) {
@@ -402,7 +427,7 @@ class ZModem(
                             }
                         }
                         ZEOF -> {
-                            if (h.pos != pos) {
+                            if (h.pos != pos || frames.size > 0) {
                                 // (the end of a stream from before our ZRPOS, or our ZRPOS lost)
                                 if (!waiting()) rpos()
                                 continue@loop
@@ -423,7 +448,7 @@ class ZModem(
                 }
             }
         } catch (e: IOException) {
-            into.abandon(actual)
+            into.interrupted(actual, size)
             throw e
         }
         if (!ok) {
@@ -432,6 +457,70 @@ class ZModem(
         }
         into.done(actual, mtime)
         return actual
+    }
+
+    /**
+     * a subpacket's bytes added to the zstd frames so far ([frames]): the
+     * content of the frames it completes; null when one is bad, or the
+     * subpacket ends a segment ([end] ZCRCW, ZCRCE) in the middle of one
+     */
+    private fun unpack(frames: Bytes, data: ByteArray, end: Int): ByteArray? {
+        frames.write(data)
+        val buf = frames.toByteArray()
+        val out = Bytes()
+        var at = 0
+        while (true) {
+            val n = try {
+                zstdFrameLen(buf, at)
+            } catch (_: Zstd.FormatException) {
+                return null
+            }
+            if (n == 0) break
+            val content = try {
+                Zstd.decode(buf.copyOfRange(at, at + n), ZSTD_MAX)
+            } catch (_: Zstd.FormatException) {
+                return null
+            }
+            out.write(content)
+            at += n
+        }
+        frames.reset()
+        frames.write(buf, at, buf.size - at)
+        if (frames.size > 0 && (end == ZCRCW || end == ZCRCE)) return null
+        if (frames.size > ZSTD_MAX + ZSTD_MAX / 8) return null
+        return out.toByteArray()
+    }
+
+    /** the length of the zstd frame at [b]'s [at], once all of it is there: 0 while it isn't */
+    private fun zstdFrameLen(b: ByteArray, at: Int): Int {
+        val left = b.size - at
+        if (left < 5) return 0
+        fun u(i: Int) = b[at + i].toInt() and 0xff
+        if ((u(0) or (u(1) shl 8) or (u(2) shl 16) or (u(3) shl 24)) != Zstd.MAGIC) throw Zstd.FormatException("not a zstd frame")
+        val fhd = u(4)
+        if (fhd and 0x0b != 0) throw Zstd.FormatException("a zstd frame we don't take")
+        val single = fhd and 0x20 != 0
+        var n = 5 + (if (single) 0 else 1) + when (fhd shr 6) {
+            0 -> if (single) 1 else 0
+            1 -> 2
+            2 -> 4
+            else -> 8
+        }
+        while (true) {
+            if (left < n + 3) return 0
+            val bh = u(n) or (u(n + 1) shl 8) or (u(n + 2) shl 16)
+            n += 3
+            val size = bh shr 3
+            when ((bh shr 1) and 3) {
+                0, 2 -> n += size
+                1 -> n += 1
+                else -> throw Zstd.FormatException("a reserved zstd block")
+            }
+            if (bh and 1 != 0) break
+            if (n > ZSTD_MAX + ZSTD_MAX / 8) throw Zstd.FormatException("a zstd frame too large")
+        }
+        if (fhd and 0x04 != 0) n += 4
+        return if (left < n) 0 else n
     }
 
     // ------------------------------------------------------------------
@@ -446,6 +535,7 @@ class ZModem(
         if (startRz) io.write("rz\r".encodeToByteArray())
         val r = waitForZrinit()
         crc32 = r.f0 and CANFC32 != 0
+        canZstd = zstd && (r.p[2].toInt() and CANZSTD) != 0
         var left = files.sumOf { it.size.coerceAtLeast(0) }
         for ((i, f) in files.withIndex()) {
             report { it.copy(file = f.name, bytes = 0, size = f.size) }
@@ -489,14 +579,34 @@ class ZModem(
     private fun readHeaderOrNull(): Header? =
         try { readHeader() } catch (e: TransferCancelled) { throw e } catch (_: IOException) { null }
 
+    /** the receiver takes zstd frames (and we send them) */
+    private var canZstd = false
+
+    /** whether [f] is sent in zstd frames: the receiver takes them, its type isn't compressed, its start gets 5% smaller */
+    private fun compresses(f: Outgoing): Boolean {
+        if (!canZstd || f.size <= 0 || !worthCompressing(f.name)) return false
+        val r = Reader(f)
+        try {
+            val buf = ByteArray(ZSTD_CHUNK)
+            val n = r.read(buf, buf.size)
+            return n > 0 && Zstd.encode(buf.copyOf(n)).size * 100 <= n * 95
+        } catch (_: IOException) {
+            return true
+        } finally {
+            r.close()
+        }
+    }
+
     /** a file sent, until the receiver's ZRINIT: true if it skipped it */
     private fun sendFile(f: Outgoing, filesLeft: Int, bytesLeft: Long): Boolean {
         val info = (f.name.substringAfterLast('/').encodeToByteArray() + 0) +
             ("${f.size.coerceAtLeast(0)} ${(f.mtime.coerceAtLeast(0)).toString(8)} 0 0 $filesLeft $bytesLeft").encodeToByteArray() + 0
         var start = -1L
         var tries = 0
+        val packed = compresses(f)
+        report { it.copy(zstd = packed) }
         send@ while (start < 0) {
-            sendBin(Header.flags(ZFILE, ZCBIN))
+            sendBin(Header.flags(ZFILE, ZCBIN, 0, if (packed) ZTZSTD else 0))
             sendData(info, info.size, ZCRCW)
             while (true) {
                 val h = readHeaderOrNull()
@@ -518,7 +628,7 @@ class ZModem(
         }
         val reader = Reader(f)
         try {
-            stream(reader, start)
+            stream(reader, start, packed)
         } finally {
             reader.close()
         }
@@ -549,11 +659,11 @@ class ZModem(
             }
         }
 
-        /** [buf] filled from the file as far as it goes: how much was read */
-        fun read(buf: ByteArray): Int {
+        /** [buf]'s first [max] filled from the file as far as it goes: how much was read */
+        fun read(buf: ByteArray, max: Int = buf.size): Int {
             var len = 0
-            while (len < buf.size) {
-                val n = input.read(buf, len, buf.size - len)
+            while (len < max) {
+                val n = input.read(buf, len, max - len)
                 if (n < 0) break
                 len += n
             }
@@ -571,8 +681,10 @@ class ZModem(
      * ZRPOS from the receiver (in the stream or after ZEOF) puts it back
      * there; done at the receiver's ZRINIT
      */
-    private fun stream(r: Reader, start: Long) {
-        val buf = ByteArray(BLOCK)
+    private fun stream(r: Reader, start: Long, packed: Boolean = false) {
+        val buf = ByteArray(if (packed) ZSTD_CHUNK else BLOCK)
+        // (zstd: a frame's bytes of the file; halved by each ZRPOS, back up by each ACK)
+        var chunk = buf.size
         var errors = 0
         var at = start
         // (errors counted while no progress is made: a long noisy file still gets there)
@@ -584,6 +696,7 @@ class ZModem(
             if (++errors > MAX_ERRORS) throw IOException("too many errors on the line")
             report { it.copy(errors = it.errors + 1) }
             at = to
+            if (packed && chunk > ZSTD_MIN_CHUNK) chunk /= 2
             // (what the receiver said before it saw this restart: its ZRPOSes for the same
             // error, which would each be another restart)
             sleepMs(20)
@@ -614,19 +727,34 @@ class ZModem(
                         else -> {}
                     }
                 }
-                val len = r.read(buf)
-                sinceAck += len
+                val len = r.read(buf, chunk)
+                var data = buf
+                var dlen = len
+                if (packed && len > 0) {
+                    // one frame, in subpackets: only its last may end a run (ZCRCQ, ZCRCE)
+                    data = Zstd.encode(buf.copyOf(len))
+                    var off = 0
+                    while (data.size - off > BLOCK) {
+                        sendData(data.copyOfRange(off, off + BLOCK), BLOCK, ZCRCG)
+                        off += BLOCK
+                    }
+                    sinceAck += off
+                    data = data.copyOfRange(off, data.size)
+                    dlen = data.size
+                }
+                sinceAck += dlen
                 val end = when {
-                    len < BLOCK -> ZCRCE
+                    len < chunk -> ZCRCE
                     sinceAck >= WINDOW -> ZCRCQ
                     else -> ZCRCG
                 }
-                sendData(buf, len, end)
+                sendData(data, dlen, end)
                 report { it.copy(bytes = r.pos) }
                 if (end == ZCRCE) break
                 if (end == ZCRCQ) {
                     sinceAck = 0
                     val to = waitForAck(r.pos)
+                    if (to == null && packed && chunk < ZSTD_CHUNK) chunk *= 2
                     if (to != null) {
                         back(to)
                         continue@resend
@@ -707,6 +835,29 @@ class ZModem(
         const val CANOVIO = 0x02
         const val CANFC32 = 0x20
         const val ZCBIN = 1
+        /** ZRINIT's ZF1: the receiver takes zstd frames */
+        const val CANZSTD = 0x40
+        /** ZFILE's ZF2 (the transport option): the file comes in zstd frames */
+        const val ZTZSTD = 8
+        /** the file's bytes in each zstd frame we send, at most and at least */
+        const val ZSTD_CHUNK = 64 * 1024
+        const val ZSTD_MIN_CHUNK = 1024
+        /** the largest zstd frame's content we take */
+        const val ZSTD_MAX = 256 * 1024
+
+        /** the extensions of files zstd won't make smaller: sent as they are */
+        private val PRECOMPRESSED = setOf(
+            "zip", "gz", "tgz", "bz2", "xz", "zst", "lz", "lzma", "7z", "rar", "arj", "arc", "lzh", "lha", "zoo",
+            "pak", "sqz", "cab", "z", "jpg", "jpeg", "png", "gif", "webp", "mp3", "ogg", "opus", "flac", "mp4",
+            "mkv", "avi", "mov", "webm", "jar", "apk", "docx", "xlsx", "pptx", "odt", "epub", "pdf",
+        )
+
+        /** whether a file named [name] is likely to get smaller with zstd */
+        fun worthCompressing(name: String): Boolean {
+            val base = name.replace('\\', '/').substringAfterLast('/')
+            val dot = base.lastIndexOf('.')
+            return dot < 0 || base.substring(dot + 1).lowercase() !in PRECOMPRESSED
+        }
 
         const val BLOCK = 1024
         /** bytes between the sender's ZCRCQs (its window) */

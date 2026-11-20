@@ -164,6 +164,7 @@ class TerminalView @JvmOverloads constructor(
                 it.keys.enter = s.enter
                 it.localEcho = s.localEcho
             }
+            it.zmodemZstd = s.zmodemZstd
             synchronized(it.emulator) {
                 it.emulator.historyMax = s.scrollback
                 it.emulator.answerback = s.answerback

@@ -33,6 +33,25 @@ class FolderIncoming(private val dir: File) : Incoming {
         File(dir, name).delete()
     }
 
+    /** where a file of [name] and [size] cut short is kept */
+    private fun part(name: String, size: Long) = File(dir, ".${safeName(name)}.$size.part")
+
+    /** the file cut short kept (hidden) for [resume] */
+    override fun interrupted(name: String, size: Long) {
+        val f = File(dir, name)
+        if (size <= 0 || f.length() <= 0 || !f.renameTo(part(name, size))) abandon(name)
+    }
+
+    /** what a transfer of [name] and [size] cut short left, to go on from */
+    override fun resume(name: String, size: Long): Resumed? {
+        val p = part(name, size)
+        val have = p.length()
+        if (!p.isFile || have <= 0 || have >= size) return null
+        val f = unique(dir, safeName(name))
+        if (!p.renameTo(f)) return null
+        return Resumed(java.io.FileOutputStream(f, true).asSink(), f.name, have)
+    }
+
     companion object {
         /** a name with no path in it, nothing a file system minds */
         fun safeName(name: String): String {

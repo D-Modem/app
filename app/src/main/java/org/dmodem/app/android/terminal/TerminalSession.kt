@@ -56,6 +56,8 @@ class TerminalSession(
 
     @Volatile
     var localEcho = false
+    /** ZMODEM compresses with zstd where the other side can (the terminal's setting) */
+    @Volatile var zmodemZstd = true
 
     /** the view's redraw (any thread) */
     @Volatile
@@ -202,7 +204,7 @@ class TerminalSession(
             sendRaw = { b -> link.write(b) },
             onState = { s -> _transferState.value = s },
             onEnd = { s, rest -> endTransfer(s, rest) },
-        )
+        ).also { it.zstd = zmodemZstd }
         transfer = t
         t
     }
