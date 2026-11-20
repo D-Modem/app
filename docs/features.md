@@ -25,6 +25,17 @@
   The popup closes when the modem answers (here, a computer on a bridge, or
   S0) or when the caller stops the call.
 - **Settings**: these items are in Settings:
+  - At the top, the connection path, as the "Connection Overview" of PCOMM
+    draws its link. It shows the terminal, the modem, the line and what the
+    line reaches. For a modem of its own, it shows the USB serial adapter or
+    Bluetooth that reaches the modem, then the modem and its line. Each step
+    has its role above its icon and what it is below, and one line joins
+    them. When idle, it shows the settings as they are. A step that you must
+    still set (no SIP account, no phone or modem chosen, no USB modem plugged
+    in) is red, its line is dashed, and a line of text says what to set.
+    While the modem dials and is online, the steps light as the call goes.
+    On Android, a step opens its settings page. `ConnectionPath` in the
+    shared Kotlin has the steps and their words, for Android and iOS.
   - The SIP account. You can also paste `user:password@host`, as the
     `SIP_LOGIN` of dmodemd.
   - The acceptance of incoming calls, T.38, and the log levels.

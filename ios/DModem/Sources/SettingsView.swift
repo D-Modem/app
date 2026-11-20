@@ -13,6 +13,10 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            // (how a call is made, step by step: as set up when idle, as it is in a call)
+            Section {
+                ConnectionPathView(model: model, jobs: model.jobs)
+            }
             Section {
                 Picker("Line", selection: $model.settings.line) {
                     Text("SIP account").tag(ModemSettings.Line.sip)
