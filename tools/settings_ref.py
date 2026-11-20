@@ -149,12 +149,12 @@ def page(problems):
     b = ["<!-- Made by tools/settings_ref.py from the apps' ModemSettings: "
          "change the code (or the script), not this page. -->\n\n",
          "# Settings reference\n\n",
-         "Every setting the apps keep, from their code. "
-         "[The app, screen by screen](features.md) shows where each is set, "
-         "and [The modem's line](lines.md) what the lines are.\n\n",
+         "This page lists each setting that the apps keep, from their code. "
+         "[The app, screen by screen](features.md) shows where you set each one. "
+         "[The modem's line](lines.md) tells what the lines are.\n\n",
          "## Android\n\n",
-         "`ModemSettings` ([`ModemSettings.kt`](../%s)), kept in the app's "
-         "private DataStore `%s` under the key beside each.\n\n" % (KOTLIN, store),
+         "`ModemSettings` ([`ModemSettings.kt`](../%s)). The app keeps each "
+         "setting in its private DataStore `%s`, under the key in the table.\n\n" % (KOTLIN, store),
          "| setting | key | kind | default | what it is |\n|---|---|---|---|---|\n"]
     for name, typ, default, doc, first in fs:
         key = keys.get(name)
@@ -163,18 +163,18 @@ def page(problems):
         b.append("| `%s` | %s | %s | %s | %s |\n" % (
             name, "`%s`" % key if key else "", kind(typ, default), cell(show_default(default, consts)),
             what(doc, first)))
-    b += ["\n`line` is one of: %s.\n\n" % ", ".join("`%s`" % v.strip('"') for _, v in alines),
+    b += ["\n`line` is one of these values: %s.\n\n" % ", ".join("`%s`" % v.strip('"') for _, v in alines),
           "## iOS\n\n",
-          "`ModemSettings` ([`ModemSettings.swift`](../%s)), kept as JSON "
-          "under each setting's own name; the secrets go in the Keychain "
-          "instead, under the name beside them.\n\n" % SWIFT,
+          "`ModemSettings` ([`ModemSettings.swift`](../%s)). The app keeps "
+          "each setting as JSON, under the name of the setting. But the app "
+          "keeps the secrets in the Keychain, under the name in the table.\n\n" % SWIFT,
           "| setting | Keychain | kind | default | what it is |\n|---|---|---|---|---|\n"]
     for name, typ, default, doc, first in ifs:
         default = re.sub(r"^Line\.", "", default)
         b.append("| `%s` | %s | %s | %s | %s |\n" % (
             name, "`%s`" % secrets[name] if name in secrets else "", kind(typ, default),
             cell(show_default(default, {})), what(doc, first)))
-    b.append("\n`line` is one of: %s.\n" % ", ".join("`%s`" % l for l in ilines))
+    b.append("\n`line` is one of these values: %s.\n" % ", ".join("`%s`" % l for l in ilines))
     return "".join(b)
 
 

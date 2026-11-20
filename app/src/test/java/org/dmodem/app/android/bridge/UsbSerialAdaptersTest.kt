@@ -40,6 +40,15 @@ class UsbSerialAdaptersTest {
         assertEquals(XrSerialDriver::class.java, driver(0x04e2, 0x1422))
     }
 
+    /** MultiTech's USB fax modems with a TUSB3410 get our own driver; MultiTech's other devices none */
+    @Test
+    fun multiTechsTheirOwn() {
+        assertEquals(TiSerialDriver::class.java, driver(0x06e0, 0xf114))
+        assertEquals(TiSerialDriver::class.java, driver(0x06e0, 0xf115))
+        assertEquals(TiSerialDriver::class.java, driver(0x06e0, 0x0319))
+        assertNull(driver(0x06e0, 0xf110))
+    }
+
     /** the chip makers' own IDs still get theirs */
     @Test
     fun theChipMakersStill() {

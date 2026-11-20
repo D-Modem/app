@@ -113,7 +113,7 @@ set(_app ${CMAKE_CURRENT_SOURCE_DIR}/../app/src/main/cpp)
 set(_dmd ${DMODEM_RE_DMODEMD})
 add_library(dmodem_engine_usb STATIC ${_app}/engine.cpp
 	${_app}/peer_modem.cpp ${_app}/dmodem_engine.cpp
-	${_app}/usb/usb_modem.cpp ${_dmd}/usb_line.cpp ${_dmd}/usb_agere.cpp ${_dmd}/usb_apple.cpp ${_dmd}/usb_wb.cpp ${_dmd}/si3056.cpp
+	${_app}/usb/usb_modem.cpp ${_dmd}/usb_line.cpp ${_dmd}/usb_agere.cpp ${_dmd}/usb_apple.cpp ${_dmd}/usb_cadmus2.cpp ${_dmd}/usb_wb.cpp ${_dmd}/si3056.cpp
 	${_app}/usb/usb_transfers.cpp usb_fake_device.cpp
 	${_dmd}/test/fake_pico_line.cpp)
 target_include_directories(dmodem_engine_usb PUBLIC ${_app})
@@ -124,7 +124,7 @@ target_link_libraries(dmodem_engine_usb PUBLIC dmodem_sip)
 
 # (the transfers counted as the app's are, for the log: usb_transfers.cpp)
 set_source_files_properties(${_dmd}/usb_line.cpp ${_dmd}/usb_agere.cpp
-	${_dmd}/usb_apple.cpp PROPERTIES COMPILE_DEFINITIONS
+	${_dmd}/usb_apple.cpp ${_dmd}/usb_cadmus2.cpp PROPERTIES COMPILE_DEFINITIONS
 	"libusb_submit_transfer=dmodem_libusb_submit_transfer")
 
 add_executable(usb_host usb_host.cpp)
@@ -145,7 +145,7 @@ set_tests_properties(usb_line PROPERTIES TIMEOUT 300)
 add_library(dmodem_engine_agere STATIC ${_app}/engine.cpp
 	${_app}/peer_modem.cpp ${_app}/dmodem_engine.cpp
 	${_app}/usb/usb_modem.cpp ${_dmd}/usb_line.cpp ${_dmd}/usb_agere.cpp
-	${_dmd}/usb_apple.cpp ${_dmd}/usb_wb.cpp ${_dmd}/si3056.cpp ${_app}/usb/usb_transfers.cpp usb_fake_device.cpp
+	${_dmd}/usb_apple.cpp ${_dmd}/usb_cadmus2.cpp ${_dmd}/usb_wb.cpp ${_dmd}/si3056.cpp ${_app}/usb/usb_transfers.cpp usb_fake_device.cpp
 	${_dmd}/test/fake_agere.cpp)
 target_include_directories(dmodem_engine_agere PUBLIC ${_app})
 target_include_directories(dmodem_engine_agere SYSTEM PUBLIC
@@ -167,7 +167,7 @@ set_tests_properties(agere_line PROPERTIES TIMEOUT 300)
 add_library(dmodem_engine_apple STATIC ${_app}/engine.cpp
 	${_app}/peer_modem.cpp ${_app}/dmodem_engine.cpp
 	${_app}/usb/usb_modem.cpp ${_dmd}/usb_line.cpp ${_dmd}/usb_agere.cpp
-	${_dmd}/usb_apple.cpp ${_dmd}/usb_wb.cpp ${_dmd}/si3056.cpp ${_app}/usb/usb_transfers.cpp usb_fake_device.cpp
+	${_dmd}/usb_apple.cpp ${_dmd}/usb_cadmus2.cpp ${_dmd}/usb_wb.cpp ${_dmd}/si3056.cpp ${_app}/usb/usb_transfers.cpp usb_fake_device.cpp
 	${_dmd}/test/fake_apple.cpp)
 target_include_directories(dmodem_engine_apple PUBLIC ${_app})
 target_include_directories(dmodem_engine_apple SYSTEM PUBLIC

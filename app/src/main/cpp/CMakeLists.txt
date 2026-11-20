@@ -47,7 +47,8 @@ set_target_properties(dmodem_engine PROPERTIES POSITION_INDEPENDENT_CODE ON)
 if(ANDROID)
 	# the USB modems (D-Modem's usb_line.cpp: a SmartUSB56, a
 	# pico-serial Line stick, an Agere USB 2.0 soft modem, usb_agere.cpp,
-	# Apple's USB Modem, usb_apple.cpp, a pico-serial WB stick, usb_wb.cpp)
+	# Apple's USB Modem, usb_apple.cpp, a Cadmus2 soft modem,
+	# usb_cadmus2.cpp, a pico-serial WB stick, usb_wb.cpp)
 	# on the
 	# device Android opened for the app:
 	# libusb built here, and usb_line.cpp's three calls that look for the
@@ -60,6 +61,7 @@ if(ANDROID)
 		${DMODEM_RE_DMODEMD}/usb_line.cpp
 		${DMODEM_RE_DMODEMD}/usb_agere.cpp
 		${DMODEM_RE_DMODEMD}/usb_apple.cpp
+		${DMODEM_RE_DMODEMD}/usb_cadmus2.cpp
 		${DMODEM_RE_DMODEMD}/usb_wb.cpp
 		${DMODEM_RE_DMODEMD}/si3056.cpp)
 	set_source_files_properties(${DMODEM_RE_DMODEMD}/usb_line.cpp
@@ -74,6 +76,7 @@ if(ANDROID)
 	set_source_files_properties(${DMODEM_RE_DMODEMD}/usb_agere.cpp
 		PROPERTIES COMPILE_DEFINITIONS "${agere_defs}")
 	set_source_files_properties(${DMODEM_RE_DMODEMD}/usb_apple.cpp
+		${DMODEM_RE_DMODEMD}/usb_cadmus2.cpp
 		PROPERTIES COMPILE_DEFINITIONS
 		"libusb_submit_transfer=dmodem_libusb_submit_transfer")
 	target_compile_definitions(dmodem_engine PUBLIC DMODEM_ENGINE_USB)

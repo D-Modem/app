@@ -13,13 +13,14 @@ import com.hoho.android.usbserial.driver.UsbSerialProber
 /**
  * The USB serial adapters the app drives: usb-serial-for-android's own table (the chip makers' IDs,
  * any CDC-ACM device, a few modems), the many adapters on the same chips under their makers' own
- * IDs, as Linux's drivers know them (UsbSerialIds), and Exar's XR21V141x/XR21B14xx/XR2280x (XrSerialDriver).
+ * IDs, as Linux's drivers know them (UsbSerialIds), Exar's XR21V141x/XR21B14xx/XR2280x (XrSerialDriver), and the
+ * MultiTech modems with a TUSB3410 (TiSerialDriver).
  */
 object UsbSerialAdapters {
     /** finds them among what's plugged in */
     val prober: UsbSerialProber by lazy { UsbSerialProber(table()) }
 
-    /** usb-serial-for-android's table, with the adapters' IDs Linux knows and Exar's chips added */
+    /** usb-serial-for-android's table, with the adapters' IDs Linux knows, Exar's chips and MultiTech's modems added */
     internal fun table(): ProbeTable = UsbSerialProber.getDefaultProbeTable().apply {
         add(UsbSerialIds.FTDI, FtdiSerialDriver::class.java)
         add(UsbSerialIds.CP210X, Cp21xxSerialDriver::class.java)
@@ -27,6 +28,8 @@ object UsbSerialAdapters {
         add(UsbSerialIds.CH34X, Ch34xSerialDriver::class.java)
         // (Exar's: before the CDC-ACM driver, which would take them by their class but can't set their line)
         for (pid in XrChip.products) addProduct(XrChip.VENDOR, pid, XrSerialDriver::class.java)
+        // (MultiTech's MT9234MU and MT9234ZBA-USB: a modem behind a TUSB3410)
+        for (pid in TiIds.products) addProduct(TiIds.MULTITECH, pid, TiSerialDriver::class.java)
     }
 
     /** [driver] for each of [ids] (vendor << 16 | product) */
@@ -35,5 +38,6 @@ object UsbSerialAdapters {
     }
 
     /** how many it knows by their IDs (not counting the CDC-ACM ones, known by their class) */
-    val known: Int get() = UsbSerialIds.FTDI.size + UsbSerialIds.CP210X.size + UsbSerialIds.PL2303.size + UsbSerialIds.CH34X.size + XrChip.products.size
+    val known: Int get() = UsbSerialIds.FTDI.size + UsbSerialIds.CP210X.size + UsbSerialIds.PL2303.size + UsbSerialIds.CH34X.size + XrChip.products.size +
+        TiIds.products.size
 }
