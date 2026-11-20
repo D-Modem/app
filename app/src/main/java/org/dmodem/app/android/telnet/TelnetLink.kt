@@ -205,6 +205,13 @@ class TelnetLink(
         }
     }
 
+    /** IAC BRK, on a thread of its own (the caller's may be the UI's): false when not open */
+    override fun sendBreak(): Boolean {
+        if (_state.value !is TerminalLink.State.Open) return false
+        Thread({ send(IAC, BRK) }, "telnet-break").start()
+        return true
+    }
+
     /** the new size kept, and sent on a thread of its own if NAWS is on */
     override fun resize(cols: Int, rows: Int) {
         this.cols = cols
@@ -236,6 +243,7 @@ class TelnetLink(
         const val WILL = 251
         const val SB = 250
         const val SE = 240
+        const val BRK = 243
         const val BINARY = 0
         const val ECHO = 1
         const val SGA = 3

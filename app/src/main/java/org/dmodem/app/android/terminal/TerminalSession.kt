@@ -244,6 +244,14 @@ class TerminalSession(
         transfer?.skip()
     }
 
+    /** a break to the far end (Telnet's IAC BRK): false when this link can't send one */
+    fun sendBreak(): Boolean = link.sendBreak()
+
+    /** the screen's text (its lines, their trailing blanks gone), to print */
+    fun screenText(): String = synchronized(emulator) {
+        emulator.text(0, 0, emulator.rows - 1, emulator.cols - 1)
+    }.lines().joinToString("\n") { it.trimEnd() }.trimEnd('\n')
+
     /** the running transfer, if any, cancelled */
     fun cancelTransfer() {
         transfer?.cancel()

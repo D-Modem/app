@@ -240,7 +240,8 @@
     binary image that they hold (gaps are 0xFF).
 
   Plain text is also available. The app sends the bytes of a file without
-  change, as if you typed them (to an editor, a BBS, `cat > file`). On
+  change, as if you typed them (to an editor, a BBS, `cat > file`). It saves
+  the received data without change until the line is silent for 10 s. On
   Android, the terminal settings have a line delay and a character delay (in
   ms), as the ASCII Setup of HyperTerminal has. The app waits for this time
   after each line end and after each character.
@@ -253,8 +254,16 @@
   - Force incoming data to 7-bit ASCII: the terminal removes bit 8 of each
     byte.
   - Wrap lines that exceed the terminal width: when this is off, the
-    terminal writes each new character in the last column. It saves
-  the received data without change until the line is silent for 10 s.
+    terminal writes each new character in the last column.
+
+  The menu of the Android terminal also has these items of HyperTerminal:
+  - Send break: on Telnet, the app sends IAC BRK. SSH and rlogin do not
+    have a break, thus the app shows a message.
+  - Print screen: the app prints the text of the screen through the print
+    dialog of Android (to a printer or to a PDF file).
+
+  On Telnet, SSH and rlogin, the bar of the terminal shows the time that the
+  connection is open (h:mm:ss), as the modem bar does for a call.
 - **Dial**: the dialing directory. Each entry has the number of the system
   (or the SIP user), the AT commands that are necessary before ATD, its
   terminal type, its character set and its backspace. One tap starts the

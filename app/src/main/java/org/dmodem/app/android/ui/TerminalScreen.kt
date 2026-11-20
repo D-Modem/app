@@ -195,13 +195,23 @@ fun TerminalScreen(
         }
     }
 
+    // how long a connection (Telnet, SSH, rlogin) has been open
+    var linkSince by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(linkState) {
+        linkSince = if (linkState == TerminalLink.State.Open && !session.isLocal) System.currentTimeMillis() else 0L
+        while (linkSince != 0L) {
+            now = System.currentTimeMillis()
+            delay(1000)
+        }
+    }
+
     Column(modifier.fillMaxSize().imePadding()) {
         if (!fullscreen && sessions.size > 1) {
             SessionTabs(sessions, session)
         }
         if (!fullscreen) {
             TopBar(
-                text = if (isModem) barText(run, status, onlineSince, now, title) else linkText(session, linkState, title),
+                text = if (isModem) barText(run, status, onlineSince, now, title) else linkText(session, linkState, title, linkSince, now),
                 isModem = isModem,
                 capturing = capture != null,
                 onKeyboard = { view?.toggleKeyboard() },
@@ -246,6 +256,15 @@ fun TerminalScreen(
                     if (ask != null) pppConsent.launch(ask) else startPpp()
                 }) else null,
                 onClear = { session.clear() },
+                onBreak = {
+                    val sent = session.sendBreak()
+                    Toast.makeText(
+                        context,
+                        if (sent) "Break sent" else "This connection can't send a break (Telnet only)",
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                },
+                onPrint = { printText(context, session.label, session.screenText()) },
                 onReset = { session.reset() },
                 onFullscreen = { onFullscreen(true) },
                 onAtReference = { showAtReference = true },
@@ -415,8 +434,28 @@ private fun SessionTabs(sessions: List<TerminalSession>, active: TerminalSession
     }
 }
 
-/** a connection's state, for the bar */
-private fun linkText(s: TerminalSession, st: TerminalLink.State, title: String): String {
+/** [text] printed (Android's print dialog: a printer or a PDF), as HyperTerminal's Print, in a monospaced font */
+private var printing: android.webkit.WebView? = null
+
+private fun printText(context: android.content.Context, name: String, text: String) {
+    val w = android.webkit.WebView(context)
+    // (the view kept until the print job has the page)
+    printing = w
+    w.webViewClient = object : android.webkit.WebViewClient() {
+        override fun onPageFinished(view: android.webkit.WebView, url: String?) {
+            val pm = context.getSystemService(android.content.Context.PRINT_SERVICE) as android.print.PrintManager
+            val job = name.ifBlank { "Terminal" }
+            pm.print(job, view.createPrintDocumentAdapter(job), android.print.PrintAttributes.Builder().build())
+            printing = null
+        }
+    }
+    val html = "<html><body><pre style=\"font-family: monospace; font-size: 10pt\">" +
+        android.text.TextUtils.htmlEncode(text) + "</pre></body></html>"
+    w.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
+}
+
+/** a connection's state, for the bar, with the time it has been open */
+private fun linkText(s: TerminalSession, st: TerminalLink.State, title: String, since: Long = 0, now: Long = 0): String {
     if (s.isLocal) {
         val state = when (st) {
             TerminalLink.State.Connecting -> "Starting…"
@@ -433,7 +472,12 @@ private fun linkText(s: TerminalSession, st: TerminalLink.State, title: String):
     val where = s.entry?.address ?: s.label
     val state = when (st) {
         TerminalLink.State.Connecting -> "Connecting to $where…"
-        TerminalLink.State.Open -> "$what $where"
+        TerminalLink.State.Open -> "$what $where" + if (since > 0) {
+            val secs = ((now - since) / 1000).coerceAtLeast(0)
+            " · %d:%02d:%02d".format(secs / 3600, secs / 60 % 60, secs % 60)
+        } else {
+            ""
+        }
         is TerminalLink.State.Closed -> "Disconnected" + (st.reason?.let { ": $it" } ?: "")
     }
     return if (title.isNotBlank() && st == TerminalLink.State.Open) "$state — $title" else state
@@ -476,7 +520,7 @@ private fun barText(
     return if (title.isNotBlank()) "$state — $title" else state
 }
 
-/** the terminal's bar: its line, the keyboard, snippets and capture buttons, and a menu of the rest (hang up, start PPP, paste, new shells, files, character set, clear, reset, full screen, the AT command reference) */
+/** the terminal's bar: its line, the keyboard, snippets and capture buttons, and a menu of the rest (hang up, start PPP, paste, a break, print, new shells, files, character set, clear, reset, full screen, the AT command reference) */
 @Composable
 private fun TopBar(
     text: String,
@@ -496,6 +540,10 @@ private fun TopBar(
     /** PPP started on the modem's call (dialled and logged in by hand): null when the modem isn't online */
     onStartPpp: (() -> Unit)?,
     onClear: () -> Unit,
+    /** a break to the far end (Telnet) */
+    onBreak: () -> Unit,
+    /** the screen printed */
+    onPrint: () -> Unit,
     onReset: () -> Unit,
     onFullscreen: () -> Unit,
     /** the AT command reference */
@@ -523,6 +571,8 @@ private fun TopBar(
                         DropdownMenuItem(text = { Text("Start PPP (the internet on this call)") }, onClick = { menu = false; onStartPpp() })
                     }
                     DropdownMenuItem(text = { Text("Paste") }, onClick = { menu = false; onPaste() })
+                    DropdownMenuItem(text = { Text("Send break") }, onClick = { menu = false; onBreak() })
+                    DropdownMenuItem(text = { Text("Print screen…") }, onClick = { menu = false; onPrint() })
                     DropdownMenuItem(text = { Text("New local shell") }, onClick = { menu = false; onNewShell() })
                     DropdownMenuItem(text = { Text("New Linux shell…") }, onClick = { menu = false; onNewLinux() })
                     if (onSsh != null) {
