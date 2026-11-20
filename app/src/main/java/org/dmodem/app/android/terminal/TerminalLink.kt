@@ -33,6 +33,9 @@ interface TerminalLink {
     /** octets to the far end: false if it can't take them (closed) */
     fun write(data: ByteArray, offset: Int = 0, length: Int = data.size): Boolean
 
+    /** a break sent (Telnet's IAC BRK): false when the link has none to send */
+    fun sendBreak(): Boolean = false
+
     /** the terminal's new size (SSH's window change, Telnet's NAWS) */
     fun resize(cols: Int, rows: Int) {}
 

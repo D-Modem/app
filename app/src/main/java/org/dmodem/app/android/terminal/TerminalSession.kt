@@ -231,12 +231,26 @@ class TerminalSession(
     }
 
     /** [files] to the remote (which must be receiving: its rz, rb, rx, kermit -r) */
-    fun sendFiles(protocol: Protocol, files: List<Outgoing>): Boolean {
+    fun sendFiles(protocol: Protocol, files: List<Outgoing>, lineDelayMs: Int = 0, charDelayMs: Int = 0): Boolean {
         if (files.isEmpty()) return false
         val t = startTransfer(protocol, sending = true) ?: return false
-        t.send(files)
+        // (the waits: a text file's only, HyperTerminal's ASCII Setup)
+        t.send(files, lineDelayMs.toLong(), charDelayMs.toLong())
         return true
     }
+
+    /** the file being received skipped, the transfer on to the next (ZMODEM, Kermit) */
+    fun skipTransfer() {
+        transfer?.skip()
+    }
+
+    /** a break to the far end (Telnet's IAC BRK): false when this link can't send one */
+    fun sendBreak(): Boolean = link.sendBreak()
+
+    /** the screen's text (its lines, their trailing blanks gone), to print */
+    fun screenText(): String = synchronized(emulator) {
+        emulator.text(0, 0, emulator.rows - 1, emulator.cols - 1)
+    }.lines().joinToString("\n") { it.trimEnd() }.trimEnd('\n')
 
     /** the running transfer, if any, cancelled */
     fun cancelTransfer() {

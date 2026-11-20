@@ -12,7 +12,7 @@ import kotlin.concurrent.Volatile
 /**
  * A file transfer on the modem's line (the Android app's terminal's, for
  * iOS): files sent to the remote, or received from it, by [protocolName]'s
- * name (ZMODEM, YMODEM, XMODEM, XMODEM_1K, KERMIT).
+ * name (ZMODEM, YMODEM, YMODEM_G, XMODEM, XMODEM_1K, KERMIT…).
  */
 class TransferJob(protocolName: String, sending: Boolean, out: DteOut, log: LogOut, changed: Changed) : DteJob(out, log, changed) {
     private val transfer = Transfer(
@@ -48,12 +48,21 @@ class TransferJob(protocolName: String, sending: Boolean, out: DteOut, log: LogO
     /** the transfer stopped */
     fun cancel() = transfer.cancel()
 
+    /** the file being received skipped, the transfer on to the next ([canSkip]'s protocols) */
+    fun skip() = transfer.skip()
+
+    /** the times and the speed as HyperTerminal shows them ([bps]: bits a second, else characters) */
+    fun timing(bps: Boolean): String = state.timing(bps)
+
     companion object {
         /** the protocols' names (what each is called: [label]) */
         val protocols: List<String> = Protocol.entries.map { it.name }
 
         /** what the protocol [protocolName] is called */
         fun label(protocolName: String): String = Protocol.valueOf(protocolName).label
+
+        /** whether the file being received can be skipped ([skip]) */
+        fun canSkip(protocolName: String): Boolean = Protocol.valueOf(protocolName).canSkip
 
         /** whether it sends more than one file */
         fun batch(protocolName: String): Boolean = Protocol.valueOf(protocolName).batch

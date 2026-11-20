@@ -529,6 +529,8 @@ class Kermit(
                             // (a name sent "converted", all capitals, as C-Kermit does: back in lower case)
                             if (n.any { it.isLetter() } && n.none { it.isLowerCase() }) n.lowercase() else n
                         }
+                        // (a skip asked for before this file: not for it)
+                        io.takeSkip()
                         val (o, actual) = into.create(name, -1)
                         out = o.buffered()
                         current = actual
@@ -560,6 +562,9 @@ class Kermit(
                         decode(r.data, counted)
                         got += counted.n
                         report { it.copy(bytes = got) }
+                        // the user's skip: X in the ACK (the sender ends the file with Z D, and
+                        // the file is dropped)
+                        if (io.takeSkip()) reply = "X".encodeToByteArray()
                     }
                     'Z' -> {
                         val o = out

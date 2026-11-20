@@ -20,6 +20,28 @@ class TerminalEmulatorTest {
     /** [s] fed in as Latin-1 octets */
     private fun TerminalEmulator.send(s: String) = append(s.latin1())
 
+    /** ASCII Setup: an LF after a CR (a CR LF's own, in the next chunk, not doubled), 7 bits, no wrap */
+    @Test
+    fun asciiSetup() {
+        val t = term(10, 5)
+        t.addLineFeeds = true
+        t.send("one\rtwo\r")
+        t.send("\nthree")
+        assertEquals("one", t.row(0))
+        assertEquals("two", t.row(1))
+        assertEquals("three", t.row(2))
+        assertEquals(2, t.cursorY)
+        val s = term(10, 5)
+        s.sevenBit = true
+        s.send("\u00c1\u00e2")
+        assertEquals("Ab", s.row(0))
+        val w = term(10, 5)
+        w.wrapLines = false
+        w.send("0123456789XY")
+        assertEquals("012345678Y", w.row(0))
+        assertEquals("", w.row(1))
+    }
+
     /** text wraps at the width, and what scrolls off the top goes into the history, still joined to its next line */
     @Test
     fun textWrapsAndScrollsIntoTheHistory() {

@@ -218,8 +218,20 @@
     then goes through it, as with the dial of the internet screen
     (`PppTakeoverTest`).
 
-  The terminal sends and receives files by ZMODEM, YMODEM, XMODEM(-1K) and
-  Kermit. It also sends and receives Intel HEX or Motorola S-records for
+  The terminal sends and receives files by ZMODEM, YMODEM, YMODEM-G,
+  XMODEM(-1K) and Kermit:
+  - YMODEM-G sends the blocks and does not wait for an ACK. Use it only on a
+    line that corrects its errors (a V.42 connection). An error on the line
+    stops the transfer, because YMODEM-G cannot send a block again. When the
+    receiver asks with C, the sender uses plain YMODEM.
+  - When you receive by ZMODEM or Kermit, **Skip file** stops the file that
+    comes now and deletes it. The sender then sends the next file (ZMODEM
+    sends ZSKIP, Kermit sends X in its ACK).
+  - The progress shows the elapsed time, the remaining time and the speed of
+    the file. Tap the speed to show it in cps (characters a second) or in bps
+    (10 bits a character).
+
+  It also sends and receives Intel HEX or Motorola S-records for
   EPROM programmers, monitors and boot loaders:
   - When it sends a file as records, it uses S1/S2/S3 by the size of the
     image, and Intel extended addresses above 64 KB. If the file already
@@ -229,7 +241,29 @@
 
   Plain text is also available. The app sends the bytes of a file without
   change, as if you typed them (to an editor, a BBS, `cat > file`). It saves
-  the received data without change until the line is silent for 10 s.
+  the received data without change until the line is silent for 10 s. On
+  Android, the terminal settings have a line delay and a character delay (in
+  ms), as the ASCII Setup of HyperTerminal has. The app waits for this time
+  after each line end and after each character.
+
+  The terminal settings on Android also have the receive items of the ASCII
+  Setup of HyperTerminal:
+  - Add line feeds to incoming line ends: the terminal adds an LF after each
+    CR. When an LF follows the CR, the terminal does not use that LF, thus a
+    CR LF does not give two lines.
+  - Force incoming data to 7-bit ASCII: the terminal removes bit 8 of each
+    byte.
+  - Wrap lines that exceed the terminal width: when this is off, the
+    terminal writes each new character in the last column.
+
+  The menu of the Android terminal also has these items of HyperTerminal:
+  - Send break: on Telnet, the app sends IAC BRK. SSH and rlogin do not
+    have a break, thus the app shows a message.
+  - Print screen: the app prints the text of the screen through the print
+    dialog of Android (to a printer or to a PDF file).
+
+  On Telnet, SSH and rlogin, the bar of the terminal shows the time that the
+  connection is open (h:mm:ss), as the modem bar does for a call.
 - **Dial**: the dialing directory. Each entry has the number of the system
   (or the SIP user), the AT commands that are necessary before ATD, its
   terminal type, its character set and its backspace. One tap starts the

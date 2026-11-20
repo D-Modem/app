@@ -94,6 +94,10 @@ fun TerminalSettingsSection() {
         Flag("iCE colours (blink as bright background)", s.iceColors) { set { t -> t.copy(iceColors = it) } }
         Flag("Draw line and block characters (gapless ANSI art)", s.drawBoxes) { set { t -> t.copy(drawBoxes = it) } }
         Flag("Local echo", s.localEcho) { set { t -> t.copy(localEcho = it) } }
+        // HyperTerminal's ASCII Setup, for what comes
+        Flag("Add line feeds to incoming line ends", s.addLineFeeds) { set { t -> t.copy(addLineFeeds = it) } }
+        Flag("Force incoming data to 7-bit ASCII", s.sevenBit) { set { t -> t.copy(sevenBit = it) } }
+        Flag("Wrap lines that exceed the terminal width", s.wrapLines) { set { t -> t.copy(wrapLines = it) } }
         Flag("Extra keys bar", s.extraKeys) { set { t -> t.copy(extraKeys = it) } }
         Flag("Keep the screen on", s.keepScreenOn) { set { t -> t.copy(keepScreenOn = it) } }
         var scrollback by remember(s.scrollback) { mutableStateOf(s.scrollback.toString()) }
@@ -116,7 +120,34 @@ fun TerminalSettingsSection() {
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
+        // HyperTerminal's ASCII Setup: the waits when a text file is sent
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DelayField("Line delay (ms)", s.lineDelayMs, Modifier.weight(1f)) { set { t -> t.copy(lineDelayMs = it) } }
+            DelayField("Character delay (ms)", s.charDelayMs, Modifier.weight(1f)) { set { t -> t.copy(charDelayMs = it) } }
+        }
+        Text(
+            "The waits when a text file is sent (Text protocol): after each line, and after each character. " +
+                "For a remote that loses characters when they come fast.",
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
+}
+
+/** a wait in ms, 0 to 9999 */
+@Composable
+private fun DelayField(label: String, value: Int, modifier: Modifier, onChange: (Int) -> Unit) {
+    var text by remember(value) { mutableStateOf(value.toString()) }
+    OutlinedTextField(
+        value = text,
+        onValueChange = { v ->
+            text = v.filter { it.isDigit() }.take(4)
+            onChange(text.toIntOrNull() ?: 0)
+        },
+        label = { Text(label) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = modifier,
+    )
 }
 
 /** a labelled switch */
