@@ -434,14 +434,15 @@ private fun SessionTabs(sessions: List<TerminalSession>, active: TerminalSession
     }
 }
 
-/** [text] printed (Android's print dialog: a printer or a PDF), as HyperTerminal's Print, in a monospaced font */
+/** the view of the page being printed, kept until the print job has it */
 private var printing: android.webkit.WebView? = null
 
+/** [text] printed (Android's print dialog: a printer or a PDF), as HyperTerminal's Print, in a monospaced font */
 private fun printText(context: android.content.Context, name: String, text: String) {
     val w = android.webkit.WebView(context)
-    // (the view kept until the print job has the page)
     printing = w
     w.webViewClient = object : android.webkit.WebViewClient() {
+        /** the page ready: the print dialog opened on it */
         override fun onPageFinished(view: android.webkit.WebView, url: String?) {
             val pm = context.getSystemService(android.content.Context.PRINT_SERVICE) as android.print.PrintManager
             val job = name.ifBlank { "Terminal" }
