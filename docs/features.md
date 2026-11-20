@@ -243,7 +243,17 @@
   change, as if you typed them (to an editor, a BBS, `cat > file`). On
   Android, the terminal settings have a line delay and a character delay (in
   ms), as the ASCII Setup of HyperTerminal has. The app waits for this time
-  after each line end and after each character. It saves
+  after each line end and after each character.
+
+  The terminal settings on Android also have the receive items of the ASCII
+  Setup of HyperTerminal:
+  - Add line feeds to incoming line ends: the terminal adds an LF after each
+    CR. When an LF follows the CR, the terminal does not use that LF, thus a
+    CR LF does not give two lines.
+  - Force incoming data to 7-bit ASCII: the terminal removes bit 8 of each
+    byte.
+  - Wrap lines that exceed the terminal width: when this is off, the
+    terminal writes each new character in the last column. It saves
   the received data without change until the line is silent for 10 s.
 - **Dial**: the dialing directory. Each entry has the number of the system
   (or the SIP user), the AT commands that are necessary before ATD, its

@@ -248,8 +248,51 @@ class TerminalEmulator(
     /** a tap at ([fx], [fy]) (fractions of the screen from its top left) as the terminal takes it: what to send (a RIP button's text), or null if it takes none */
     fun tap(fx: Double, fy: Double): ByteArray? = interpreter.tap(fx, fy)
 
+    /** HyperTerminal's ASCII Setup, for what comes: an LF after each CR (a CR LF's own LF not doubled) */
+    var addLineFeeds = false
+        set(v) { field = v; asciiCr = false }
+
+    /** each octet that comes as 7-bit ASCII (its 8th bit cleared) */
+    var sevenBit = false
+
+    /** lines wrap at the right margin (false: each character past it written in the last column) */
+    var wrapLines = true
+
+    /** the last octet that came was a CR ([addLineFeeds]) */
+    private var asciiCr = false
+
+    /** [data]'s first [length] octets as [addLineFeeds] and [sevenBit] have them, and how many */
+    private fun ascii(data: ByteArray, length: Int): Pair<ByteArray, Int> {
+        val out = ByteArray(if (addLineFeeds) length * 2 else length)
+        var n = 0
+        for (i in 0 until length) {
+            var b = data[i].toInt() and 0xff
+            if (sevenBit) b = b and 0x7f
+            if (addLineFeeds) {
+                if (b == LF && asciiCr) {
+                    asciiCr = false
+                    continue
+                }
+                asciiCr = b == CR
+            }
+            out[n++] = b.toByte()
+            if (addLineFeeds && b == CR) out[n++] = LF.toByte()
+        }
+        return out to n
+    }
+
     /** the remote's octets, decoded in [decoder]'s set (or as they are, to an interpreter that reads octets) */
     fun append(data: ByteArray, length: Int = data.size) {
+        if (addLineFeeds || sevenBit) {
+            val (d, n) = ascii(data, length)
+            feed(d, n)
+        } else {
+            feed(data, length)
+        }
+    }
+
+    /** [length] octets of [data] to the interpreter */
+    private fun feed(data: ByteArray, length: Int) {
         if (interpreter.readsOctets) {
             for (i in 0 until length) interpreter.process(data[i].toInt() and 0xff)
         } else {
@@ -449,7 +492,7 @@ class TerminalEmulator(
         }
         lastChar = cp
         if (pendingWrap) {
-            if (autowrap) {
+            if (autowrap && wrapLines) {
                 screen[cursorY].wrapped = true
                 carriageReturn()
                 lineFeed()
@@ -461,7 +504,7 @@ class TerminalEmulator(
         if (cursorX >= lc) cursorX = lc - 1
         // a wide character with one column left: to the next line (the last cell left blank)
         if (w == 2 && cursorX == lc - 1) {
-            if (!autowrap || lc < 2) return
+            if (!autowrap || !wrapLines || lc < 2) return
             screen[cursorY].clear(cursorX, cols, style)
             screen[cursorY].wrapped = true
             carriageReturn()
@@ -973,6 +1016,8 @@ class TerminalEmulator(
         const val NO_COLOR = 0
         /** the largest sixel image (pixels a side) */
         const val MAX_IMAGE = 2048
+        private const val CR = 13
+        private const val LF = 10
 
         /** an ESC Fe (ESC [, ESC P, ST's ESC and backslash ...): what has a C1 form */
         private val ESC_FE = Regex("\u001b([\\x40-\\x5f])")

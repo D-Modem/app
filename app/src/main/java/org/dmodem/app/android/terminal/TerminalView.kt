@@ -167,6 +167,9 @@ class TerminalView @JvmOverloads constructor(
             synchronized(it.emulator) {
                 it.emulator.historyMax = s.scrollback
                 it.emulator.answerback = s.answerback
+                if (it.emulator.addLineFeeds != s.addLineFeeds) it.emulator.addLineFeeds = s.addLineFeeds
+                it.emulator.sevenBit = s.sevenBit
+                it.emulator.wrapLines = s.wrapLines
             }
         }
         if (sizeChanged || fontPx == 0f) measureFont()

@@ -94,6 +94,10 @@ fun TerminalSettingsSection() {
         Flag("iCE colours (blink as bright background)", s.iceColors) { set { t -> t.copy(iceColors = it) } }
         Flag("Draw line and block characters (gapless ANSI art)", s.drawBoxes) { set { t -> t.copy(drawBoxes = it) } }
         Flag("Local echo", s.localEcho) { set { t -> t.copy(localEcho = it) } }
+        // HyperTerminal's ASCII Setup, for what comes
+        Flag("Add line feeds to incoming line ends", s.addLineFeeds) { set { t -> t.copy(addLineFeeds = it) } }
+        Flag("Force incoming data to 7-bit ASCII", s.sevenBit) { set { t -> t.copy(sevenBit = it) } }
+        Flag("Wrap lines that exceed the terminal width", s.wrapLines) { set { t -> t.copy(wrapLines = it) } }
         Flag("Extra keys bar", s.extraKeys) { set { t -> t.copy(extraKeys = it) } }
         Flag("Keep the screen on", s.keepScreenOn) { set { t -> t.copy(keepScreenOn = it) } }
         var scrollback by remember(s.scrollback) { mutableStateOf(s.scrollback.toString()) }
