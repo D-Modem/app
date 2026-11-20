@@ -12,11 +12,13 @@ import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * The transfers both ways in memory, the sender's line the receiver's
  * (common Kotlin: the JVM, and natively as iOS has it): XMODEM, YMODEM,
- * ZMODEM and Kermit, each file as it was sent; Kermit's dates.
+ * YMODEM-G, ZMODEM and Kermit, each file as it was sent; a file skipped
+ * (ZMODEM, Kermit); Kermit's dates.
  */
 class TransferLoopbackTest {
     /** files in memory, and what came */
@@ -95,6 +97,51 @@ class TransferLoopbackTest {
         assertEquals(listOf("z.bin", "small.txt"), names)
         assertContentEquals(data, m.files.getValue("z.bin").toByteArray())
         assertContentEquals(small, m.files.getValue("small.txt").toByteArray())
+    }
+
+    /** YMODEM-G: a batch of two streamed with no ACKs, each file whole */
+    @Test
+    fun ymodemG() {
+        val m = Memory()
+        val names = both({ XYModem(it).sendY(listOf(outgoing("g.bin", data), outgoing("g.txt", small)), g = true) }, { XYModem(it).receiveY(m, g = true) })
+        assertEquals(listOf("g.bin", "g.txt"), names)
+        assertContentEquals(data, m.files.getValue("g.bin").toByteArray())
+        assertContentEquals(small, m.files.getValue("g.txt").toByteArray())
+    }
+
+    /** a YMODEM-G sender asked with C (plain YMODEM): plain YMODEM, each file whole */
+    @Test
+    fun ymodemGSenderToYmodem() {
+        val m = Memory()
+        val names = both({ XYModem(it).sendY(listOf(outgoing("a.bin", data)), g = true) }, { XYModem(it).receiveY(m) })
+        assertEquals(listOf("a.bin"), names)
+        assertContentEquals(data, m.files.getValue("a.bin").toByteArray())
+    }
+
+    /** ZMODEM: the first file skipped part way (ZSKIP), the second whole */
+    @Test
+    fun zmodemSkip() {
+        val m = Memory()
+        val names = both({ ZModem(it).send(listOf(outgoing("a.bin", data), outgoing("b.txt", small))) }, { io ->
+            var asked = false
+            ZModem(io, { p -> if (!asked && p.file == "a.bin" && p.bytes > 8000) { asked = true; io.requestSkip() } }).receive(m)
+        })
+        assertEquals(listOf("b.txt"), names)
+        assertTrue("a.bin" !in m.files)
+        assertContentEquals(small, m.files.getValue("b.txt").toByteArray())
+    }
+
+    /** Kermit: the first file skipped part way (X in the ACK), the second whole */
+    @Test
+    fun kermitSkip() {
+        val m = Memory()
+        val names = both({ Kermit(it).send(listOf(outgoing("a.bin", data), outgoing("b.txt", small))) }, { io ->
+            var asked = false
+            Kermit(io, { p -> if (!asked && p.file == "a.bin" && p.bytes > 8000) { asked = true; io.requestSkip() } }).receive(m)
+        })
+        assertEquals(listOf("b.txt"), names)
+        assertTrue("a.bin" !in m.files)
+        assertContentEquals(small, m.files.getValue("b.txt").toByteArray())
     }
 
     /** Kermit: a batch of two, each file whole, with its time there and back */

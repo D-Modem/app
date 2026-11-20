@@ -231,11 +231,17 @@ class TerminalSession(
     }
 
     /** [files] to the remote (which must be receiving: its rz, rb, rx, kermit -r) */
-    fun sendFiles(protocol: Protocol, files: List<Outgoing>): Boolean {
+    fun sendFiles(protocol: Protocol, files: List<Outgoing>, lineDelayMs: Int = 0, charDelayMs: Int = 0): Boolean {
         if (files.isEmpty()) return false
         val t = startTransfer(protocol, sending = true) ?: return false
-        t.send(files)
+        // (the waits: a text file's only, HyperTerminal's ASCII Setup)
+        t.send(files, lineDelayMs.toLong(), charDelayMs.toLong())
         return true
+    }
+
+    /** the file being received skipped, the transfer on to the next (ZMODEM, Kermit) */
+    fun skipTransfer() {
+        transfer?.skip()
     }
 
     /** the running transfer, if any, cancelled */

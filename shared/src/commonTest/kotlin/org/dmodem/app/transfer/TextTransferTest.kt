@@ -77,4 +77,18 @@ class TextTransferTest {
         assertEquals(0, raw.size)
         assertTrue(!Protocol.TEXT.batch)
     }
+
+    /** the line and character delays: the bytes as they were, and the waits they add */
+    @Test
+    fun pacedByTheDelays() = runBlocking {
+        val wire = Bytes()
+        val a = TransferIo { bytes -> wire.write(bytes, 0, bytes.size) }
+        // 4 line ends (CR LF, LF, CR, CR LF) in 14 characters: 4 × 40 + 14 × 5 = 230 ms at the least
+        val paced = "ab\r\ncd\nef\rgh\r\n".encodeToByteArray()
+        val t0 = org.dmodem.app.io.monotonicMs()
+        TextTransfer(a, {}).send(outgoing("p.txt", paced), lineDelayMs = 40, charDelayMs = 5)
+        val took = org.dmodem.app.io.monotonicMs() - t0
+        assertContentEquals(paced, wire.toByteArray())
+        assertTrue(took >= 4 * 40 + paced.size * 5 - 20, "took $took ms")
+    }
 }

@@ -307,6 +307,12 @@ final class JobsModel: ObservableObject {
     /// the transfer cancelled
     func cancelTransfer() { transferJob?.cancel() }
 
+    /// the file being received skipped, the transfer on to the next (ZMODEM, Kermit)
+    func skipTransfer() { transferJob?.skip() }
+
+    /// the transfer's times and speed, as HyperTerminal shows them ([bps]: bits a second)
+    func transferTiming(bps: Bool) -> String { transferJob?.timing(bps: bps) ?? transfer?.timing(bps: bps) ?? "" }
+
     /// the last transfer's outcome cleared (not while one's going)
     func dismissTransfer() { if transferJob == nil { transfer = nil } }
 

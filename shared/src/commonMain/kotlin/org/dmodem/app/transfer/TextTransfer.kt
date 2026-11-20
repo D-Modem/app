@@ -3,6 +3,7 @@
 package org.dmodem.app.transfer
 
 import org.dmodem.app.io.IOException
+import org.dmodem.app.io.sleepMs
 
 /**
  * A file as plain text: no protocol at all. Sending: its bytes as they
@@ -17,8 +18,12 @@ class TextTransfer(
     /** the quiet that ends a receive (the tests' shorter) */
     private val quietMs: Long = QUIET_MS,
 ) {
-    /** [file] sent verbatim */
-    fun send(file: Outgoing) {
+    /**
+     * [file] sent verbatim; paced, as HyperTerminal's ASCII Setup does it, with a wait of
+     * [lineDelayMs] after each line end (CR, LF, or the LF of CR LF) and [charDelayMs] after
+     * each character
+     */
+    fun send(file: Outgoing, lineDelayMs: Long = 0, charDelayMs: Long = 0) {
         val buf = ByteArray(CHUNK)
         var sent = 0L
         file.open().use { src ->
@@ -27,8 +32,25 @@ class TextTransfer(
                 val n = src.read(buf, 0, buf.size)
                 if (n < 0) break
                 if (n == 0) continue
-                io.write(buf.copyOf(n))
-                sent += n
+                if (lineDelayMs <= 0 && charDelayMs <= 0) {
+                    io.write(buf.copyOf(n))
+                    sent += n
+                    progress(Progress(file.name, sent, file.size))
+                    continue
+                }
+                for (i in 0 until n) {
+                    val c = buf[i].toInt() and 0xff
+                    io.write(c)
+                    sent++
+                    // (the LF of a CR LF ends the line, not the CR)
+                    val lineEnd = c == LF || (c == CR && (i + 1 >= n || buf[i + 1].toInt() != LF))
+                    val ms = charDelayMs + if (lineEnd) lineDelayMs else 0
+                    if (ms > 0) {
+                        progress(Progress(file.name, sent, file.size))
+                        sleepMs(ms)
+                        if (io.isCancelled) throw TransferCancelled("cancelled")
+                    }
+                }
                 progress(Progress(file.name, sent, file.size))
             }
         }
@@ -74,6 +96,8 @@ class TextTransfer(
 
     companion object {
         const val CHUNK = 1024
+        private const val CR = 13
+        private const val LF = 10
         /** how long the first byte may take to come, and the quiet that ends it */
         const val FIRST_MS = 60_000L
         const val QUIET_MS = 10_000L

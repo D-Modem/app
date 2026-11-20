@@ -133,7 +133,7 @@ fun TerminalScreen(
                 session.sendBytes((command + "\r").toByteArray())
                 delay(800)
             }
-            if (!session.sendFiles(proto, files)) Toast.makeText(context, "A transfer is running already", Toast.LENGTH_SHORT).show()
+            if (!session.sendFiles(proto, files, s.lineDelayMs, s.charDelayMs)) Toast.makeText(context, "A transfer is running already", Toast.LENGTH_SHORT).show()
         }
     }
     /** the app's PPP on the call the modem has now (logged in by hand), the phone's traffic through it; why not in a toast */
@@ -295,6 +295,7 @@ fun TerminalScreen(
                 TransferBanner(
                     t, DownloadsIncoming.where(context),
                     onCancel = { session.cancelTransfer() },
+                    onSkip = { session.skipTransfer() },
                     onDismiss = { session.dismissTransfer() },
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )

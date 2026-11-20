@@ -64,6 +64,9 @@ data class TerminalSettings(
     val answerback: String = "",
     /** box drawing and block characters drawn to fill their cells (no gaps in ANSI art) */
     val drawBoxes: Boolean = true,
+    /** a text file sent (Send Text File): the wait after each line, and after each character, in ms (HyperTerminal's ASCII Setup) */
+    val lineDelayMs: Int = 0,
+    val charDelayMs: Int = 0,
 ) {
     /** [terminalType]'s profile (the default for one not known) */
     val profile: TerminalProfile get() = TerminalProfiles.byId(terminalType) ?: TerminalProfiles.DEFAULT
@@ -95,6 +98,8 @@ class TerminalSettingsStore(private val context: Context) {
         val extraKeys = booleanPreferencesKey("extra_keys")
         val answerback = stringPreferencesKey("answerback")
         val drawBoxes = booleanPreferencesKey("draw_boxes")
+        val lineDelay = intPreferencesKey("line_delay_ms")
+        val charDelay = intPreferencesKey("char_delay_ms")
     }
 
     /** the [E] named [s], or [d] for none or one not known */
@@ -128,6 +133,8 @@ class TerminalSettingsStore(private val context: Context) {
             extraKeys = p[K.extraKeys] ?: d.extraKeys,
             answerback = p[K.answerback] ?: d.answerback,
             drawBoxes = p[K.drawBoxes] ?: d.drawBoxes,
+            lineDelayMs = p[K.lineDelay] ?: d.lineDelayMs,
+            charDelayMs = p[K.charDelay] ?: d.charDelayMs,
         )
     }
 
@@ -167,6 +174,8 @@ class TerminalSettingsStore(private val context: Context) {
         p[K.extraKeys] = s.extraKeys
         p[K.answerback] = s.answerback
         p[K.drawBoxes] = s.drawBoxes
+        p[K.lineDelay] = s.lineDelayMs
+        p[K.charDelay] = s.charDelayMs
     }
 
     /** the font size [sp] stored alone (the pinch's) */

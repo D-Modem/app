@@ -218,8 +218,20 @@
     then goes through it, as with the dial of the internet screen
     (`PppTakeoverTest`).
 
-  The terminal sends and receives files by ZMODEM, YMODEM, XMODEM(-1K) and
-  Kermit. It also sends and receives Intel HEX or Motorola S-records for
+  The terminal sends and receives files by ZMODEM, YMODEM, YMODEM-G,
+  XMODEM(-1K) and Kermit:
+  - YMODEM-G sends the blocks and does not wait for an ACK. Use it only on a
+    line that corrects its errors (a V.42 connection). An error on the line
+    stops the transfer, because YMODEM-G cannot send a block again. When the
+    receiver asks with C, the sender uses plain YMODEM.
+  - When you receive by ZMODEM or Kermit, **Skip file** stops the file that
+    comes now and deletes it. The sender then sends the next file (ZMODEM
+    sends ZSKIP, Kermit sends X in its ACK).
+  - The progress shows the elapsed time, the remaining time and the speed of
+    the file. Tap the speed to show it in cps (characters a second) or in bps
+    (10 bits a character).
+
+  It also sends and receives Intel HEX or Motorola S-records for
   EPROM programmers, monitors and boot loaders:
   - When it sends a file as records, it uses S1/S2/S3 by the size of the
     image, and Intel extended addresses above 64 KB. If the file already
@@ -228,7 +240,10 @@
     binary image that they hold (gaps are 0xFF).
 
   Plain text is also available. The app sends the bytes of a file without
-  change, as if you typed them (to an editor, a BBS, `cat > file`). It saves
+  change, as if you typed them (to an editor, a BBS, `cat > file`). On
+  Android, the terminal settings have a line delay and a character delay (in
+  ms), as the ASCII Setup of HyperTerminal has. The app waits for this time
+  after each line end and after each character. It saves
   the received data without change until the line is silent for 10 s.
 - **Dial**: the dialing directory. Each entry has the number of the system
   (or the SIP user), the AT commands that are necessary before ATD, its
