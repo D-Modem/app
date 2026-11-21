@@ -1,0 +1,109 @@
+# Nightly: the "nightly" pre-release of the apps, from the artifacts of
+# the newest commit on main that has a complete run of android.yml and
+# of apple.yml. It does not build the apps again. Each run replaces the
+# release and moves its tag. When main has no new commits, the run stops
+# and the release does not change. A manual run (Actions > Nightly > Run
+# workflow) can publish again with "force".
+#
+# A hung test does not stop the release: the run uses each artifact that
+# the CI run made. The release APK comes from android.yml's release job,
+# which runs no tests. The release lists each artifact that is missing.
+#
+# Android: the release APK has the release environment's key (as
+# android.yml's release job); the debug APK has the repository's debug
+# key. iOS: the .ipa is not signed (apple.yml); a person signs it again
+# for their device. An App Store or TestFlight build needs an Apple
+# Developer account and its secrets (not set).
+name: Nightly
+
+on:
+  schedule:
+    - cron: "37 5 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Publish again, also when main has no new commits
+        type: boolean
+        default: false
+
+# (one at a time: a second run waits for the first)
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  nightly:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      # (the scripts only: not the private submodule)
+      - uses: actions/checkout@v6
+
+      - name: The newest build of main
+        id: pick
+        run: .github/scripts/nightly-pick.sh android.yml apple.yml
+        env:
+          FORCE: ${{ inputs.force || 'false' }}
+
+      # (with the API, not download-artifact: an artifact uploaded with
+      # "archive: false" comes as the file itself, not as a zip)
+      - name: Files
+        if: steps.pick.outputs.skip == 'false'
+        env:
+          SHA: ${{ steps.pick.outputs.sha }}
+          ANDROID_RUN: ${{ steps.pick.outputs.run_android_yml }}
+          APPLE_RUN: ${{ steps.pick.outputs.run_apple_yml }}
+        run: |
+          mkdir out dl
+          : > missing
+          # get RUN ARTIFACT: the artifact's download in dl/ARTIFACT, or no file
+          get() {
+            local id
+            id=$(gh api "repos/$GH_REPO/actions/runs/$1/artifacts" \
+              --jq ".artifacts[] | select(.name == \"$2\" and (.expired | not)) | .id" | head -1)
+            if [ -n "$id" ]; then gh api "repos/$GH_REPO/actions/artifacts/$id/zip" > "dl/$2"; fi
+          }
+          # file RUN ARTIFACT NAME: an artifact that is one file ("archive: false")
+          file() {
+            get "$1" "$2"
+            if [ -s "dl/$2" ]; then mv "dl/$2" "out/$3"; else echo "- \`$3\`" >> missing; fi
+          }
+          # member RUN ARTIFACT PATH NAME: one file from a zipped artifact
+          member() {
+            get "$1" "$2"
+            if [ -s "dl/$2" ] && unzip -p "dl/$2" "$3" > "out/$4" && [ -s "out/$4" ]; then :; else
+              rm -f "out/$4"; echo "- \`$4\`" >> missing
+            fi
+          }
+          member "$ANDROID_RUN" release apk/release/app-release.apk dmodem-android.apk
+          file "$ANDROID_RUN" app-debug.apk dmodem-android-debug.apk
+          file "$APPLE_RUN" DModem-unsigned.ipa dmodem-ios-unsigned.ipa
+          (cd out && sha256sum * > SHA256SUMS)
+          ls -l out
+          {
+            echo "The newest build of \`main\`, from commit $SHA ([Android run]($GITHUB_SERVER_URL/$GH_REPO/actions/runs/$ANDROID_RUN), [Apple run]($GITHUB_SERVER_URL/$GH_REPO/actions/runs/$APPLE_RUN))."
+            echo "This is not a stable release."
+            echo
+            echo "| File | What it is |"
+            echo "| --- | --- |"
+            echo "| \`dmodem-android.apk\` | The Android app (release build, all four ABIs) |"
+            echo "| \`dmodem-android-debug.apk\` | The Android app (debug build). It has a different key: remove the release build before you install it |"
+            echo "| \`dmodem-ios-unsigned.ipa\` | The iOS app, not signed. Sign it again for your device (for example with AltStore or Sideloadly) |"
+            echo "| \`SHA256SUMS\` | The SHA-256 of each file |"
+            if [ -s missing ]; then
+              echo
+              echo "This build did not make these files:"
+              cat missing
+            fi
+          } > notes.md
+
+      - name: Publish
+        if: steps.pick.outputs.skip == 'false'
+        run: .github/scripts/nightly-publish.sh "${{ steps.pick.outputs.sha }}" notes.md out
