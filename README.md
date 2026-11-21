@@ -20,6 +20,21 @@ modem, it uses V.91 at up to 62667 bit/s in the two directions.
 - Two phones as the line for each other, through Wi-Fi or Bluetooth, without a SIP account
 - The mobile calls of the phone as a slow line, where Android permits it
 
+## Nightly builds
+
+The [nightly release](https://github.com/D-Modem/app/releases/tag/nightly)
+has the apps from the newest build of `main`. A workflow
+(`.github/workflows/nightly.yml`) replaces the release one time each day.
+When `main` has no new commits, the release does not change.
+
+- `dmodem-android.apk`: the Android app (release build).
+- `dmodem-android-debug.apk`: the Android app (debug build). It has a
+  different key. Remove the release build before you install it.
+- `dmodem-ios-unsigned.ipa`: the iOS app. It is not signed. Sign it
+  again for your device (for example, with AltStore or Sideloadly).
+
+These builds are not stable releases.
+
 ## Quick start
 
 Android: open the project in Android Studio, or do these commands:

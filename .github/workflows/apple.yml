@@ -2,7 +2,8 @@
 # Mbed TLS built for iOS (devices and simulator) and macOS as an
 # XCFramework (ios/build-native.sh), and its Swift tests run on macOS
 # (ios/DModemSmoke): the modem through its C API, as the iOS app has it;
-# DModemKit's tests, and the iOS app (ios/DModem) built for the simulator.
+# DModemKit's tests, and the iOS app (ios/DModem) built for the simulator;
+# on main, also for a device, not signed (DModem-unsigned.ipa).
 #
 # D-Modem is a private submodule: the DMODEM_TOKEN secret (as
 # android.yml's).
@@ -72,6 +73,28 @@ jobs:
           xcodebuild -project DModem.xcodeproj -scheme DModem \
             -destination 'generic/platform=iOS Simulator' \
             ARCHS=arm64 CODE_SIGNING_ALLOWED=NO build
+
+      # the iOS app for a device, not signed, as an .ipa (for the nightly
+      # release, nightly.yml): main and a manual run only, not a pull request.
+      # A person signs it again for their device (for example with AltStore
+      # or Sideloadly).
+      - name: The iOS app (device, not signed)
+        if: github.event_name != 'pull_request'
+        run: |
+          cd ios/DModem
+          xcodebuild -project DModem.xcodeproj -scheme DModem -configuration Release \
+            -destination 'generic/platform=iOS' -derivedDataPath "$RUNNER_TEMP/ios-device" \
+            CODE_SIGNING_ALLOWED=NO build
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          cp -R "$RUNNER_TEMP/ios-device/Build/Products/Release-iphoneos/DModem.app" "$RUNNER_TEMP/ipa/Payload/"
+          (cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/DModem-unsigned.ipa" Payload)
+
+      # (the .ipa itself, not zipped: as android.yml's APK)
+      - uses: actions/upload-artifact@v7
+        if: github.event_name != 'pull_request'
+        with:
+          path: DModem-unsigned.ipa
+          archive: false
 
       - uses: actions/upload-artifact@v7
         with:
