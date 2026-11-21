@@ -80,6 +80,23 @@ class TransferIo(private val send: (ByteArray) -> Unit) {
         return out.toByteArray()
     }
 
+    @kotlin.concurrent.Volatile private var skip = false
+
+    /** the user's Skip file: the protocol takes it at its next look ([takeSkip]) */
+    fun requestSkip() {
+        skip = true
+    }
+
+    /** whether the user asked to skip the file now (once) */
+    fun takeSkip(): Boolean {
+        if (!skip) return false
+        skip = false
+        return true
+    }
+
+    /** whether a skip waits to be taken (it is not taken) */
+    val skipWanted: Boolean get() = skip
+
     /** cancelled for [why]: reads and writes throw TransferCancelled from now on */
     fun cancel(why: String) {
         cancelled = why

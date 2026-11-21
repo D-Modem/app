@@ -287,6 +287,8 @@ class ZModem(
         fun zrinit() = sendHex(Header.flags(ZRINIT, CANFDX or CANOVIO or CANFC32, if (zstd) CANZSTD else 0))
         zrinit()
         var lastHeaderAt = monotonicMs()
+        // (the last file skipped: its stream's ZEOF, if our ZSKIP was lost, answered again)
+        var skipped = false
         while (true) {
             val h = try {
                 readHeader()
@@ -315,7 +317,11 @@ class ZModem(
                         sendHex(Header(ZNAK))
                         continue
                     }
-                    val name = receiveFile(d.first, into, h.p[1].toInt() and 0xff) ?: continue
+                    // (a skip asked for before this file: not for it)
+                    io.takeSkip()
+                    val name = receiveFile(d.first, into, h.p[1].toInt() and 0xff)
+                    skipped = name == null
+                    if (name == null) continue
                     names.add(name)
                     report { it.copy(files = it.files + 1) }
                     zrinit()
@@ -333,6 +339,7 @@ class ZModem(
                     sendHex(Header.pos(ZCOMPL, 0))
                 }
                 ZFREECNT -> sendHex(Header.pos(ZACK, 0))
+                ZEOF -> if (skipped) sendHex(Header.pos(ZSKIP, 0))
                 else -> {}
             }
         }
@@ -378,6 +385,12 @@ class ZModem(
             out.use { o ->
                 rpos()
                 loop@ while (true) {
+                    // the user's skip: ZSKIP, and the file dropped (the sender goes on to its next)
+                    if (io.takeSkip()) {
+                        sendHex(Header.pos(ZSKIP, 0))
+                        io.purge()
+                        break@loop
+                    }
                     // (8 KB of a stream with no header in it: ours, at pos, lost; asked for again)
                     val h = readHeader(garbageMax = 8 * 1024, nullOnGarbage = true)
                     if (h == null) {
@@ -424,6 +437,7 @@ class ZModem(
                                     ZCRCE -> continue@loop
                                     // ZCRCG: more follows
                                 }
+                                if (io.skipWanted) continue@loop
                             }
                         }
                         ZEOF -> {
@@ -755,6 +769,7 @@ class ZModem(
                 if (end == ZCRCQ) {
                     sinceAck = 0
                     val to = waitForAck(r.pos)
+                    if (to == SKIPPED) return
                     if (to == null && packed && chunk < ZSTD_CHUNK) chunk *= 2
                     if (to != null) {
                         back(to)
@@ -781,13 +796,15 @@ class ZModem(
         }
     }
 
-    /** a ZCRCQ's answer: null for its ACK, else the position a ZRPOS asks for */
+    /** a ZCRCQ's answer: null for its ACK, [SKIPPED] for a ZSKIP, else the position a ZRPOS asks for */
     private fun waitForAck(pos: Long): Long? {
         repeat(MAX_ERRORS) {
             val h = readHeaderOrNull() ?: return@repeat
             when (h.type) {
                 ZACK -> return null
                 ZRPOS -> return h.pos
+                // (the receiver skipped the file)
+                ZSKIP -> return SKIPPED
                 ZCAN, ZABORT -> throw TransferCancelled("cancelled by the receiver")
             }
         }
@@ -864,6 +881,8 @@ class ZModem(
         /** bytes between the sender's ZCRCQs (its window) */
         const val WINDOW = 16 * 1024
         const val MAX_ERRORS = 10
+        /** [waitForAck]'s answer to a ZSKIP */
+        const val SKIPPED = -2L
         /** after a ZRPOS, the time the sender's stream from before it may still take to stop coming */
         const val RPOS_GRACE_MS = 1000L
 

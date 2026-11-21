@@ -16,6 +16,7 @@ struct TransferView: View {
     @State private var error: String?
     @State private var received: [URL] = []
     @State private var preview: URL?
+    @AppStorage("transferBps") private var bps = false
 
     var body: some View {
         NavigationStack {
@@ -70,6 +71,7 @@ struct TransferView: View {
         switch proto {
         case "ZMODEM": return "sz file (it sends), rz (it receives; ZMODEM starts by itself either way)"
         case "YMODEM": return "sb file, rb"
+        case "YMODEM_G": return "sb file (YMODEM-G is for a V.42 line: an error ends it), rb"
         case "XMODEM": return "sx file, rx -c file"
         case "XMODEM_1K": return "sx -k file, rx -c file"
         default: return "kermit -i -s file, kermit -i -r"
@@ -91,11 +93,21 @@ struct TransferView: View {
                     Text(bytes(p.bytes)).foregroundStyle(.secondary)
                 }
             }
+            // (the times and the speed, a second at a time; a tap: cps or bps)
+            TimelineView(.periodic(from: .now, by: 1)) { _ in
+                let timing = jobs.transferTiming(bps: bps)
+                if !timing.isEmpty {
+                    Text(timing).foregroundStyle(.secondary).onTapGesture { bps.toggle() }
+                }
+            }
             if p.files > 0 { Text("\(p.files) file\(p.files == 1 ? "" : "s") done") }
             if p.zstd { Text("Compressed with zstd").foregroundStyle(.secondary) }
             if p.errors > 0 { Text("\(p.errors) block\(p.errors == 1 ? "" : "s") sent again").foregroundStyle(.secondary) }
             if let r = t.result, !r.isEmpty { Text(r).foregroundStyle(.red) }
             if t.running {
+                if !jobs.transferSending && !p.file.isEmpty && t.protocol.canSkip {
+                    Button("Skip file") { jobs.skipTransfer() }
+                }
                 Button("Cancel", role: .destructive) { jobs.cancelTransfer() }
             } else {
                 Button("Dismiss") { jobs.dismissTransfer() }

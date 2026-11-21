@@ -20,6 +20,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,6 +32,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
+import org.dmodem.app.io.monotonicMs
 import org.dmodem.app.transfer.Protocol
 import org.dmodem.app.transfer.TransferState
 
@@ -89,6 +94,14 @@ fun TransferDialog(
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 }
+                if (protocol == Protocol.YMODEM_G) {
+                    Text(
+                        "YMODEM-G sends with no wait for each block's answer: fast, but for a line that corrects " +
+                            "its errors (a V.42 connection). An error on the line ends the transfer.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
                 if (protocol.hexFormat != null) {
                     Text(
                         if (sending) "The file goes as ${protocol.label}, a line each (a file of them already goes as it is), " +
@@ -108,9 +121,29 @@ fun TransferDialog(
     )
 }
 
-/** a transfer as it goes (cancel it), or how it ended (dismissed) */
+/**
+ * a transfer as it goes (cancel it; skip the file being received, where the protocol can), or
+ * how it ended (dismissed); its times and speed as HyperTerminal shows them (a tap on them:
+ * cps or bps)
+ */
 @Composable
-fun TransferBanner(t: TransferState, savedTo: String, onCancel: () -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+fun TransferBanner(
+    t: TransferState,
+    savedTo: String,
+    onCancel: () -> Unit,
+    onSkip: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var bps by rememberSaveable { mutableStateOf(false) }
+    // (the times go on while no bytes come: a tick each second)
+    var now by remember { mutableLongStateOf(monotonicMs()) }
+    LaunchedEffect(t.running) {
+        while (t.running) {
+            now = monotonicMs()
+            delay(1000)
+        }
+    }
     Surface(modifier.fillMaxWidth().padding(12.dp), tonalElevation = 6.dp, shape = RoundedCornerShape(12.dp), shadowElevation = 6.dp) {
         Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 6.dp)) {
             val p = t.progress
@@ -131,6 +164,14 @@ fun TransferBanner(t: TransferState, savedTo: String, onCancel: () -> Unit, onDi
                     LinearProgressIndicator(Modifier.fillMaxWidth().padding(end = 8.dp))
                 }
             }
+            val timing = t.timing(bps, maxOf(now, if (t.running) monotonicMs() else 0))
+            if (timing.isNotEmpty()) {
+                Text(
+                    timing,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 4.dp).clickable { bps = !bps },
+                )
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     when {
@@ -141,6 +182,7 @@ fun TransferBanner(t: TransferState, savedTo: String, onCancel: () -> Unit, onDi
                     },
                     style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f),
                 )
+                if (t.running && !t.sending && t.protocol.canSkip && p.file.isNotEmpty()) TextButton(onClick = onSkip) { Text("Skip file") }
                 if (t.running) TextButton(onClick = onCancel) { Text("Cancel") } else TextButton(onClick = onDismiss) { Text("OK") }
             }
         }
