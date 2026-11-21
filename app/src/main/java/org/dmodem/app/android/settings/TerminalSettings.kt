@@ -59,6 +59,8 @@ data class TerminalSettings(
     val iceColors: Boolean = false,
     /** what is typed shown at once (the remote doesn't echo) */
     val localEcho: Boolean = false,
+    /** ZMODEM compresses with zstd where the other side can (D-Modem's BBS, GUI and app) */
+    val zmodemZstd: Boolean = true,
     val extraKeys: Boolean = true,
     /** the answer to ENQ (^E) */
     val answerback: String = "",
@@ -99,6 +101,7 @@ class TerminalSettingsStore(private val context: Context) {
         val boldBright = booleanPreferencesKey("bold_bright")
         val iceColors = booleanPreferencesKey("ice_colors")
         val localEcho = booleanPreferencesKey("local_echo")
+        val zmodemZstd = booleanPreferencesKey("zmodem_zstd")
         val extraKeys = booleanPreferencesKey("extra_keys")
         val answerback = stringPreferencesKey("answerback")
         val drawBoxes = booleanPreferencesKey("draw_boxes")
@@ -137,6 +140,7 @@ class TerminalSettingsStore(private val context: Context) {
             boldBright = p[K.boldBright] ?: d.boldBright,
             iceColors = p[K.iceColors] ?: d.iceColors,
             localEcho = p[K.localEcho] ?: d.localEcho,
+            zmodemZstd = p[K.zmodemZstd] ?: d.zmodemZstd,
             extraKeys = p[K.extraKeys] ?: d.extraKeys,
             answerback = p[K.answerback] ?: d.answerback,
             drawBoxes = p[K.drawBoxes] ?: d.drawBoxes,
@@ -181,6 +185,7 @@ class TerminalSettingsStore(private val context: Context) {
         p[K.boldBright] = s.boldBright
         p[K.iceColors] = s.iceColors
         p[K.localEcho] = s.localEcho
+        p[K.zmodemZstd] = s.zmodemZstd
         p[K.extraKeys] = s.extraKeys
         p[K.answerback] = s.answerback
         p[K.drawBoxes] = s.drawBoxes

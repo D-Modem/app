@@ -176,7 +176,7 @@ fun TransferBanner(
                 Text(
                     when {
                         t.running -> sizeText(p.bytes) + (if (p.size > 0) " of " + sizeText(p.size) else "") +
-                            (if (p.files > 0) " · ${p.files} done" else "") + (if (p.errors > 0) " · ${p.errors} retried" else "")
+                            (if (p.files > 0) " · ${p.files} done" else "") + (if (p.errors > 0) " · ${p.errors} retried" else "") + (if (p.zstd) " · zstd" else "")
                         !t.sending && t.received.isNotEmpty() -> "In $savedTo"
                         else -> ""
                     },

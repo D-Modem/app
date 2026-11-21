@@ -94,6 +94,7 @@ fun TerminalSettingsSection() {
         Flag("iCE colours (blink as bright background)", s.iceColors) { set { t -> t.copy(iceColors = it) } }
         Flag("Draw line and block characters (gapless ANSI art)", s.drawBoxes) { set { t -> t.copy(drawBoxes = it) } }
         Flag("Local echo", s.localEcho) { set { t -> t.copy(localEcho = it) } }
+        Flag("ZMODEM with zstd (with D-Modem's BBS, GUI and app)", s.zmodemZstd) { set { t -> t.copy(zmodemZstd = it) } }
         // HyperTerminal's ASCII Setup, for what comes
         Flag("Add line feeds to incoming line ends", s.addLineFeeds) { set { t -> t.copy(addLineFeeds = it) } }
         Flag("Force incoming data to 7-bit ASCII", s.sevenBit) { set { t -> t.copy(sevenBit = it) } }

@@ -239,6 +239,16 @@
   - When it receives records, it checks their checksums and writes the
     binary image that they hold (gaps are 0xFF).
 
+  ZMODEM compresses files with zstd when the other side can do it too (the
+  D-Modem BBS and GUI, and this app). Other programs get normal ZMODEM. The
+  app does not compress files that are compressed now (for example, ZIP
+  and JPEG files). On Android, the setting "ZMODEM with zstd" in the
+  terminal settings stops zstd. On iOS, and on Android 9 and earlier, ZMODEM
+  also continues a file that stopped before its end: the app keeps the part,
+  and the next transfer of the same file (the same name and size) continues
+  after it.
+  The specification is `docs/zmodem-zstd.md` in the D-Modem repository.
+
   Plain text is also available. The app sends the bytes of a file without
   change, as if you typed them (to an editor, a BBS, `cat > file`). It saves
   the received data without change until the line is silent for 10 s. On

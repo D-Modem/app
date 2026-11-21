@@ -128,6 +128,9 @@ class Transfer(
     private val onState: (TransferState) -> Unit,
     private val onEnd: (TransferState, ByteArray) -> Unit,
 ) {
+    /** ZMODEM with zstd where the other side can (docs/zmodem-zstd.md of D-Modem): set before it starts */
+    var zstd = true
+
     val io = TransferIo(send)
     @Volatile var state = TransferState(protocol, sending)
         private set
@@ -148,7 +151,7 @@ class Transfer(
     /** files received into [into] ([name]: XMODEM's, which sends none) */
     fun receive(into: Incoming, name: String = "received.bin") = start {
         when (protocol) {
-            Protocol.ZMODEM -> ZModem(io, progress).receive(into)
+            Protocol.ZMODEM -> ZModem(io, progress, zstd = zstd).receive(into)
             Protocol.YMODEM -> XYModem(io, progress).receiveY(into)
             Protocol.YMODEM_G -> XYModem(io, progress).receiveY(into, g = true)
             Protocol.XMODEM, Protocol.XMODEM_1K -> listOf(XYModem(io, progress).receiveX(into, name))
@@ -164,7 +167,7 @@ class Transfer(
      */
     fun send(files: List<Outgoing>, lineDelayMs: Long = 0, charDelayMs: Long = 0) = start {
         when (protocol) {
-            Protocol.ZMODEM -> ZModem(io, progress).send(files)
+            Protocol.ZMODEM -> ZModem(io, progress, zstd = zstd).send(files)
             Protocol.YMODEM -> XYModem(io, progress).sendY(files)
             Protocol.YMODEM_G -> XYModem(io, progress).sendY(files, g = true)
             Protocol.XMODEM -> XYModem(io, progress).sendX(files.first(), oneK = false)
