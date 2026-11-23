@@ -2,7 +2,7 @@
 
 # D-Modem app
 
-A dial-up modem in your pocket: the D-Modem app for Android and iOS.
+Android/iOS app: V.92 over a SIP call.
 
 The app is a V.92/V.90/V.91, V.34 and class 1 fax modem. Its telephone
 line is the G.711 call of a SIP account, through Wi-Fi or mobile data. The
