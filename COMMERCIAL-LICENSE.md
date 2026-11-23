@@ -5,7 +5,7 @@ under two licenses; you choose one.
 
 ## The GNU Affero General Public License, version 3 (the default)
 
-[LICENSE](LICENSE), AGPL-3.0-only.  Free of charge, for any purpose,
+[COPYING](COPYING), AGPL-3.0-only.  Free of charge, for any purpose,
 commercial ones included, on the AGPL's terms.  In short:
 
 - If you distribute the D-Modem app, modified or not, you give the recipients
