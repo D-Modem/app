@@ -14,9 +14,7 @@
 # Packages: apt's downloads are cached (.github/actions/apt), keyed on
 # the runner image and the package list.
 #
-# D-Modem is a private submodule: the DMODEM_TOKEN secret is a token
-# that can read it (a fine-grained personal access token with Contents:
-# read on D-Modem/D-Modem).
+# D-Modem is a public submodule: the checkout needs no token.
 #
 # Signing: ANDROID_KEYSTORE_BASE64 (a PKCS12 keystore, base64),
 # ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD
@@ -57,7 +55,6 @@ jobs:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
-          token: ${{ secrets.DMODEM_TOKEN || github.token }}
 
       - name: Every function documented
         run: python3 tools/doc_check.py
@@ -73,7 +70,6 @@ jobs:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
-          token: ${{ secrets.DMODEM_TOKEN || github.token }}
 
       - uses: actions/setup-java@v5
         with:
@@ -148,7 +144,6 @@ jobs:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
-          token: ${{ secrets.DMODEM_TOKEN || github.token }}
 
       - uses: actions/setup-java@v5
         with:
@@ -209,7 +204,6 @@ jobs:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
-          token: ${{ secrets.DMODEM_TOKEN || github.token }}
 
       - name: Packages
         uses: ./.github/actions/apt
@@ -280,7 +274,6 @@ jobs:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
-          token: ${{ secrets.DMODEM_TOKEN || github.token }}
 
       - uses: actions/setup-java@v5
         with:

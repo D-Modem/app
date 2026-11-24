@@ -64,8 +64,7 @@ annotations (Kotlin, Swift, shell), or a docstring (Python). C and C++ follow
 the rule of D-Modem. `tools/doc_check.py` lists each function without a
 comment (and fails).
 
-CI (`.github/workflows/android.yml`) runs all three, and that check. It needs
-a `DMODEM_TOKEN` secret that can read the private D-Modem submodule.
+CI (`.github/workflows/android.yml`) runs all three, and that check.
 
 `.github/workflows/d-modem-bump.yml` keeps the submodule on the main of
 D-Modem. It starts when the main branch of D-Modem changes, each day, or
