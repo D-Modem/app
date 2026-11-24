@@ -5,10 +5,9 @@
 # Run workflow), or from D-Modem (a repository_dispatch of type
 # "d-modem-main", for when its main changes).
 #
-# It needs the DMODEM_BUMP_TOKEN secret: a fine-grained personal access
-# token with Contents: read on D-Modem/D-Modem (the private submodule)
-# and Contents: read and write and Pull requests: read and write on
-# D-Modem/app. Not the workflow's own GITHUB_TOKEN: a pull request that
+# It needs the DMODEM_BUMP_TOKEN secret (an organization secret): a
+# fine-grained personal access token with Contents: read and write and
+# Pull requests: read and write on D-Modem/app. Not the workflow's own GITHUB_TOKEN: a pull request that
 # token opens starts no other workflow, so Android's checks would never
 # run on it. Without the secret the run says so and stops.
 #

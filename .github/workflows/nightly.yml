@@ -43,7 +43,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
-      # (the scripts only: not the private submodule)
+      # (the scripts only: not the submodules)
       - uses: actions/checkout@v6
 
       - name: The newest build of main
